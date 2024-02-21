@@ -1,8 +1,6 @@
 import os
-
 import numpy as np
 import pandas as pd
-
 
 def sum_counts(count_str):
     """
@@ -36,20 +34,6 @@ def expand_pivot_merge_sample_strings(df, column_name):
 
     # Merge the pivot table with the original DataFrame
     return df.join(pivot)
-
-
-def get_coordinated_functions(path):
-    """
-    Read gene functions from a file.
-
-    Parameters:
-    path (str): Path to the file.
-
-    Returns:
-    pandas.DataFrame: DataFrame with gene functions.
-    """
-    coordinated_functions = pd.read_csv(os.path.join(path, "gene-functions.txt"), sep="\t")
-    return coordinated_functions
 
 
 def get_dmrs(path):
@@ -101,3 +85,42 @@ def get_sample_from_dmr(path):
         dfs.append(df)
 
     return dfs
+
+
+def get_sample_metadata(file_path):
+    """
+    Load the sample metadata from an Excel file.
+
+    Args:
+    file_path (str): The path to the Excel file containing the sample metadata.
+
+    Returns:
+    pd.DataFrame: A DataFrame containing the loaded sample metadata.
+    """
+    metadata_df = pd.read_excel(file_path)
+    return metadata_df
+
+
+def get_coordinated_functions(genome_name):
+    """
+    Read gene caller and functions from seperate files then intersect.
+
+    Parameters:
+    genome_name (str): Genome name.
+
+    Returns:
+    pandas.DataFrame: DataFrame with gene functions.
+    """
+    # Load data
+    gene_calls = pd.read_csv(f"data/{genome_name}/gene-calls.txt", sep="\t").drop(columns=["source"])
+    function_calls = pd.read_csv(f"data/{genome_name}/function-calls.txt", sep="\t")
+
+    # Ensure efficient data types
+    gene_calls['gene_callers_id'] = gene_calls['gene_callers_id'].astype('int32')
+    function_calls['gene_callers_id'] = function_calls['gene_callers_id'].astype('int32')
+
+    # Merge using efficient indexing
+    coordinated_functions = pd.merge(gene_calls, function_calls, on='gene_callers_id')
+    coordinated_functions['e_value'] = coordinated_functions['e_value'].astype(float)
+
+    return coordinated_functions
