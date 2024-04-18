@@ -1,44 +1,28 @@
 import os
-import numpy as np
-import pandas as pd
+from utils import *
 
-def sum_counts(count_str):
+
+def get_pileup(path):
     """
-    Sum numeric counts from a string column in a DataFrame.
+    Read pileup data from a file.
 
-    Parameters:
-    count_str (pandas.Series): A pandas Series with string values containing numeric counts.
-
-    Returns:
-    pandas.Series: Sum of counts for each row.
+    :param path: Path to .bed file.
+    :type path: str
+    :return: Dataframe of file data
+    :rtype: pandas.DataFrame
     """
-    # Extract numeric values from the string and convert them to numeric type
-    numbers = pd.to_numeric(count_str.str.extractall(r'(\d+)')[0])
-    return numbers.groupby(level=0).sum()
+    pileup = pd.read_csv(path, sep="\t", header=None, names=["chrom", "inclusive start position", "exclusive end position", "modified base code and motif", "score", "strand", "start position2", "end position2", "color", "Nvalid_cov", "fraction modified", "Nmod", "Ncanonical", "Nother_mod", "Ndelete", "Nfail", "Ndiff", "Nnocall"])
 
+    # Drop redundant columns
+    pileup.drop(columns=["score" "start position2", "end position2", "color"], inplace=True)
 
-def expand_pivot_merge_sample_strings(df, column_name):
-    # Split the string, explode into separate rows, and create a new DataFrame
-    exploded = df[column_name].str.split(',').explode()
-    temp_df = exploded.str.split(':', expand=True)
-    temp_df.columns = ['letter', 'value'] if len(temp_df.columns) == 2 else ['letter']
-
-    # Handle rows where value is missing (no colon in the string)
-    temp_df['value'] = temp_df['value'].astype(float) if 'value' in temp_df else np.nan
-
-    # Pivot the table
-    pivot = temp_df.pivot_table(index=temp_df.index, columns='letter', values='value', aggfunc='first')
-
-    # Rename the columns
-    pivot.columns = [f'{column_name}_{col}' for col in pivot.columns]
-
-    # Merge the pivot table with the original DataFrame
-    return df.join(pivot)
+    return pileup
 
 
 def get_dmrs(path):
     """
-    Read DMRs (Differentially Methylated Regions) data from a file.
+    Read DMRs (Differentially Methylated Regions) data from a file, replaces the fractions and count columns with
+    individual columns for each methylation type. Adds a column called comparison to note the samples comapred.
 
     Parameters:
     path (str): Path to the file.
@@ -63,36 +47,17 @@ def get_dmrs(path):
     dmrs = expand_pivot_merge_sample_strings(dmrs, 'samplea_fractions')
     dmrs = expand_pivot_merge_sample_strings(dmrs, 'sampleb_fractions')
 
+    # Remove the string columns
+    dmrs.drop(columns=['samplea_counts', 'sampleb_counts', 'samplea_fractions', 'sampleb_fractions'], inplace=True)
+
+    # Add a column to note the comparison done in this DMR
+    sample_a_name, sample_b_name = os.path.basename(path).replace('.bed', '').split('_')
+    dmrs["comparison"] = f"{sample_a_name}_VS_{sample_b_name}"
+
     return dmrs
 
 
-def get_sample_df_from_dmr(path):
-    # If bed file is empty skip
-    if os.stat(path).st_size == 0:
-        return pd.DataFrame()
-
-    sample_a_name, sample_b_name = os.path.basename(path).replace('.bed', '').split('_')
-    dmrs = get_dmrs(path)
-
-    dfs = []
-    for sample, op_sample in zip(["samplea_", "sampleb_"], ["sampleb_", "samplea_"]):
-
-        df = dmrs.copy()
-        df = df[df.columns.drop(list(df.filter(regex=op_sample)))]
-
-        sample_name = sample_a_name if "samplea_" in sample else sample_b_name
-        op_sample_name = sample_b_name if "samplea_" in sample else sample_a_name
-        df['sample'] = sample_name
-
-        df.rename(columns={col: col.replace(sample, '') for col in df.columns}, inplace=True)
-        df.rename(columns={"score": 'modkit_score_' + op_sample_name}, inplace=True)
-
-        dfs.append(df)
-
-    return dfs
-
-
-def get_sample_metadata(file_path):
+def get_sample_metadata(data_dir):
     """
     Load the sample metadata from an Excel file.
 
@@ -102,6 +67,7 @@ def get_sample_metadata(file_path):
     Returns:
     pd.DataFrame: A DataFrame containing the loaded sample metadata.
     """
+    file_path = os.path.join(data_dir, "sample_metadata.xlsx")
     metadata_df = pd.read_excel(file_path)
     return metadata_df
 

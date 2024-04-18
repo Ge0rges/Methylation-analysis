@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 
+
 def sum_counts(count_str):
     """
     Sum numeric counts from a string column in a DMR DataFrame.
@@ -41,3 +42,15 @@ def expand_pivot_merge_sample_strings(df, column_name):
 
     # Merge the pivot table with the original DataFrame
     return df.join(pivot)
+
+
+def select_best_annotation_row(group):
+    """
+    Helper function to select the row with the lowest e-value per group, and least ambiguous annotation
+    indicating the best functional match.
+
+    :param group: A group of rows from the merged functional annotation DMR DataFrame.
+    """
+    # Add a temporary column to sort by the number of '!!!' splits in accession
+    group['accession_split_len'] = group['accession'].apply(lambda x: len(x.split('!!!')))
+    return group.sort_values(by=['e_value', 'accession_split_len']).iloc[0]
