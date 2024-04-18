@@ -21,7 +21,7 @@ def get_dmr_by_sample_annotated(data_dir, genome_name, bed_files):
     df = add_functional_annotations(dmrs, data_dir, genome_name)
 
     # Dropping all other columns except the ones in columns_to_keep
-    df = df.drop(columns=["name", "gene_callers_id", "direction", "partial", "call_type", "rbs_spacer", "gc_cont",
+    df = df.drop(columns=["name", "gene_callers_id", "direction", "call_type", "rbs_spacer", "gc_cont",
                           "start_codon", "rbs_motif", "accession", "e_value"])
     return df
 
@@ -29,7 +29,7 @@ def get_dmr_by_sample_annotated(data_dir, genome_name, bed_files):
 def add_functional_annotations(dmrs, data_dir, genome_name):
     """
     Add functional annotations to DMRs (Differentially Methylated Regions) by matching DMR positions with
-    genomic annotations to find overlaps.
+    genomic annotations to find overlaps. Drops the "partial" column from the merged DataFrame.
     """
     # Load functional annotations for the specified genome from a data directory
     functions = get_coordinated_functions(data_dir, genome_name)
@@ -44,8 +44,11 @@ def add_functional_annotations(dmrs, data_dir, genome_name):
     # Define a condition for DMRs that actually overlap the annotated regions
     condition = (merged_df['start_x'] >= merged_df['start_y']) & (merged_df['end'] <= merged_df['stop'])
 
+    # Hacky solution, but drop partial because it's a boolean column and we don't need it later
+    merged_df.drop(columns=["partial"], inplace=True)
+
     # For rows not meeting the condition, clear out irrelevant function columns and set default values
-    merged_df.loc[~condition, func_cols] = np.nan
+    merged_df.loc[~condition, func_cols] = pd.NA
     merged_df.loc[~condition, "gene_callers_id"] = -1
     merged_df.loc[~condition, "source"] = "Unannotated"
     merged_df.loc[~condition, "function"] = "Unknown"
@@ -58,7 +61,8 @@ def add_functional_annotations(dmrs, data_dir, genome_name):
 
     # Apply the helper function on groups defined by unique columns, and remove the temporary column afterwards
     unique_cols = ['name', 'gene_callers_id', 'source']
-    merged_df = (merged_df.groupby(unique_cols, as_index=False).apply(select_best_annotation_row)
+    merged_df = (merged_df.groupby(unique_cols, as_index=False)
+                 .apply(select_best_annotation_row, include_groups=False)
                  .drop('accession_split_len', axis=1))
 
     # Ensure that all unique names from the DMRs are still present after merging and that there are no duplicate groups
