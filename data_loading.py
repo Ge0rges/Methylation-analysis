@@ -48,13 +48,14 @@ def get_dmrs(path):
     """
     dmrs = pd.read_csv(path, sep="\t", header=None,
                        names=['chrom', 'start', 'end', 'name', 'score', 'samplea_counts', 'samplea_total',
-                              'sampleb_counts', 'sampleb_total', 'samplea_fractions', 'sampleb_fractions'])
+                              'sampleb_counts', 'sampleb_total', 'samplea_fractions', 'sampleb_fractions', 'samplea_percent_modified', 'sampleb_percent_modified'])
 
     # Convert columns to specified data types
     dmrs = dmrs.astype({'start': 'int', 'end': 'int', 'score': 'float',
                         'samplea_total': 'int', 'sampleb_total': 'int',
                         'samplea_counts': 'str', 'sampleb_counts': 'str',
-                        'samplea_fractions': 'str', 'sampleb_fractions': 'str'})
+                        'samplea_fractions': 'str', 'sampleb_fractions': 'str',
+                        'samplea_percent_modified': 'float', 'sampleb_percent_modified': 'float'})
 
     # Seperate out the samplex_counts and_fractions columns
     dmrs = expand_pivot_merge_sample_strings(dmrs, 'samplea_counts')
@@ -65,7 +66,11 @@ def get_dmrs(path):
     return dmrs
 
 
-def get_sample_from_dmr(path):
+def get_sample_df_from_dmr(path):
+    # If bed file is empty skip
+    if os.stat(path).st_size == 0:
+        return pd.DataFrame()
+
     sample_a_name, sample_b_name = os.path.basename(path).replace('.bed', '').split('_')
     dmrs = get_dmrs(path)
 
@@ -101,7 +106,7 @@ def get_sample_metadata(file_path):
     return metadata_df
 
 
-def get_coordinated_functions(genome_name):
+def get_coordinated_functions(data_dir, genome_name):
     """
     Read gene caller and functions from seperate files then intersect.
 
@@ -112,8 +117,8 @@ def get_coordinated_functions(genome_name):
     pandas.DataFrame: DataFrame with gene functions.
     """
     # Load data
-    gene_calls = pd.read_csv(f"data/{genome_name}/gene-calls.txt", sep="\t").drop(columns=["source"])
-    function_calls = pd.read_csv(f"data/{genome_name}/function-calls.txt", sep="\t")
+    gene_calls = pd.read_csv(f"{data_dir}/{genome_name}/gene-calls.txt", sep=",").drop(columns=["source"])
+    function_calls = pd.read_csv(f"{data_dir}/{genome_name}/function-calls.txt", sep="\t")
 
     # Ensure efficient data types
     gene_calls['gene_callers_id'] = gene_calls['gene_callers_id'].astype('int32')
