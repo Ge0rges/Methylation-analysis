@@ -1,7 +1,6 @@
 import math
 import seaborn as sns
 import matplotlib.pyplot as plt
-from scipy.cluster.hierarchy import linkage, leaves_list
 
 
 plt.style.use('ggplot')
@@ -53,7 +52,7 @@ def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene"):
 def plot_heatmap(heatmap_data, ax, source, index):
     if not heatmap_data.empty:
         # Create color palette
-        cmap = sns.color_palette("rocket", as_cmap=True)
+        cmap = sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True)#sns.color_palette("rocket", as_cmap=True)
         cmap.set_bad('lightgray')
 
         # Plot heatmap
