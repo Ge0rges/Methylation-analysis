@@ -13,6 +13,10 @@ def get_dmr_by_sample_annotated(data_dir, genome_name, bed_files):
     # Concatenate the list of dmrs for this sample into a single dataframe
     dmrs = pd.concat(dmrs, ignore_index=True)
 
+    # Handle empty
+    if dmrs.empty:
+        return dmrs
+
     # Add functional annotation
     df = add_functional_annotations(dmrs, data_dir, genome_name)
 
@@ -89,10 +93,20 @@ def run_dmr_analysis(genome_name, dmr_type):
 
     methyl_data = get_dmr_by_sample_annotated(data_dir, genome_name, bed_files)
 
+    # Handle empty
+    if methyl_data.empty:
+        print(f"No DMRs found for {genome_name}")
+        return
+
     # Keep only statistically significant DMRs
     methyl_data['num_tests'] = methyl_data.groupby('comparison')['comparison'].transform('count')
     methyl_data['test_result'] = methyl_data.apply(lambda x: likelihood_ratio_test(x['score'], x['num_tests']), axis=1)
     methyl_data = methyl_data[methyl_data['test_result']]
+
+    # Handle empty
+    if methyl_data.empty:
+        print(f"No stastistically significant DMRs found for {genome_name}")
+        return
 
     # Plot
     plot_all_sources_heatmaps(methyl_data, genome_name, heatmap_type=dmr_type)
