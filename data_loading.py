@@ -52,6 +52,8 @@ def get_dmrs(path):
 
     # Add a column to note the comparison done in this DMR
     sample_a_name, sample_b_name = os.path.basename(path).replace('.bed', '').split('_')
+    sample_a_name = barcode_sample_map[sample_a_name.title()]
+    sample_b_name = barcode_sample_map[sample_b_name.title()]
     dmrs["comparison"] = f"{sample_a_name}_VS_{sample_b_name}"
 
     return dmrs

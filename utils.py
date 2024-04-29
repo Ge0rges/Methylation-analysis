@@ -1,6 +1,29 @@
 import pandas as pd
 import numpy as np
 
+barcode_sample_map = {"Barcode01": "S2-1", "Barcode02": "S2-2", "Barcode03": "S2-3",
+                      "Barcode04": "Control", "Barcode05": "S3-1", "Barcode06": "S3-2",
+                      "Barcode07": "S3-3", "Barcode08": "S4-1", "Barcode09": "S4-2",
+                      "Barcode10": "S4-3", "Barcode11": "IC3-1 (30 cm)", "Barcode12": "IC3-2 (160 cm)",
+                      "Barcode13": "IC3-3 (205 cm)", "Barcode14": "IC3-4 (70 cm)", "Top": "Sackhole Top (40 cm)",
+                      "Bottom": "Sackhole Bottom (160cm)", "Middle": "Sackhole Middle (70 cm)", "Control": "Control"}
+
+read_counts = {
+    "Barcode01": 1093788,
+    "Barcode02": 296042,
+    "Barcode03": 5812056,
+    "Barcode04": 57626,
+    "Barcode05": 344880,
+    "Barcode06": 180208,
+    "Barcode07": 1056185,
+    "Barcode08": 178883,
+    "Barcode09": 1776313,
+    "Barcode10": 1163651,
+    "Barcode11": 41324,
+    "Barcode12": 591165,
+    "Barcode13": 39685,
+    "Barcode14": 96793,
+}
 
 def sum_counts(count_str):
     """

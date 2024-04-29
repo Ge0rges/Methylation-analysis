@@ -75,7 +75,7 @@ def add_functional_annotations(dmrs, data_dir, genome_name):
     return merged_df
 
 
-def run_dmr_analysis(genome_name, dmr_type):
+def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     """
     Run the DMR analysis for a specific genome, DMR type, and source.
 
@@ -88,7 +88,6 @@ def run_dmr_analysis(genome_name, dmr_type):
     :return: Returns the methyl_data dataframe and saves a PDF of the plot.
     :rtype: pandas.DataFrame
     """
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data/methylation")
 
     # Load the data from the bed files
     bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name, dmr_type), "*.bed"))
@@ -113,11 +112,19 @@ def run_dmr_analysis(genome_name, dmr_type):
         return
 
     # Plot
-    plot_all_sources_heatmaps(methyl_data, genome_name, heatmap_type=dmr_type)
+    plot_all_sources_heatmaps(methyl_data, genome_name, heatmap_type=dmr_type, fig_savepath=fig_savepath)
 
 
 if __name__ == "__main__":
     # For each folder in the data directory
-    for genome in os.listdir("data/methylation"):
+    print("Running DMR analysis at coverage 5")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data/methylation_5")
+    for genome in os.listdir(data_dir):
         # Run the DMR analysis for the genome
-        run_dmr_analysis(genome, "dmr_by_gene")
+        run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="plots_5")
+
+    print("Running DMR analysis at coverage 10")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data/methylation_10")
+    for genome in os.listdir(data_dir):
+        # Run the DMR analysis for the genome
+        run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="plots_10")

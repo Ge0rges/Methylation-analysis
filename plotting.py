@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 plt.style.use('ggplot')
 
 
-def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene"):
+def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene", fig_savepath="plots"):
     """
     Plot heatmaps in a figure where each subfigure corresponds to a genome, and each subplot within a subfigure corresponds to a source.
     In each heatmap, rows represent functions, columns represent samples, with cell values representing methylation measures.
@@ -42,7 +42,7 @@ def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene"):
 
     # Save to file
     # plt.tight_layout()
-    genome_savepath = f"plots/{heatmap_type}_{genome_name}.pdf"
+    genome_savepath = f"{fig_savepath}/{heatmap_type}_{genome_name}.pdf"
     plt.savefig(genome_savepath, format='pdf', bbox_inches='tight')
 
     # Close the figure to free up memory
