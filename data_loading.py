@@ -14,7 +14,7 @@ def get_pileup(path):
     pileup = pd.read_csv(path, sep="\t", header=None, names=["chrom", "inclusive start position", "exclusive end position", "modified base code and motif", "score", "strand", "start position2", "end position2", "color", "Nvalid_cov", "fraction modified", "Nmod", "Ncanonical", "Nother_mod", "Ndelete", "Nfail", "Ndiff", "Nnocall"])
 
     # Drop redundant columns
-    pileup.drop(columns=["score" "start position2", "end position2", "color"], inplace=True)
+    pileup.drop(columns=["score", "start position2", "end position2", "color"], inplace=True)
 
     return pileup
 
