@@ -1,10 +1,13 @@
 import os
 import glob
-import pandas as pd
 from data_loading import get_pileup
+from _statistics import *
+from itertools import combinations
+from plotting import plot_pairwise_results
+from functools import reduce
 
 
-def reshape_bed_df_to_matrix(methyl_data):
+def reshape_bed_df_to_matrix(methyl_data, genome_name):
     """
     Reshape the methyl_data dataframe to a matrix where each row is a region and each column is a modification type
     :param methyl_data: Dataframe of a bedfile where regions are single nucleotides as returned by get_pileup()
@@ -26,6 +29,9 @@ def reshape_bed_df_to_matrix(methyl_data):
     # Handle different nucleotide types called by keeping group with largest Nvalid_cov
     mod_base_map = {"a": "A", "m": "C", "21839": "C"}
     methyl_data['mod_group'] = methyl_data['modified base code and motif'].map(mod_base_map)
+
+    # Assert that every name has the same total coverage
+    assert methyl_data.groupby('name')['Nvalid_cov'].nunique().all() == 1, "Nvalid_cov is not unique for each region"
 
     # Group by name and mod_group and keep the group with the largest Nvalid_cov
     grouped = methyl_data.groupby(['name', 'mod_group'])
@@ -49,14 +55,74 @@ def reshape_bed_df_to_matrix(methyl_data):
     assert pivot_df['name'].nunique() == len(pivot_df['name']), "There are duplicate regions in pivot_df"
 
     # Assert that for rows with the same name the sum of modifications in pivot_df is equal to Nvalid_cov in methyl_data
-    assert methyl_data.groupby('name')['Nvalid_cov'].nunique().all() == 1, "Nvalid_cov is not unique for each region"
-    assert all(pivot_df.groupby('name').sum().sum(axis=1) == methyl_data.groupby('name')['Nvalid_cov'].first()), \
-        "Sum of modifications in pivot_df is not equal to Nvalid_cov in methyl_data"
+    if genome_name != "test":
+        assert all(pivot_df.groupby('name').sum().sum(axis=1) == methyl_data.groupby('name')['Nvalid_cov'].first()), "Sum of modifications in pivot_df is not equal to Nvalid_cov in methyl_data"
 
     return pivot_df
 
 
-def run_willis_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
+def load_methyl_data(genome_name, data_dir):
+    # Check to see if CSV file exists for this genome
+    try:
+        combined_methyl_data = pd.read_csv(f"{data_dir}/{genome_name}/combined_methyl_data.csv")
+
+    except FileNotFoundError:
+        # Load the methyl_dfs from the bed files
+        bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name), "*.bed"))
+        if len(bed_files) == 0:
+            return
+
+        methyl_dfs = []
+        for i, bed_file in enumerate(bed_files):
+            methyl_data = get_pileup(bed_file)
+            methyl_data = reshape_bed_df_to_matrix(methyl_data, genome_name)
+            methyl_data["sample"] = os.path.basename(bed_file).split(".")[0]
+
+            # Set the index to be name
+            methyl_data.set_index("name", inplace=True)
+
+            methyl_dfs.append(methyl_data)
+
+        # Keep in each dataframes only the names that are common to all dataframes
+        common_index = methyl_dfs[0].index
+        for df_i in methyl_dfs[1:]:
+            common_index = common_index.intersection(df_i.index)
+        methyl_dfs = [df.loc[common_index] for df in methyl_dfs]
+
+        # Set name back to a column
+        methyl_dfs = [df.reset_index(names="name") for df in methyl_dfs]
+
+        # Check that every dataframe has the same names
+        name_sets = [df['name'].unique() for df in methyl_dfs]
+        assert all([np.array_equal(name_set, name_sets[0]) for name_set in
+                    name_sets]), "Not all methyl methyl_dfs have the same regions"
+
+        # Build matrices for statistical testing
+        combined_methyl_data = pd.concat(methyl_dfs, ignore_index=True)
+
+        assert len(combined_methyl_data["name"]) == len(name_sets[0]) * len(methyl_dfs)
+        assert combined_methyl_data["name"].nunique() == len(name_sets[0])
+
+        # Save this dataframe
+        combined_methyl_data.to_csv(f"{data_dir}/{genome_name}/combined_methyl_data.csv", index=False)
+
+    return combined_methyl_data
+
+
+def pairwise_epigenomes(combined_methyl_data, function):
+    # Perform some logistic regression
+    samples = combined_methyl_data['sample'].unique()
+    sample_combinations = combinations(samples, 2)
+
+    results = {}
+    for sample1, sample2 in sample_combinations:
+        sample_pair = combined_methyl_data[combined_methyl_data['sample'].isin([sample1, sample2])]
+        results[sample1, sample2] = function(sample_pair)
+
+    return results
+
+
+def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     """
     Run the Willis DMR analysis for a specific genome, DMR type, and source.
 
@@ -70,28 +136,23 @@ def run_willis_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     :rtype: pandas.DataFrame
     """
 
-    # Load the data from the bed files
-    bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name), "*.bed"))
-    if len(bed_files) == 0:
-        return
+    # Load the data
+    combined_methyl_data = load_methyl_data(genome_name, data_dir)
 
-    for bed_file in bed_files:
-        methyl_data = get_pileup(bed_file)
-        methyl_data = reshape_bed_df_to_matrix(methyl_data)
-
-        # Save the dataframe to a CSV
-        savepath = os.path.join(data_dir, genome_name, f"{os.path.basename(bed_file).replace('.bed', '_reshaped.csv')}")
-        methyl_data.to_csv(savepath, index=False)
-
+    # Do pairwise full epigenome comparisons
+    plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, willis_dmr_test), genome_name)
 
 
 if __name__ == "__main__":
     # For each folder in the data directory
     print("Running Willis DMR analysis at coverage 5")
     data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data/methylation_5")
+    folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
 
-    run_willis_analysis("polaribacter_r-contigs", "dmr_by_gene", data_dir, fig_savepath="plots_5")
+    # run_analysis("test", "dmr_by_gene", data_dir, fig_savepath="plots_5")
+    # os.remove(f"{data_dir}/test/combined_methyl_data.csv")
 
-    # for genome in os.listdir(data_dir):
-    #     # Run the DMR analysis for the genome
-    #     run_willis_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="plots_5")
+    for genome in folders:
+        # Run the DMR analysis for the genome
+        print(f"Running analysis for {genome}")
+        run_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="plots_5")

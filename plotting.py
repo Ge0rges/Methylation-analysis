@@ -1,9 +1,37 @@
 import math
+import numpy as np
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
 
 plt.style.use('ggplot')
+
+
+def plot_pairwise_results(results, genome):
+    # Create a list of sample combinations
+    sample_combinations = results.keys()
+    samples = list(set([sample for sample_pair in sample_combinations for sample in sample_pair]))
+
+    # Create an empty DataFrame
+    df = pd.DataFrame(columns=samples, index=samples)
+
+    # Fill in the DataFrame with the results
+    for sample1, sample2 in sample_combinations:
+        df.loc[sample1, sample2] = results[(sample1, sample2)]
+        df.loc[sample2, sample1] = results[(sample1, sample2)]
+
+    # Replace the boolean values with 1s and 0s
+    df = df.replace({np.nan: False}).astype(int)
+
+    # Sort the datframe by row names
+    df = df.sort_index(axis=0).sort_index(axis=1)
+
+    # Plotting the heatmap
+    sns.heatmap(df, annot=True, cmap='binary', cbar=False, linewidths=.5)
+    plt.title(f"Pairwise similarity of {genome}")
+    plt.tight_layout()
+    plt.show()
 
 
 def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene", fig_savepath="plots"):

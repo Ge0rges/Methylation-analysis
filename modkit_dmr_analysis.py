@@ -1,6 +1,6 @@
 import glob
 from plotting import *
-from statistics import *
+from _statistics import *
 from data_loading import *
 
 
@@ -103,7 +103,7 @@ def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
 
     # Keep only statistically significant DMRs
     methyl_data['num_tests'] = methyl_data.groupby('comparison')['comparison'].transform('count')
-    methyl_data['test_result'] = methyl_data.apply(lambda x: likelihood_ratio_test(x['score'], x['num_tests']), axis=1)
+    methyl_data['test_result'] = methyl_data.apply(lambda x: modkit_llr(x['score'], x['num_tests']), axis=1)
     methyl_data = methyl_data[methyl_data['test_result']]
 
     # Handle empty
