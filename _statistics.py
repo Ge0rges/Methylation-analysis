@@ -97,7 +97,7 @@ def willis_dmr_test(combined_methyl_data):
 
     # Create I hat Y
     I_hat_Y = np.zeros((b, b))
-    for j in range(0, J-p):
+    for j in range(0, J-1):
         # Diagonal submatrix for j == k
         submatrix_diag = np.zeros((p + 1, p + 1))
         for i in range(0, n):
@@ -113,7 +113,7 @@ def willis_dmr_test(combined_methyl_data):
         I_hat_Y[row_start:row_end, col_start:col_end] = submatrix_diag
 
         # Off-diagonal submatrices for j != k
-        for k in range(0, J-p):
+        for k in range(0, J-1):
             if j != k:
                 submatrix_off_diag = np.zeros((p + 1, p + 1))
                 for i in range(n):
