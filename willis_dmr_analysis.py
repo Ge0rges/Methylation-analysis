@@ -4,7 +4,6 @@ from data_loading import get_pileup
 from _statistics import *
 from itertools import combinations
 from plotting import plot_pairwise_results
-from functools import reduce
 
 
 def reshape_bed_df_to_matrix(methyl_data, genome_name):
@@ -139,8 +138,15 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     # Load the data
     combined_methyl_data = load_methyl_data(genome_name, data_dir)
 
-    # Do pairwise full epigenome comparisons
-    plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, willis_dmr_test), genome_name)
+    # Paired t-test
+    #plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, paired_t_test), genome_name + " using paired t-test")
+
+    # Keep first 100 rows of each sample
+    combined_methyl_data = combined_methyl_data.groupby('sample').head(100)
+    print("WARNING: in debug mode cropped data")
+
+    # Rao score
+    plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, willis_dmr_test), genome_name + " using rao score")
 
 
 if __name__ == "__main__":

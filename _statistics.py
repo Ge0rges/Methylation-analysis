@@ -1,9 +1,124 @@
 import numpy as np
 import pandas as pd
-from scipy.stats import chi2
+import scipy.stats as stats
 from scipy.optimize import minimize
 import statsmodels.api as sm
 
+
+def logistic_regression_pvalue(df, p_value_threshold=0.05):
+    """
+    Multinomial Logistic Regression for Methylation Types Analysis
+
+    :param df:
+    :type df:
+    :return:
+    :rtype:
+    """
+
+    # Extract feature columns (all columns except the last one which is 'sample'), convert names to categories
+    X = df.iloc[:, :-1]
+    X['name'] = X['name'].astype('category').cat.codes
+
+    # Extract target column (sample group)
+    y = df['sample']
+
+    # Add constant to X_train for intercept
+    sm.add_constant(X)
+
+    # Fit the logistic regression model
+    model = sm.MNLogit(y, X)
+    result = model.fit()
+
+    return result.llr_pvalue < p_value_threshold
+
+
+def r_rao_score_test(df, p_value_threshold=0.05):
+    import rpy2.robjects as robjects
+    from rpy2.robjects import pandas2ri
+
+    # Ensure the 'sample' column is treated as a categorical variable
+    df['sample'] = df['sample'].astype('category').cat.codes
+    df['name'] = df['name'].astype('category').cat.codes
+
+    df[df.columns] = df[df.columns].astype(int)
+
+    # Define the R function for fitting the model and performing the Rao score test
+    r_script = """
+    function(df) {
+        library(VGAM)
+
+        # Convert 'sample' to a factor
+        df$sample <- as.factor(df$sample)
+
+        # Fit the multinomial logit model
+        fit <- vglm(cbind(`21839`, a, m, Ncanonical) ~ sample, family = multinomial, data = df)
+
+        # Extracting the score vector and Fisher information matrix
+        score_vector <- score(fit)
+        fisher_info_matrix <- vcov(fit, unweighted = FALSE)
+
+        # Compute the test statistic
+        test_statistic <- t(score_vector) %*% solve(fisher_info_matrix) %*% score_vector
+
+        # Compute the p-value
+        df <- length(coef(fit))  # degrees of freedom
+        p_value <- pchisq(test_statistic, df = df, lower.tail = FALSE)
+
+        # Return results as a list
+        return(list(test_statistic = test_statistic, df = df, p_value = p_value))
+    }
+    """
+
+    # Convert the pandas DataFrame to R DataFrame
+    with (robjects.default_converter + pandas2ri.converter).context():
+        r_combined_df = robjects.conversion.get_conversion().py2rpy(df)
+
+        # Create the R function
+        r_function = robjects.r(r_script)
+
+        # Call the R function with the combined DataFrame
+        result = r_function(r_combined_df)
+
+        # Extract results
+        test_statistic = result.rx2('test_statistic')[0]
+        degrees_of_freedom = result.rx2('df')[0]
+        p_value = result.rx2('p_value')[0]
+
+        # Print results
+        print(f"Rao Score Test Statistic: {test_statistic}")
+        print(f"Degrees of Freedom: {degrees_of_freedom}")
+        print(f"P-value: {p_value}")
+
+    return p_value < p_value_threshold
+
+
+def willis_dmr_test_r(combined_methyl_data):
+    import rpy2.robjects as robjects
+    from rpy2.robjects import numpy2ri
+    from rpy2.robjects import default_converter
+
+    Y = combined_methyl_data.drop(columns=["name", "sample"])
+    X = pd.get_dummies(combined_methyl_data["sample"], dtype=int)
+
+    # Check X, Y and combined_methyl_data have the same number of rows
+    assert X.shape[0] == Y.shape[0] == combined_methyl_data.shape[
+        0], "X, Y and combined_methyl_data have different number of rows"
+
+    # Check that for any row the value of sample in combined_methyl_data is True in the corresponding column in X
+    for index, row in combined_methyl_data.iterrows():
+        sample_value = row["sample"]
+        assert X.loc[index, sample_value] == 1, f"One-hot encoding failed for row {index}"
+        assert X.loc[
+                   index, X.columns != sample_value].sum() == 0, f"One-hot encoding failed for row {index}: More than one column has value 1"
+
+    # Call R function
+    r = robjects.r
+    r['source']('R/get_multinom_score.R')
+    np_cv_rules = default_converter + numpy2ri.converter
+    with np_cv_rules.context():
+        get_multinom_score = robjects.globalenv['get_multinom_score']
+        result = get_multinom_score(np.array(X), np.array(Y), strong=False, j=0)
+    return result
 
 
 def willis_dmr_test(combined_methyl_data):
@@ -142,7 +257,7 @@ def willis_dmr_test(combined_methyl_data):
 
     # Calculate p_value
     df = p * (J - 1)  # Degrees of freedom
-    p_value = chi2.sf(t_strong, df)
+    p_value = stats.chi2.sf(t_strong, df)
 
     return p_value
 
@@ -163,3 +278,32 @@ def modkit_llr(modkit_score, num_tests, alpha=0.05):
     raw_p_value = chi2.sf(test_statistic, 2)
     corrected_p_value = min(raw_p_value * num_tests, 1.0)
     return corrected_p_value < alpha
+
+
+def paired_t_test(df, p_value_threshold=0.05):
+    """
+    Perform a paired t-test on the methylation data.
+
+    Parameters:
+    df (pd.DataFrame): The DataFrame containing the methylation data.
+
+    Returns:
+    Bool: Wehether any one methylation column is different.
+    """
+
+    # Extract the two samples
+    samples = df['sample'].unique()
+    assert len(samples) == 2, "The DataFrame must contain exactly two samples for a paired t-test"
+
+    # Do a paired t-test for each methylation column
+    p_values = []
+    for column in df.columns[1:-1]:
+        sample1 = df[df['sample'] == samples[0]][column]
+        sample2 = df[df['sample'] == samples[1]][column]
+
+        # Perform the t-test
+        _, p_value = stats.ttest_rel(sample1, sample2)
+        p_values.append((column, p_value < p_value_threshold))
+
+    # If any -_values are significant return true
+    return any([p_value for _, p_value in p_values])
