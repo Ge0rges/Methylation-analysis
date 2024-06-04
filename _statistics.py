@@ -37,35 +37,36 @@ def r_rao_score_test(df, p_value_threshold=0.05):
     from rpy2.robjects import pandas2ri
 
     # Ensure the 'sample' column is treated as a categorical variable
-    df['sample'] = df['sample'].astype('category').cat.codes
-    df['name'] = df['name'].astype('category').cat.codes
+    df.loc[:, 'sample'] = df['sample'].astype('category').cat.codes
+    df.loc[:, 'name'] = df['name'].astype('category').cat.codes
 
-    df[df.columns] = df[df.columns].astype(int)
+    df = df.astype(int)
 
     # Define the R function for fitting the model and performing the Rao score test
     r_script = """
     function(df) {
         library(VGAM)
+        library(data.table)
+        
+        # Convert data frame to data table for faster processing
+        df <- as.data.table(df)
+        
+        # Ensure 'sample' is a factor
+        df[, sample := as.factor(sample)]
+        
+        # Fit the multinomial logit model in parallel
+        print("Starting regression...")
+        fit <- vglm(cbind(`21839`, a, m, Ncanonical) ~ sample, family = multinomial, data = df, parallel = TRUE)
 
-        # Convert 'sample' to a factor
-        df$sample <- as.factor(df$sample)
-
-        # Fit the multinomial logit model
-        fit <- vglm(cbind(`21839`, a, m, Ncanonical) ~ sample, family = multinomial, data = df)
-
-        # Extracting the score vector and Fisher information matrix
-        score_vector <- score(fit)
-        fisher_info_matrix <- vcov(fit, unweighted = FALSE)
-
-        # Compute the test statistic
-        test_statistic <- t(score_vector) %*% solve(fisher_info_matrix) %*% score_vector
-
-        # Compute the p-value
-        df <- length(coef(fit))  # degrees of freedom
-        p_value <- pchisq(test_statistic, df = df, lower.tail = FALSE)
-
-        # Return results as a list
-        return(list(test_statistic = test_statistic, df = df, p_value = p_value))
+        # Extracting the score vector and p values
+        # print("Getting score...")
+        # score_vector <- score.stat(fit)
+        print("Getting p values...")
+        p_values <- summary(fit, score0 = TRUE)@coef3[, "Pr(>|z|)"]
+        print("Done")
+        
+        # Print p-values
+        return(p_values)
     }
     """
 
@@ -80,16 +81,9 @@ def r_rao_score_test(df, p_value_threshold=0.05):
         result = r_function(r_combined_df)
 
         # Extract results
-        test_statistic = result.rx2('test_statistic')[0]
-        degrees_of_freedom = result.rx2('df')[0]
-        p_value = result.rx2('p_value')[0]
+        p_value = result
 
-        # Print results
-        print(f"Rao Score Test Statistic: {test_statistic}")
-        print(f"Degrees of Freedom: {degrees_of_freedom}")
-        print(f"P-value: {p_value}")
-
-    return p_value < p_value_threshold
+    return all(p_value < p_value_threshold)
 
 
 def willis_dmr_test_r(combined_methyl_data):
