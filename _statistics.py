@@ -15,14 +15,19 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     :rtype:
     """
     # Convert names to categories
-    df.iloc[:, 1] = df['name'].astype('category').cat.codes
+    df.iloc[:, 0] = df['name'].astype('category').cat.codes
     df.iloc[:, -1] = df['sample'].astype('category').cat.codes
 
     # assert that all rows have at least 1 methylation of any type
     assert all(df.iloc[:, 1:-1].sum(axis=1) > 0), "All rows must have at least 1 methylation of any type"
 
-    # Turn the count table into hot one observations
-    new_rows = []
+    # Convert each count to own row
+    num_cols = df.columns[1:-1]
+    a = df[num_cols].to_numpy()
+    idx = np.repeat(np.arange(a.shape[0]), a.sum(1))
+    cols = np.repeat(np.tile(np.arange(a.shape[1]), a.shape[0]), a.flat)
+    b = np.zeros((len(idx), len(num_cols)), dtype=int)
+    b[np.arange(len(idx)), cols] = 1
 
     for index, row in df.iterrows():
         first_val = row.iloc[0]
