@@ -4,7 +4,6 @@ import scipy.stats as stats
 from scipy.optimize import minimize
 import statsmodels.api as sm
 
-
 def logistic_regression_pvalue(df, p_value_threshold=0.05):
     """
     Multinomial Logistic Regression for Methylation Types Analysis
@@ -17,6 +16,9 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     # Convert names to categories
     df.iloc[:, 0] = df['name'].astype('category').cat.codes
     df.iloc[:, -1] = df['sample'].astype('category').cat.codes
+
+    df['sample'] = df['sample'].astype(int)
+    df['name'] = df['name'].astype(int)
 
     # assert that all rows have at least 1 methylation of any type
     assert all(df.iloc[:, 1:-1].sum(axis=1) > 0), "All rows must have at least 1 methylation of any type"
@@ -35,6 +37,12 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     # Get features
     X = df['name'] + df['sample']
     y = df.iloc[:, 1:-1]
+
+    del df
+    del a
+    del b
+    del cols
+    del idx
 
     # Add constant to X_train for intercept
     sm.add_constant(X)
