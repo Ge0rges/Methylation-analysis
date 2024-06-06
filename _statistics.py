@@ -15,24 +15,22 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     :rtype:
     """
     # Convert names to categories
-    df.iloc[:, 1] = df['name'].astype('category').cat.codes
+    df.iloc[:, 0] = df['name'].astype('category').cat.codes
     df.iloc[:, -1] = df['sample'].astype('category').cat.codes
 
     # assert that all rows have at least 1 methylation of any type
     assert all(df.iloc[:, 1:-1].sum(axis=1) > 0), "All rows must have at least 1 methylation of any type"
 
-    # Turn the count table into hot one observations
-    new_rows = []
+    # Convert each count to own row
+    num_cols = df.columns[1:-1]
+    a = df[num_cols].to_numpy()
+    idx = np.repeat(np.arange(a.shape[0]), a.sum(1))
+    cols = np.repeat(np.tile(np.arange(a.shape[1]), a.shape[0]), a.flat)
+    b = np.zeros((len(idx), len(num_cols)), dtype=int)
+    b[np.arange(len(idx)), cols] = 1
 
-    for index, row in df.iterrows():
-        first_val = row.iloc[0]
-        last_val = row.iloc[-1]
-        middle_vals = row.iloc[1:-1].astype(int)
-        for i in range(len(middle_vals)):
-            new_data = [first_val] + [1 if i == j else 0 for j in range(len(middle_vals))] + [last_val]
-            new_rows.extend([new_data] * middle_vals.iloc[i])
-
-    df1 = pd.DataFrame(new_rows, columns=df.columns)
+    df = df.iloc[idx]
+    df.loc[:, num_cols] = b
 
     # Get features
     X = df['name'] + df['sample']
@@ -157,22 +155,24 @@ def willis_dmr_test(combined_methyl_data):
     # Define P_ij
     def P_ij(theta_hat, i, j):
         if j < J - 1:
-            numerator = np.exp(theta_hat.T[j * (p+1)] + X.T[i] @ theta_hat.T[j * (p+1) + 1:(j+1)*(p+1)])
+            numerator = np.exp(theta_hat.T[j * (p + 1)] + X.T[i] @ theta_hat.T[j * (p + 1) + 1:(j + 1) * (p + 1)])
             denominator = 1
-            for k in range(0, J-1):
-                denominator += np.exp(theta_hat.T[k * (p+1)] + X.T[i] @ theta_hat.T[k * (p+1) + 1:(k+1)*(p+1)])
+            for k in range(0, J - 1):
+                denominator += np.exp(
+                    theta_hat.T[k * (p + 1)] + X.T[i] @ theta_hat.T[k * (p + 1) + 1:(k + 1) * (p + 1)])
 
             return numerator / denominator
 
         elif j == J - 1:
             denominator = 1
-            for k in range(0, J-1):
-                denominator += np.exp(theta_hat.T[k * (p+1)] + X.T[i] @ theta_hat.T[k * (p+1) + 1:(k+1)*(p+1)])
-            return 1/denominator
+            for k in range(0, J - 1):
+                denominator += np.exp(
+                    theta_hat.T[k * (p + 1)] + X.T[i] @ theta_hat.T[k * (p + 1) + 1:(k + 1) * (p + 1)])
+            return 1 / denominator
 
     # Define the likelihood function to be maximized
     def likelihood_vectorized(theta):
-        theta_hat = theta.reshape((J-1, p+1))
+        theta_hat = theta.reshape((J - 1, p + 1))
 
         intercepts = theta_hat[:, 0]
         coefficients = theta_hat[:, 1:]
@@ -192,26 +192,27 @@ def willis_dmr_test(combined_methyl_data):
 
     # Calculate score function
     s_theta = np.zeros(b)  # (J - 1) * (p + 1)
-    for j in range(0, J-1):
+    for j in range(0, J - 1):
         for i in range(0, n):
             Ni = np.sum(Y[i])
             X_prime = np.hstack([1, X.T[i]]).T
             # This give a p+1 vector the which corresponds to the
             # (j − 1)(p + 1) + 1, (j − 1)(p + 1) + 2, . . . , (j − 1)(p + 1) + p, j(p + 1)-th elements of S
             matrix = (Y[i, j] - Ni * P_ij(theta_hat, i, j)) * X_prime.T
-            s_theta[j*(p+1):(j+1)*(p+1)] += matrix
+            s_theta[j * (p + 1):(j + 1) * (p + 1)] += matrix
 
     # Initialize D hat Y
     D_hat_Y = np.zeros((b, b))
 
     # For rows (j − 1)(p + 1) + 1 through j(p + 1) and columns (k − 1)(p + 1) + 1 through j(k + 1), populate this submatrix
-    for j in range(0, J-1):
-        for k in range(0, J-1):
-            submatrix = np.zeros((p+1, p+1))
+    for j in range(0, J - 1):
+        for k in range(0, J - 1):
+            submatrix = np.zeros((p + 1, p + 1))
             for i in range(0, n):
                 Ni = np.sum(Y[i])
                 X_prime = np.hstack([1, X.T[i]]).T
-                submatrix += (Y[i, j] - Ni*P_ij(theta_hat, i, j)) * (Y[i, k] - Ni*P_ij(theta_hat, i, k)) * X_prime.T @ X_prime
+                submatrix += (Y[i, j] - Ni * P_ij(theta_hat, i, j)) * (
+                            Y[i, k] - Ni * P_ij(theta_hat, i, k)) * X_prime.T @ X_prime
 
             row_start = j * (p + 1)
             row_end = (j + 1) * (p + 1)
@@ -222,7 +223,7 @@ def willis_dmr_test(combined_methyl_data):
 
     # Create I hat Y
     I_hat_Y = np.zeros((b, b))
-    for j in range(0, J-1):
+    for j in range(0, J - 1):
         # Diagonal submatrix for j == k
         submatrix_diag = np.zeros((p + 1, p + 1))
         for i in range(0, n):
@@ -238,7 +239,7 @@ def willis_dmr_test(combined_methyl_data):
         I_hat_Y[row_start:row_end, col_start:col_end] = submatrix_diag
 
         # Off-diagonal submatrices for j != k
-        for k in range(0, J-1):
+        for k in range(0, J - 1):
             if j != k:
                 submatrix_off_diag = np.zeros((p + 1, p + 1))
                 for i in range(n):
@@ -252,18 +253,19 @@ def willis_dmr_test(combined_methyl_data):
 
     # Create H2
     H2 = np.zeros((p * (J - 1), b))
-    for j in range(0, J-1):
+    for j in range(0, J - 1):
         row_start = j * p
-        row_end = (j+1) * p
-        col_start = j * (p+1) + 1
-        col_end = (j+1) * (p + 1)
+        row_end = (j + 1) * p
+        col_start = j * (p + 1) + 1
+        col_end = (j + 1) * (p + 1)
 
         # Place the identity matrix
         H2[row_start:row_end, col_start:col_end] = np.eye(p)
 
     # Calculate T strong
     inverse_I_hat_Y = np.linalg.inv(I_hat_Y)
-    t_strong = s_theta.T @ inverse_I_hat_Y @ H2.T @ np.linalg.inv(H2 @ inverse_I_hat_Y @ D_hat_Y @ inverse_I_hat_Y @ H2.T) @ H2 @ inverse_I_hat_Y @ s_theta
+    t_strong = s_theta.T @ inverse_I_hat_Y @ H2.T @ np.linalg.inv(
+        H2 @ inverse_I_hat_Y @ D_hat_Y @ inverse_I_hat_Y @ H2.T) @ H2 @ inverse_I_hat_Y @ s_theta
 
     # Calculate p_value
     df = p * (J - 1)  # Degrees of freedom
