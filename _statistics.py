@@ -14,13 +14,29 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     :return:
     :rtype:
     """
+    # Convert names to categories
+    df.iloc[:, 1] = df['name'].astype('category').cat.codes
+    df.iloc[:, -1] = df['sample'].astype('category').cat.codes
 
-    # Extract feature columns (all columns except the last one which is 'sample'), convert names to categories
-    X = df.iloc[:, :-1]
-    X['name'] = X['name'].astype('category').cat.codes
+    # assert that all rows have at least 1 methylation of any type
+    assert all(df.iloc[:, 1:-1].sum(axis=1) > 0), "All rows must have at least 1 methylation of any type"
 
-    # Extract target column (sample group)
-    y = df['sample']
+    # Turn the count table into hot one observations
+    new_rows = []
+
+    for index, row in df.iterrows():
+        first_val = row.iloc[0]
+        last_val = row.iloc[-1]
+        middle_vals = row.iloc[1:-1].astype(int)
+        for i in range(len(middle_vals)):
+            new_data = [first_val] + [1 if i == j else 0 for j in range(len(middle_vals))] + [last_val]
+            new_rows.extend([new_data] * middle_vals.iloc[i])
+
+    df1 = pd.DataFrame(new_rows, columns=df.columns)
+
+    # Get features
+    X = df['name'] + df['sample']
+    y = df.iloc[:, 1:-1]
 
     # Add constant to X_train for intercept
     sm.add_constant(X)

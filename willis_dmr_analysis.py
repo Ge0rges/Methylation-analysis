@@ -105,6 +105,13 @@ def load_methyl_data(genome_name, data_dir):
         # Save this dataframe
         combined_methyl_data.to_csv(f"{data_dir}/{genome_name}/combined_methyl_data.csv", index=False)
 
+    # Check that first column is name and last is sample
+    assert combined_methyl_data.columns[0] == "name" and combined_methyl_data.columns[-1] == "sample", "Columns are not in the expected order"
+
+    # Set all columns but the first to be integer types
+    for col in combined_methyl_data.columns[1:-1]:
+        combined_methyl_data[col] = combined_methyl_data[col].astype(int)
+
     return combined_methyl_data
 
 
@@ -142,11 +149,11 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     #plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, paired_t_test), genome_name + " using paired t-test")
 
     # Keep first 100 rows of each sample
-    combined_methyl_data = combined_methyl_data.groupby('sample').head(100)
-    print("WARNING: in debug mode cropped data")
+    # combined_methyl_data = combined_methyl_data.groupby('sample').head(100)
+    # print("WARNING: in debug mode cropped data")
 
     # Rao score
-    plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, willis_dmr_test), genome_name + " using rao score")
+    plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, logistic_regression_pvalue), genome_name + " using rao score")
 
 
 if __name__ == "__main__":
