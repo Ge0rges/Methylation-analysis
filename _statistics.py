@@ -21,7 +21,7 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     # assert that all rows have at least 1 methylation of any type
     assert all(df.iloc[:, 1:-1].sum(axis=1) > 0), "All rows must have at least 1 methylation of any type"
 
-    # Convert each count to own row
+    # Convert each count to own row as in https://stackoverflow.com/questions/78584847/convert-count-row-to-one-hot-encoding-efficiently/78584909
     num_cols = df.columns[1:-1]
     a = df[num_cols].to_numpy()
     idx = np.repeat(np.arange(a.shape[0]), a.sum(1))
@@ -43,7 +43,9 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     model = sm.MNLogit(y, X)
     result = model.fit()
 
-    return result.llr_pvalue < p_value_threshold
+    # Get restricted features, by excluding one class
+    # TODO
+
 
 
 def r_rao_score_test(df, p_value_threshold=0.05):
