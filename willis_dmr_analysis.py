@@ -118,12 +118,13 @@ def load_methyl_data(genome_name, data_dir):
 def pairwise_epigenomes(combined_methyl_data, function):
     # Perform some logistic regression
     samples = combined_methyl_data['sample'].unique()
-    sample_combinations = combinations(samples, 2)
+    sample_combinations = list(combinations(samples, 2))
 
     results = {}
-    for sample1, sample2 in sample_combinations:
+    for i, (sample1, sample2) in enumerate(sample_combinations):
         sample_pair = combined_methyl_data[combined_methyl_data['sample'].isin([sample1, sample2])]
         results[sample1, sample2] = function(sample_pair)
+        print(f"Done with {i+1}/{len(sample_combinations)}")
 
     return results
 
@@ -153,7 +154,7 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     # print("WARNING: in debug mode cropped data")
 
     # Rao score
-    plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, logistic_regression_pvalue), genome_name + " using rao score")
+    plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, logistic_regression_pvalue), genome_name + " using statsmodels score")
 
 
 if __name__ == "__main__":
@@ -162,10 +163,9 @@ if __name__ == "__main__":
     data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data/methylation_5")
     folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
 
-    # run_analysis("test", "dmr_by_gene", data_dir, fig_savepath="plots_5")
-    # os.remove(f"{data_dir}/test/combined_methyl_data.csv")
+    run_analysis("34H_compare_5", "dmr_by_gene", data_dir, fig_savepath="plots_5")
 
-    for genome in folders:
-        # Run the DMR analysis for the genome
-        print(f"Running analysis for {genome}")
-        run_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="plots_5")
+    # for genome in folders:
+    #     # Run the DMR analysis for the genome
+    #     print(f"Running analysis for {genome}")
+    #     run_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="plots_5")
