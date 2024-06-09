@@ -69,6 +69,7 @@ def load_methyl_data(genome_name, data_dir):
         # Load the methyl_dfs from the bed files
         bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name), "*.bed"))
         if len(bed_files) == 0:
+            print(f"No bed files found for {data_dir}/{genome_name}")
             return
 
         methyl_dfs = []

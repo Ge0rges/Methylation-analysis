@@ -38,6 +38,12 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     X = df['name'] + df['sample']
     y = df.iloc[:, 1:-1]
 
+    # Get restricted features
+    df_restricted = df[df["sample"] == df["sample"].unique()[0]]
+    X_restricted = df_restricted['name'] + df_restricted['sample']
+    y_restricted = df_restricted.iloc[:, 1:-1]
+
+    del df_restricted
     del df
     del a
     del b
@@ -47,13 +53,14 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     # Add constant to X_train for intercept
     sm.add_constant(X)
 
-    # Fit the logistic regression model
-    model = sm.MNLogit(y, X)
-    result = model.fit()
+    # Fit the logistic regression models
+    model = sm.MNLogit(y, X).fit()
+    restricted_model = sm.MNLogit(y_restricted, X_restricted).fit()
 
-    # Get restricted features, by excluding one class
-    # TODO
+    # Get the rao score
+    score_test_result = model.compare_lm_test(restricted_model, use_lr=True)
 
+    return score_test_result[1] < p_value_threshold
 
 
 def r_rao_score_test(df, p_value_threshold=0.05):
