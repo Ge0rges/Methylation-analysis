@@ -1,8 +1,6 @@
-import glob
 from plotting import *
 from _statistics import *
 from data_loading import *
-
 
 def get_dmr_by_sample_annotated(data_dir, genome_name, bed_files):
     # Get all the methylation data from the bed files
@@ -92,6 +90,7 @@ def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     # Load the data from the bed files
     bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name, dmr_type), "*.bed"))
     if len(bed_files) == 0:
+        print(f"No DMR bed files found for {genome_name}")
         return
 
     methyl_data = get_dmr_by_sample_annotated(data_dir, genome_name, bed_files)

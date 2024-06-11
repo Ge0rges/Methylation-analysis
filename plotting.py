@@ -1,10 +1,9 @@
 import math
-import textwrap
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-
+from utils import truncate_label
 
 plt.style.use('ggplot')
 
@@ -109,21 +108,13 @@ def plot_heatmap(heatmap_data, ax, source, index):
         ax.set_title(f"No Data for {source}", fontsize=60)
 
 
-def truncate_label(label, max_length=70, max_lines=4):
-    """Truncate labels to a maximum length and line count, adding an ellipsis if truncated."""
+def plot_methylation_levels_per_base(df, genome_name, fig_savepath="plots"):
+    """
+    Plot methylation levels per base for a genome.
 
-    # Hide extra alternatives
-    i = 0
-    result = label.split("!!!")[i]
-    while i+1 < len(label.split("!!!")) and len(result + label.split("!!!")[i+1]) < max_length * max_lines:
-        i += 1
-        result += label.split("!!!")[i]
-
-    result += " !!!..." if len(label.split("!!!")) > i+1 else ""
-
-    # Wrap the text
-    lines = textwrap.wrap(result, max_length, break_long_words=False)
-    result = "\n".join(lines[:max_lines])
-    if len(lines) > max_lines:
-        result += "..."
-    return result
+    Parameters:
+    df (pandas.DataFrame): DataFrame with methylation data.
+    genome_name (str): Name of the genome.
+    fig_savepath (str): Path to save the figure.
+    """
+    return

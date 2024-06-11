@@ -1,9 +1,10 @@
 import os
+import glob
 from utils import *
 from Bio import SeqIO
 
 
-def get_pileup(path):
+def get_pileup(path) -> pd.DataFrame:
     """
     Read pileup data from a file.
 
@@ -20,7 +21,7 @@ def get_pileup(path):
     return pileup
 
 
-def get_dmrs(path):
+def get_dmrs(path) -> pd.DataFrame:
     """
     Read DMRs (Differentially Methylated Regions) data from a file, replaces the fractions and count columns with
     individual columns for each methylation type. Adds a column called comparison to note the samples comapred.
@@ -60,7 +61,7 @@ def get_dmrs(path):
     return dmrs
 
 
-def get_sample_metadata(data_dir):
+def get_sample_metadata(data_dir) -> pd.DataFrame:
     """
     Load the sample metadata from an Excel file.
 
@@ -75,7 +76,7 @@ def get_sample_metadata(data_dir):
     return metadata_df
 
 
-def get_coordinated_functions(data_dir, genome_name):
+def get_coordinated_functions(data_dir, genome_name) -> pd.DataFrame:
     """
     Read gene caller and functions from seperate files then intersect.
 
@@ -100,7 +101,7 @@ def get_coordinated_functions(data_dir, genome_name):
     return coordinated_functions
 
 
-def get_genomic_sequence(genome_name):
+def get_genomic_sequence(genome_name) -> dict:
     """
     Read genomic sequence data from a file.
 
@@ -116,3 +117,82 @@ def get_genomic_sequence(genome_name):
         fasta_dict[record.id] = str(record.seq)
 
     return fasta_dict
+
+
+def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations) -> pd.DataFrame:
+    """
+    Load the methyl data from every sample into a matrix.
+
+    :param genome_name: Folder name of the genome.
+    :type genome_name: str
+    :param data_dir: Path to the data directory.
+    :type data_dir: str
+    :param common_locations: Exclude locations that are not common to all samples
+    :type common_locations: bool
+    :return: Dataframe of the combined methyl data.
+    :rtype: pd.DataFrame
+    """
+    # Check to see if CSV file exists for this genome
+    try:
+        combined_methyl_data = pd.read_csv(f"{data_dir}/{genome_name}/combined_methyl_data_{common_locations}.csv")
+
+    except FileNotFoundError:
+        # Load the methyl_dfs from the bed files
+        bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name), "*.bed"))
+
+        if len(bed_files) == 0:
+            print(f"No pileup bed files found for {data_dir}/{genome_name}")
+            return pd.DataFrame()
+
+        methyl_dfs = []
+        for i, bed_file in enumerate(bed_files):
+            methyl_data = get_pileup(bed_file)
+            methyl_data = reshape_pileup_to_matrix(methyl_data, genome_name)
+            methyl_data["sample"] = os.path.basename(bed_file).split(".")[0]
+
+            methyl_dfs.append(methyl_data)
+
+        # Keep in each dataframes only the names that are common to all dataframes
+        name_sets = []
+        if common_locations:
+
+            # Get the index of common names
+            common_index = None
+            for i, df_i in enumerate(methyl_dfs):
+                df_i.set_index("name", inplace=True)
+
+                if i == 0:
+                    common_index = df_i.index
+                else:
+                    common_index = common_index.intersection(df_i.index)
+
+            # Keep only the common indices
+            methyl_dfs = [df.loc[common_index] for df in methyl_dfs]
+
+            # Set name back to a column
+            methyl_dfs = [df.reset_index(names="name") for df in methyl_dfs]
+
+            # Check that every dataframe has the same names
+            name_sets = [df['name'].unique() for df in methyl_dfs]
+            assert all([np.array_equal(name_set, name_sets[0]) for name_set in
+                        name_sets]), "Not all methyl methyl_dfs have the same regions"
+
+        # Build matrices for statistical testing
+        combined_methyl_data = pd.concat(methyl_dfs, ignore_index=True)
+
+        # Additional checks
+        if common_locations:
+            assert len(combined_methyl_data["name"]) == len(name_sets[0]) * len(methyl_dfs)
+            assert combined_methyl_data["name"].nunique() == len(name_sets[0])
+
+        # Save this dataframe
+        combined_methyl_data.to_csv(f"{data_dir}/{genome_name}/combined_methyl_data_{common_locations}.csv", index=False)
+
+    # Check that first column is name and last is sample
+    assert combined_methyl_data.columns[0] == "name" and combined_methyl_data.columns[-1] == "sample", "Columns are not in the expected order"
+
+    # Set all columns but the first to be integer types
+    for col in combined_methyl_data.columns[1:-1]:
+        combined_methyl_data[col] = combined_methyl_data[col].astype(int)
+
+    return combined_methyl_data
