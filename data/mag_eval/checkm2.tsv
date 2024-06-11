@@ -1,0 +1,10 @@
+Name	Completeness	Contamination	Completeness_Model_Used	Translation_Table_Used	Coding_Density	Contig_N50	Average_Gene_Length	Genome_Size	GC_Content	Total_Coding_Sequences	Additional_Notes
+Cognaticolwellia_r-contigs	83.01	11.35	Gradient Boost (General Model)	11	0.794	112147	260.84064885496184	3084094	0.39	3144	None
+Octadecabacter_r-contigs	93.95	4.16	Gradient Boost (General Model)	11	0.756	217638	230.9743350443304	3905965	0.48	4286	None
+Pelagibacter_r-contigs	84.39	7.09	Neural Network (Specific Model)	11	0.919	67300	226.13630806845967	1198851	0.3	1636	None
+Rubritalea_r-contigs	93.12	22.31	Gradient Boost (General Model)	11	0.873	82974	309.0131421744325	4433929	0.47	4185	None
+brevundimonas_r-contigs	88.74	1.15	Neural Network (Specific Model)	11	0.857	424319	279.37348749663886	3623607	0.67	3719	None
+halopseudomonas_r-contigs	99.88	1.29	Neural Network (Specific Model)	11	0.895	597184	311.65135336478767	4197292	0.58	4027	None
+lentimonas_r-contigs	89.24	0.65	Neural Network (Specific Model)	11	0.852	783730	305.5173611111111	3395926	0.52	3168	None
+polaribacter_r-contigs	93.45	7.22	Neural Network (Specific Model)	11	0.873	304096	316.6873920552677	3143946	0.32	2895	None
+psychromonas_r-contigs	80.37	2.13	Neural Network (Specific Model)	11	0.748	903456	264.4482488238369	4048715	0.41	3826	None

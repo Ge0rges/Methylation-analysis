@@ -1,4 +1,5 @@
 import math
+import textwrap
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -52,7 +53,7 @@ def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene", fig_savepath
     num_rows = math.ceil(number_of_sources / num_cols)
 
     # Figure size based on mumber of sources (1 per column)
-    fig = plt.figure(figsize=(40 * num_cols, 30 * num_rows), layout="constrained")
+    fig = plt.figure(figsize=(40 * num_cols, 40 * num_rows), layout="constrained")
 
     # Set a title
     htype = "gene" if "dmr_by_gene" in heatmap_type else "nucleotide"
@@ -108,8 +109,21 @@ def plot_heatmap(heatmap_data, ax, source, index):
         ax.set_title(f"No Data for {source}", fontsize=60)
 
 
-def truncate_label(label, max_length=70):
-    """Truncate labels to a maximum length, adding an ellipsis if truncated."""
-    if len(label) > max_length:
-        return label[:max_length] + '...'
-    return label
+def truncate_label(label, max_length=70, max_lines=4):
+    """Truncate labels to a maximum length and line count, adding an ellipsis if truncated."""
+
+    # Hide extra alternatives
+    i = 0
+    result = label.split("!!!")[i]
+    while i+1 < len(label.split("!!!")) and len(result + label.split("!!!")[i+1]) < max_length * max_lines:
+        i += 1
+        result += label.split("!!!")[i]
+
+    result += " !!!..." if len(label.split("!!!")) > i+1 else ""
+
+    # Wrap the text
+    lines = textwrap.wrap(result, max_length, break_long_words=False)
+    result = "\n".join(lines[:max_lines])
+    if len(lines) > max_lines:
+        result += "..."
+    return result

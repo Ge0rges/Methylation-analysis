@@ -1,7 +1,7 @@
 __pycache__/*
-data/*
 plots/*
 .idea/*
+data/methylation*
 /plots_10
 /plots_5
 /R

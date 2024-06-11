@@ -1,0 +1,22 @@
+bins	total_length	num_contigs	N50	GC_content	percent_completion	percent_redundancy	t_domain	t_phylum	t_class	t_order	t_family	t_genus	t_species
+Bin_0_2	3028545	36	128852	32.54683836425205	70.4225352112676	4.225352112676056	Bacteria	Bacteroidota	Bacteroidia	Flavobacteriales	Flavobacteriaceae	Polaribacter	
+Bin_0_3	5547058	307	32346	33.81504204647451	90.14084507042253	29.577464788732396	Bacteria	Bacteroidota	Bacteroidia	Flavobacteriales	Flavobacteriaceae	MS024-2A	MS024-2A sp905182305
+Bin_1	381216437	23089	21758	42.85297080615045	38.1578947368421	46.05263157894737							
+Bin_2	73676630	6578	15680	45.941594054915626	49.397590361445786	9.63855421686747	Bacteria	Verrucomicrobiota	Verrucomicrobiae	Verrucomicrobiales	Akkermansiaceae	Rubritalea	Rubritalea sp023300205
+Bin_3	168185924	20737	12249	45.07393922581138	83.09859154929578	304.22535211267603	Bacteria						
+Bin_4_8_2	3393940	18	399425	42.16464959396081	59.15492957746479	9.859154929577464	Bacteria	Pseudomonadota	Gammaproteobacteria	Pseudomonadales	DSM-6294	Oleispira	Oleispira antarctica
+Bin_4_8_4	60500	1	60500	44.79243938845501	38.028169014084504	12.67605633802817	Bacteria	Pseudomonadota	Gammaproteobacteria	Pseudomonadales	DSM-6294	Oleispira	Oleispira antarctica
+Bin_5	872243386	11925	88725	43.77993004529066	64.47368421052632	161.8421052631579							
+Bin_6	154952188	7648	30042	48.03603533595587	80.28169014084507	314.0845070422535	Bacteria	Actinomycetota	Actinomycetia	Actinomycetales	Microbacteriaceae	Aquiluna	
+Bin_7	156051780	6094	32795	43.33590601228421	0.0	0.0							
+Bin_8	28353988	4652	9413	48.355457640312075	36.61971830985915	43.66197183098591	Bacteria	Verrucomicrobiota	Verrucomicrobiae	Verrucomicrobiales	Akkermansiaceae	SW10	SW10 sp905182405
+Bin_9	141109733	7028	25108	53.410697043315714	8.433734939759036	3.6144578313253013	Bacteria	Bacillota_A	Clostridia	Oscillospirales	Ruminococcaceae	CAG-115	CAG-115 sp022508925
+Cognaticolwellia_r	3084094	40	112147	39.29081676272623	94.36619718309859	8.450704225352112	Bacteria	Pseudomonadota	Gammaproteobacteria	Enterobacterales_A	Alteromonadaceae	Cognaticolwellia	
+Octadecabacter_r	3905965	30	217638	48.07689034523609	95.77464788732394	0.0	Bacteria	Pseudomonadota	Alphaproteobacteria	Rhodobacterales	Rhodobacteraceae	Octadecabacter	
+Pelagibacter_r	1198851	39	67300	30.168746244584018	94.36619718309859	12.67605633802817	Bacteria	Pseudomonadota	Alphaproteobacteria	Pelagibacterales	Pelagibacteraceae	Pelagibacter	
+Rubritalea_r	4433929	73	82974	46.8183124750222	92.95774647887323	7.042253521126761	Bacteria	Verrucomicrobiota	Verrucomicrobiae	Verrucomicrobiales	Akkermansiaceae	Rubritalea	Rubritalea sp023300205
+brevundimonas_r	3623607	16	424319	67.1646091410705	98.59154929577464	1.408450704225352	Bacteria	Pseudomonadota	Alphaproteobacteria	Caulobacterales	Caulobacteraceae	Brevundimonas	Brevundimonas bullata
+halopseudomonas_r	4197292	12	597184	58.03951376903861	97.1830985915493	2.816901408450704	Bacteria	Pseudomonadota	Gammaproteobacteria	Pseudomonadales	Pseudomonadaceae	Halopseudomonas	
+lentimonas_r	3395926	6	783730	51.90120443736951	92.95774647887323	1.408450704225352	Bacteria	Verrucomicrobiota	Verrucomicrobiae	Opitutales	DSM-45221	Lentimonas	Lentimonas sp905182435
+polaribacter_r	3143946	24	304096	31.744442437243194	95.77464788732394	4.225352112676056	Bacteria	Bacteroidota	Bacteroidia	Flavobacteriales	Flavobacteriaceae	Polaribacter	Polaribacter sp913061165
+psychromonas_r	4048715	18	903456	40.42489807544779	90.14084507042253	5.633802816901408	Bacteria	Pseudomonadota	Gammaproteobacteria	Enterobacterales_A	Psychromonadaceae	Psychromonas	

@@ -291,7 +291,7 @@ def willis_dmr_test(combined_methyl_data):
     return p_value
 
 
-def modkit_llr(modkit_score, num_tests, alpha=0.05):
+def modkit_llr(modkit_score, num_tests, p_value_threshold=0.05):
     """
     Perform the likelihood ratio test using ModKit scores with Bonferroni correction.
 
@@ -304,9 +304,9 @@ def modkit_llr(modkit_score, num_tests, alpha=0.05):
     tuple: A tuple (bool, float) representing if the test is significant and the corrected p-value.
     """
     test_statistic = 2 * modkit_score
-    raw_p_value = chi2.sf(test_statistic, 2)
+    raw_p_value = stats.chi2.sf(test_statistic, 2)
     corrected_p_value = min(raw_p_value * num_tests, 1.0)
-    return corrected_p_value < alpha
+    return corrected_p_value < p_value_threshold
 
 
 def paired_t_test(df, p_value_threshold=0.05):

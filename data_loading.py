@@ -1,5 +1,6 @@
 import os
 from utils import *
+from Bio import SeqIO
 
 
 def get_pileup(path):
@@ -97,3 +98,21 @@ def get_coordinated_functions(data_dir, genome_name):
     coordinated_functions['e_value'] = coordinated_functions['e_value'].astype(float)
 
     return coordinated_functions
+
+
+def get_genomic_sequence(genome_name):
+    """
+    Read genomic sequence data from a file.
+
+    :param path: Path to .fasta file.
+    :type path: str
+    :return: Dataframe of file data
+    :rtype: pandas.DataFrame
+    """
+    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", "mags", f"{genome_name}.fna")
+    fasta_file = SeqIO.parse(path, "fasta")
+    fasta_dict = {}
+    for record in fasta_file:
+        fasta_dict[record.id] = str(record.seq)
+
+    return fasta_dict
