@@ -13,7 +13,7 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     :return:
     :rtype:
     """
-    # Convert names to categories
+    # Convert strings to codes
     df.iloc[:, 0] = df['name'].astype('category').cat.codes
     df.iloc[:, -1] = df['sample'].astype('category').cat.codes
 
@@ -22,6 +22,7 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
 
     # assert that all rows have at least 1 methylation of any type
     assert all(df.iloc[:, 1:-1].sum(axis=1) > 0), "All rows must have at least 1 methylation of any type"
+    assert df["sample"].nunique() == 2, "Only pairwise comparisons supported"
 
     # Convert each count to own row as in https://stackoverflow.com/questions/78584847/convert-count-row-to-one-hot-encoding-efficiently/78584909
     num_cols = df.columns[1:-1]
@@ -34,31 +35,46 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     df = df.iloc[idx]
     df.loc[:, num_cols] = b
 
-    # Get features
-    X = df['name'] + df['sample']
-    y = df.iloc[:, 1:-1]
-
-    # Get restricted features
-    df_restricted = df[df["sample"] == df["sample"].unique()[0]]
-    X_restricted = df_restricted['name'] + df_restricted['sample']
-    y_restricted = df_restricted.iloc[:, 1:-1]
-
-    del df_restricted
-    del df
     del a
     del b
     del cols
     del idx
 
-    # Add constant to X_train for intercept
-    sm.add_constant(X)
+    # Make each sample a column
+    df = pd.get_dummies(df, columns=['sample'], prefix='sample', dtype=int)
+
+    # Get features
+    t = df['sample_1']
+    X = pd.concat([df['name'], df['sample_0'], df['sample_1']], axis=1)
+    X_restricted = pd.concat([df['name'], df['sample_0']], axis=1)
+    y = df.iloc[:, 1:-2]
+
+    del df
+
+    # Add constant for intercept
+    X = sm.add_constant(X)
+    X_restricted = sm.add_constant(X_restricted)
 
     # Fit the logistic regression models
-    model = sm.MNLogit(y, X).fit()
-    restricted_model = sm.MNLogit(y_restricted, X_restricted).fit()
+    model = sm.MNLogit(y, X).fit(method="lbfgs")
+    restricted_model = sm.MNLogit(y, X_restricted).fit(method="lbfgs")
 
     # Get the rao score
-    score_test_result = model.compare_lm_test(restricted_model, use_lr=True)
+    #score_test_result = restricted_model.score_test(exog_extra=t)
+    params_r = np.concatenate((restricted_model.params.to_numpy(), [[0, 0, 0]]), axis=0).ravel("f")
+    score_test_result = model.score_test(params_constrained=params_r, k_constraints=1)
+
+    # Compute wald test
+    # Define the restriction matrix R
+    # For example, if we want to test if the coefficients of 'sample_0' and 'sample_1' are jointly zero:
+    R = [[0, 1, 0],  # Coefficient of 'sample_0'
+         [0, 0, 1]]  # Coefficient of 'sample_1'
+
+    # Perform the Wald test
+    wald_test = model.wald_test(R)
+
+    print(f"Difference between p_values {score_test_result[1] - wald_test.pvalue}")
+    assert wald_test.pvalue < score_test_result[1]
 
     return score_test_result[1] < p_value_threshold
 
