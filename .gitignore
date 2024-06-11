@@ -5,3 +5,11 @@ data/methylation*
 /plots_10
 /plots_5
 /R
+data/._.DS_Store
+data/._methylation_5
+data/.DS_Store
+data/._sample_metadata.xlsx
+data/mag_eval/._anvio.tsv
+data/mag_eval/._checkm2.tsv
+data/mag_eval/._coverm.tsv
+data/mag_eval/._gtdbtk.tsv
