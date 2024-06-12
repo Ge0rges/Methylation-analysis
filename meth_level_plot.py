@@ -1,0 +1,39 @@
+from plotting import *
+from data_loading import *
+
+
+def run_meth_level_plots(genome_name, data_dir, fig_savepath="plots"):
+    """
+    Run the DMR analysis for a specific genome, DMR type, and source.
+
+    :param genome_name: Folder name of the genome.
+    :type genome_name: str
+    :param data_dir: Either dmr_by_gene or dmr_by_position, which is also the folder name
+    :type data_dir: str
+    :param fig_savepath: Folder in which to save figures
+    :type fig_savepath: str
+    :return: Returns the methyl_data dataframe and saves a PDF of the plot.
+    :rtype: pandas.DataFrame
+    """
+
+    # Plot methylation levels per base
+    methyl_data = load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations=False)
+    if not methyl_data.empty:
+        plot_methylation_levels_per_base(methyl_data, genome_name, fig_savepath=fig_savepath)
+
+    return
+
+
+if __name__ == "__main__":
+    # For each folder in the data directory
+    print("Plotting methylation level at coverage 5")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", "methylation_5")
+    for genome in os.listdir(data_dir):
+        # Run the DMR analysis for the genome
+        run_meth_level_plots(genome, data_dir, fig_savepath="plots_5")
+
+    print("Plotting methylation level at coverage 10")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", "methylation_10")
+    for genome in os.listdir(data_dir):
+        # Run the DMR analysis for the genome
+        run_meth_level_plots(genome, data_dir, fig_savepath="plots_10")

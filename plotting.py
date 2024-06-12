@@ -117,4 +117,25 @@ def plot_methylation_levels_per_base(df, genome_name, fig_savepath="plots"):
     genome_name (str): Name of the genome.
     fig_savepath (str): Path to save the figure.
     """
+    # Get the list of methylation types (excluding the "no methylation" count column)
+    methylation_types = df.columns[1:-1]
+
+    # Set up subplots
+    num_subplots = len(methylation_types)
+    fig, axs = plt.subplots(num_subplots, 1, figsize=(10, 5 * num_subplots))
+
+    # Iterate through each methylation type and plot its values
+    for i, methylation_type in enumerate(methylation_types):
+        ax = axs[i]
+        ax.set_title(methylation_type)
+
+        # Plot all samples for this methylation type using Seaborn
+        sns.lineplot(data=df, x='name', y=methylation_type, hue='sample', ax=ax)
+
+        ax.set_xlabel('Genomic Position')
+        ax.set_ylabel('Count')
+
+    plt.tight_layout()
+    plt.show()
+
     return

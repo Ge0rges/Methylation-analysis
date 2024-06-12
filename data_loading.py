@@ -134,7 +134,10 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
     """
     # Check to see if CSV file exists for this genome
     try:
-        combined_methyl_data = pd.read_csv(f"{data_dir}/{genome_name}/combined_methyl_data_{common_locations}.csv")
+        combined_methyl_data = pd.read_csv(f"{data_dir}/{genome_name}/combined_methyl_data.csv")
+
+    except NotADirectoryError:
+        return pd.DataFrame()
 
     except FileNotFoundError:
         # Load the methyl_dfs from the bed files
@@ -152,41 +155,36 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
 
             methyl_dfs.append(methyl_data)
 
-        # Keep in each dataframes only the names that are common to all dataframes
-        name_sets = []
-        if common_locations:
-
-            # Get the index of common names
-            common_index = None
-            for i, df_i in enumerate(methyl_dfs):
-                df_i.set_index("name", inplace=True)
-
-                if i == 0:
-                    common_index = df_i.index
-                else:
-                    common_index = common_index.intersection(df_i.index)
-
-            # Keep only the common indices
-            methyl_dfs = [df.loc[common_index] for df in methyl_dfs]
-
-            # Set name back to a column
-            methyl_dfs = [df.reset_index(names="name") for df in methyl_dfs]
-
-            # Check that every dataframe has the same names
-            name_sets = [df['name'].unique() for df in methyl_dfs]
-            assert all([np.array_equal(name_set, name_sets[0]) for name_set in
-                        name_sets]), "Not all methyl methyl_dfs have the same regions"
-
-        # Build matrices for statistical testing
+        # Build matrix for statistical testing
         combined_methyl_data = pd.concat(methyl_dfs, ignore_index=True)
-
-        # Additional checks
-        if common_locations:
-            assert len(combined_methyl_data["name"]) == len(name_sets[0]) * len(methyl_dfs)
-            assert combined_methyl_data["name"].nunique() == len(name_sets[0])
 
         # Save this dataframe
         combined_methyl_data.to_csv(f"{data_dir}/{genome_name}/combined_methyl_data_{common_locations}.csv", index=False)
+
+    # Keep in each dataframes only the names that are common to all dataframes
+    name_sets = []
+    if common_locations:
+        # Get the index of common names
+        common_index = None
+        for i, group in enumerate(combined_methyl_data.groupby("sample")):
+            group.set_index("name", inplace=True)
+
+            if i == 0:
+                common_index = group.index
+            else:
+                common_index = common_index.intersection(group.index)
+
+        # Keep only the common indices and set name back to a column
+        combined_methyl_data = combined_methyl_data.loc[common_index].reset_index(names="name")
+
+        # Check that every dataframe has the same names
+        name_sets = [group['name'] for group in combined_methyl_data.groupby("sample")]
+        assert all([np.array_equal(name_set, name_sets[0]) for name_set in
+                    name_sets]), "Not all methyl methyl_dfs have the same regions"
+
+        assert len(combined_methyl_data["name"]) == len(name_sets[0]) * combined_methyl_data["sample"].nunique()
+        assert combined_methyl_data["name"].nunique() == len(name_sets[0])
+
 
     # Check that first column is name and last is sample
     assert combined_methyl_data.columns[0] == "name" and combined_methyl_data.columns[-1] == "sample", "Columns are not in the expected order"
