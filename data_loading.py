@@ -159,7 +159,7 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
         combined_methyl_data = pd.concat(methyl_dfs, ignore_index=True)
 
         # Save this dataframe
-        combined_methyl_data.to_csv(f"{data_dir}/{genome_name}/combined_methyl_data_{common_locations}.csv", index=False)
+        combined_methyl_data.to_csv(f"{data_dir}/{genome_name}/combined_methyl_data.csv", index=False)
 
     # Keep in each dataframes only the names that are common to all dataframes
     name_sets = []
