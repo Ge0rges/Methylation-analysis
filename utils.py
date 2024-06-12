@@ -1,6 +1,9 @@
+import scipy
+import vaex
 import textwrap
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 
 barcode_sample_map = {"Barcode01": "S2-1",
@@ -132,6 +135,9 @@ def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
     methyl_data['name'] = methyl_data['chrom'] + '_' + methyl_data['strand'] + ":" + methyl_data[
         'inclusive start position'].astype(str) + "-" + methyl_data['exclusive end position'].astype(str)
 
+    # Check no negative valuesin Ndiff and Nvalid_cov
+    assert all(methyl_data[methyl_data['Ndiff'] >= 0]) and all(methyl_data[methyl_data['Nvalid_cov'] >= 0]) and all(methyl_data[methyl_data['Ncanonical'] >= 0])
+
     # Drop rows where Ndiff is larger than Nvalid_cov
     methyl_data = methyl_data[methyl_data['Ndiff'] < methyl_data['Nvalid_cov']].copy()
 
@@ -159,12 +165,125 @@ def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
     pivot_df = pivot_df.merge(base_corrected_df[['name', 'Ncanonical']], on='name', how='left')
     pivot_df.drop_duplicates(inplace=True)
 
+    # Ensure all values are positive
+    assert (pivot_df.iloc[:, 1:] >= 0).all().all(), "Not all methylation values are positive"
+
     # Assert that every name in methyl_data appears at least once in pivot_df, and only once in pivot_df
     assert set(methyl_data['name']) == set(pivot_df['name']), "Not all regions were conserved"
     assert pivot_df['name'].nunique() == len(pivot_df['name']), "There are duplicate regions in pivot_df"
 
     # Assert that for rows with the same name the sum of modifications in pivot_df is equal to Nvalid_cov in methyl_data
-    if genome_name != "test":
-        assert all(pivot_df.groupby('name').sum().sum(axis=1) == methyl_data.groupby('name')['Nvalid_cov'].first()), "Sum of modifications in pivot_df is not equal to Nvalid_cov in methyl_data"
+    assert all(pivot_df.groupby('name').sum().sum(axis=1) == methyl_data.groupby('name')['Nvalid_cov'].first()), "Sum of modifications in pivot_df is not equal to Nvalid_cov in methyl_data"
 
     return pivot_df
+
+
+# From https://github.com/vaexio/vaex/issues/2391
+class PlotMarker:
+    def __init__(self, shape='filled-circle', radius=5, color=None):
+        if color is None:
+            color = [0, 0.4470, 0.7410]
+        self.shape = shape
+        self.radius = radius
+        self.color = color
+
+
+# Custom interactive scatter plot
+@vaex.register_dataframe_accessor('my_viz', override=True)
+class ScatterPlot(object):
+    def __init__(self, df):
+        self.df = df
+
+    def my_scatter(self, x, y, marker=PlotMarker()):
+        # Get data limits
+        x_lims = x.minmax()
+        y_lims = y.minmax()
+
+        # get axis limits
+        ax = plt.gca()
+        fig = ax.figure
+        if len(ax.get_images()) == 0:
+            # Zoom slightly out on x-axis, to ensure all data is easily visible
+            ylim_range = (y_lims[1] - y_lims[0])
+            y_lims = [y_lims[0] - 0.05 * ylim_range, y_lims[1] + 0.1 * ylim_range]
+        else:
+            # If another scatter is already plotted, zoom out if neccesary, but don't zoom in
+            ylim_range = max(y_lims[1], ax.get_ylim()[1]) - min(y_lims[0], ax.get_ylim()[0])
+            y_lims[0] = min(y_lims[0] - 0.05 * ylim_range, ax.get_ylim()[0])
+            y_lims[1] = max(y_lims[1] + 0.05 * ylim_range, ax.get_ylim()[1])
+
+        ax.set_xlim(x_lims)
+        ax.set_ylim(y_lims)
+
+        im, panning = None, None
+
+        def update_plot(_=None):
+            nonlocal im, panning
+
+            if panning:  # Panning will result in a constant stream of callbacks. Updating each time is laggy.
+                return
+
+            # Fetch size of plot area in pixels
+            bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+            [width_pixels, height_pixels] = [round(bbox.width * fig.dpi), round(bbox.height * fig.dpi)]
+
+            # Get axis limits to calculate scatter plot with
+            [xlims, ylims] = [ax.get_xlim(), ax.get_ylim()]
+
+            # Make a heatmap of the data counts with bins equal to the screen resolution of the figure
+            counts = self.df.count(None, binby=[x, y], shape=[width_pixels, height_pixels], limits=[xlims, ylims])
+            color_plot = _make_scatter_plot_image(counts, marker)
+
+            # Show image
+            if im is None:
+                im = plt.imshow(color_plot, extent=[xlims[0], xlims[1], ylims[0], ylims[1]], aspect='auto')
+            else:
+                # When refreshing the plot, update the old image
+                im.set(data=color_plot, extent=[xlims[0], xlims[1], ylims[0], ylims[1]])
+            ax.figure.canvas.draw()
+
+        update_plot()
+
+        ax.callbacks.connect('xlim_changed', update_plot)
+        ax.callbacks.connect('ylim_changed', update_plot)
+        fig.canvas.mpl_connect('resize_event', update_plot)
+
+        # When panning the view, the constant callbacks to update_plot cause lots of lag. Oly update when panning is finished
+        def panning_started(_=None):
+            nonlocal panning
+            panning = True
+
+        def panning_stopped(_=None):
+            nonlocal panning
+            panning = False
+            update_plot()
+
+        fig.canvas.mpl_connect('button_press_event', panning_started)
+        fig.canvas.mpl_connect('button_release_event', panning_stopped)
+
+
+def _make_scatter_plot_image(counts, marker):
+    xx, yy = np.mgrid[-marker.radius:marker.radius + 1, -marker.radius:marker.radius + 1]
+    if marker.shape == 'filled-circle':  # Circle (filled in)
+        footprint = xx ** 2 + yy ** 2 < (marker.radius + 0.5) ** 2
+    elif marker.shape == 'hollow-circle':  # Circle (not filled in)
+        footprint = np.logical_and((marker.radius - 0.5) ** 2 < xx ** 2 + yy ** 2,
+                                   xx ** 2 + yy ** 2 < (marker.radius + 0.5) ** 2)
+    elif marker.shape == 'filled-square':  # Square (filled in)
+        footprint = np.ones(shape=xx.shape)
+    elif marker.shape == 'hollow-square':  # Square (not filled in)
+        footprint = np.logical_or(np.logical_or(xx == marker.radius, xx == -marker.radius),
+                                  np.logical_or(yy == marker.radius, yy == -marker.radius))
+    elif marker.shape == 'cross':  # Cross
+        footprint = np.logical_or(xx - yy == 0, xx + yy == 0)
+    else:
+        raise Exception(f'Marker {marker.shape} in make_plot_image not recognized')
+
+    monochrome_scatter_plot = np.minimum(counts, 1)
+    monochrome_scatter_plot = np.rot90(monochrome_scatter_plot)
+    monochrome_scatter_plot_with_markers = scipy.ndimage.grey_dilation(monochrome_scatter_plot, footprint=footprint)
+    color_plot = np.stack([monochrome_scatter_plot_with_markers * marker.color[0],
+                           monochrome_scatter_plot_with_markers * marker.color[1],
+                           monochrome_scatter_plot_with_markers * marker.color[2],
+                           monochrome_scatter_plot_with_markers], axis=2)
+    return color_plot

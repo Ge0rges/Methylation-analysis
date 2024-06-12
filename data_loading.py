@@ -1,5 +1,8 @@
 import os
 import glob
+
+import pandas as pd
+
 from utils import *
 from Bio import SeqIO
 
@@ -191,6 +194,6 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
 
     # Set all columns but the first to be integer types
     for col in combined_methyl_data.columns[1:-1]:
-        combined_methyl_data[col] = combined_methyl_data[col].astype(int)
+        combined_methyl_data[col] = pd.to_numeric(combined_methyl_data[col], downcast="integer")
 
     return combined_methyl_data

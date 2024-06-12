@@ -1,9 +1,10 @@
 import math
+import vaex
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from utils import truncate_label
+from utils import truncate_label, PlotMarker
 
 plt.style.use('ggplot')
 
@@ -80,7 +81,7 @@ def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene", fig_savepath
 def plot_heatmap(heatmap_data, ax, source, index):
     if not heatmap_data.empty:
         # Create color palette
-        cmap = sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True)#sns.color_palette("rocket", as_cmap=True)
+        cmap = sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True)  #sns.color_palette("rocket", as_cmap=True)
         cmap.set_bad('lightgray')
 
         # Plot heatmap
@@ -108,34 +109,40 @@ def plot_heatmap(heatmap_data, ax, source, index):
         ax.set_title(f"No Data for {source}", fontsize=60)
 
 
-def plot_methylation_levels_per_base(df, genome_name, fig_savepath="plots"):
-    """
-    Plot methylation levels per base for a genome.
-
-    Parameters:
-    df (pandas.DataFrame): DataFrame with methylation data.
-    genome_name (str): Name of the genome.
-    fig_savepath (str): Path to save the figure.
-    """
-    # Get the list of methylation types (excluding the "no methylation" count column)
+def plot_methylation_levels_per_base(df, genome_name, coverage, fig_savepath="plots"):
+    df.iloc[:, 0] = pd.factorize(df['name'])[0]
     methylation_types = df.columns[1:-1]
 
-    # Set up subplots
-    num_subplots = len(methylation_types)
-    fig, axs = plt.subplots(num_subplots, 1, figsize=(10, 5 * num_subplots))
-
     # Iterate through each methylation type and plot its values
-    for i, methylation_type in enumerate(methylation_types):
-        ax = axs[i]
-        ax.set_title(methylation_type)
+    for methylation_type in methylation_types:
 
-        # Plot all samples for this methylation type using Seaborn
-        sns.lineplot(data=df, x='name', y=methylation_type, hue='sample', ax=ax)
+        plot_markers = [
+            PlotMarker(shape='filled-circle', radius=1, color=[1, 0, 0]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0, 1, 0]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0, 0, 1]),
+            PlotMarker(shape='filled-circle', radius=1, color=[1, 0.4470, 0.7410]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0, 0.4470, 1]),
+            PlotMarker(shape='filled-circle', radius=1, color=[1, 0, 1]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0.2, 1, 0.2]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0.2, 0.2, 0.2]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0.5, 1, 0.2]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0.5, 1, 0.9]),
+            PlotMarker(shape='filled-circle', radius=1, color=[1, 0.6, 0.2]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0.6, 0.2, 1]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0.2, 0.6, 1]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0.2, 1, 0.6]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0.6, 1, 0.2]),
+            PlotMarker(shape='filled-circle', radius=1, color=[1, 0.2, 0.6]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0.6, 1, 0.6]),
+            PlotMarker(shape='filled-circle', radius=1, color=[0.6, 0.6, 1]),
+        ]
 
-        ax.set_xlabel('Genomic Position')
-        ax.set_ylabel('Count')
+        # Plot all samples for this methylation type using Matplotlib
+        for i, sample in enumerate(df['sample'].unique()):
+            df_i = vaex.from_arrays(x=np.ascontiguousarray(df[df['sample'] == sample]['name']),
+                                    y=np.ascontiguousarray(df[df['sample'] == sample][methylation_type]))
+            df_i.my_viz.my_scatter(df_i.x, df_i.y, plot_markers[i])
 
-    plt.tight_layout()
-    plt.show()
-
-    return
+        plt.grid('on')
+        plt.title(f"{genome_name} - {coverage} - {methylation_type}")
+        plt.show(block=True)
