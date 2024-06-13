@@ -195,47 +195,16 @@ def plot_methylation_levels_by_group(df, genome_name, coverage, fig_savepath="pl
     # Aggregate every 1000th rows on the same contig
     df['group'] = df.index // 1000
 
-    # Step 1: Calculate mean values for each group
-    group_stats = df.groupby(['group', 'sample'])['methylation_type'].agg(['mean', 'std']).reset_index()
-
-    # Step 2: Calculate mean difference between samples within each group
-    mean_diff_within_group = group_stats.groupby('group')['mean'].diff().abs()
-
-    # Step 3: Calculate variability within each group (standard deviation within each group)
-    std_within_group = group_stats.groupby('group')['std'].mean()
-
-    # Step 4: Determine groups to include based on mean difference criteria
-    groups_to_include = mean_diff_within_group >= 5 * std_within_group
-
-    # Step 5: Filter the original DataFrame based on groups_to_include
-    df = df[df['group'].isin(groups_to_include)]
-
     for methylation_type in df.columns[1:-5]:
-        seaborn.boxplot(df, x="group", y=methylation_type, hue="sample", dodge="auto")
-        plt.show(block=True)
+        group_stats = df.groupby(['group', 'sample'])[methylation_type].agg(['mean', 'std']).reset_index()
 
-    # df = df.groupby(["contig", "group"]).agg({col: ['min', 'max', 'mean', 'sum'] for col in df.columns[1:-5]})
+        mean_within_group = group_stats.groupby('group')['mean'].mean()
+        std_within_group = group_stats.groupby('group')['std'].mean()
 
-    # # Normalize to sum
-    # for col in df.columns.levels[0][1:-5]:
-    #     for stat in ['min', 'max', 'mean']:
-    #         df[(col, stat)] = df[(col, stat)] / df[(col, 'sum')]
-    #
-    # # Plot each group mean, max, min
-    # df_melted = df.stack(level=0).reset_index()
-    # df_melted.columns = ['contig', 'group', 'variable', 'value']
-    #
-    # # Plot using seaborn
-    # plt.figure(figsize=(12, 8))
-    #
-    # for i, col in enumerate(df.columns.levels[0][1:-5]):
-    #     for j, stat in enumerate(stats_to_plot):
-    #         plt.subplot(len(df.columns.levels[0][1:-5]), len(stats_to_plot), i * len(stats_to_plot) + j + 1)
-    #         sns.boxplot(data=df_melted[df_melted['variable'] == stat], x='value', y='group', hue='contig', orient='h',
-    #                     linewidth=1.5)
-    #         plt.title(f'{col} - {stat.capitalize()}')
-    #         plt.xlabel('Normalized Value')
-    #         plt.ylabel('Group')
-    #
-    # plt.tight_layout()
-    # plt.show()
+        groups_to_include = (mean_within_group >= 5) | (std_within_group > 2 * mean_within_group)
+
+        filtered_df = df[df['group'].isin(groups_to_include)]
+
+        seaborn.boxplot(filtered_df, x="group", y=methylation_type, hue="sample", dodge="auto")
+        plt.title(f"{genome_name} - {coverage} - {methylation_type}")
+        plt.show()
