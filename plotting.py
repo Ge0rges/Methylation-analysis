@@ -1,5 +1,6 @@
 import math
 import vaex
+import matplotlib
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -138,11 +139,17 @@ def plot_methylation_levels_per_base(df, genome_name, coverage, fig_savepath="pl
         ]
 
         # Plot all samples for this methylation type using Matplotlib
-        for i, sample in enumerate(df['sample'].unique()):
+        samples = df['sample'].unique()
+        for i, sample in enumerate(samples):
             df_i = vaex.from_arrays(x=np.ascontiguousarray(df[df['sample'] == sample]['name']),
-                                    y=np.ascontiguousarray(df[df['sample'] == sample][methylation_type]))
+                                    y=np.ascontiguousarray(df[df['sample'] == sample][methylation_type])
+                                    )
             df_i.my_viz.my_scatter(df_i.x, df_i.y, plot_markers[i])
 
-        plt.grid('on')
         plt.title(f"{genome_name} - {coverage} - {methylation_type}")
-        plt.show(block=True)
+
+        handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=marker.color, markersize=5) for marker in
+                   plot_markers[:len(samples)]]
+        plt.legend(handles, samples, title="Samples")
+
+        plt.show()

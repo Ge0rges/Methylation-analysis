@@ -31,7 +31,7 @@ if __name__ == "__main__":
     data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", "methylation_5")
     for genome in os.listdir(data_dir):
         # Run the DMR analysis for the genome
-        run_meth_level_plots(genome, data_dir, "meth_5" fig_savepath="plots_5")
+        run_meth_level_plots(genome, data_dir, "meth_5", fig_savepath="plots_5")
 
     print("Plotting methylation level at coverage 10")
     data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", "methylation_10")

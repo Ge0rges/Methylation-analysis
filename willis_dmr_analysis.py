@@ -40,10 +40,10 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     #plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, paired_t_test), genome_name + " using paired t-test")
 
     # Keep first 100 rows of each sample
-    combined_methyl_data = combined_methyl_data.groupby('sample').head(100)
+    combined_methyl_data = combined_methyl_data.groupby('sample').head(1)
     # print("WARNING: in debug mode cropped data")
 
-    willis_dmr_test(combined_methyl_data)
+    willis_dmr_test(combined_methyl_data[combined_methyl_data['sample'].isin(["top", "middle", "bottom"])])
 
     # Rao score
     plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, logistic_regression_pvalue), genome_name + " using statsmodels score")
