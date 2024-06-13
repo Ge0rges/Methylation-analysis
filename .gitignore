@@ -13,3 +13,5 @@ data/mag_eval/._anvio.tsv
 data/mag_eval/._checkm2.tsv
 data/mag_eval/._coverm.tsv
 data/mag_eval/._gtdbtk.tsv
+*._*
+*.DS_Store
