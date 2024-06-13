@@ -1,6 +1,6 @@
 import math
+import seaborn
 import vaex
-import matplotlib
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -114,6 +114,13 @@ def plot_methylation_levels_per_base(df, genome_name, coverage, fig_savepath="pl
     df.iloc[:, 0] = pd.factorize(df['name'])[0]
     methylation_types = df.columns[1:-1]
 
+    # Normalize counts by coverage
+    samples = df['sample'].unique()
+
+    # # Show row with top 10 values
+    # top_rows = pd.concat([df.nlargest(100, col) for col in methylation_types])
+    # print(top_rows)
+
     # Iterate through each methylation type and plot its values
     for methylation_type in methylation_types:
 
@@ -139,17 +146,96 @@ def plot_methylation_levels_per_base(df, genome_name, coverage, fig_savepath="pl
         ]
 
         # Plot all samples for this methylation type using Matplotlib
-        samples = df['sample'].unique()
         for i, sample in enumerate(samples):
             df_i = vaex.from_arrays(x=np.ascontiguousarray(df[df['sample'] == sample]['name']),
-                                    y=np.ascontiguousarray(df[df['sample'] == sample][methylation_type])
+                                    y=np.ascontiguousarray(df[df['sample'] == sample][methylation_type] / df[df['sample'] == sample][methylation_types].sum(axis=1))
                                     )
             df_i.my_viz.my_scatter(df_i.x, df_i.y, plot_markers[i])
 
         plt.title(f"{genome_name} - {coverage} - {methylation_type}")
 
-        handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=marker.color, markersize=5) for marker in
+        handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=marker.color, markersize=5, linestyle=None) for marker in
                    plot_markers[:len(samples)]]
         plt.legend(handles, samples, title="Samples")
 
-        plt.show()
+        plt.show(block=True)
+
+
+def plot_methylation_levels_by_gene(df, genes, genome_name, coverage, fig_savepath="plots"):
+    df['contig'] = df['name'].apply(lambda x: x.split('|')[0])
+    df['start'] = df['name'].apply(lambda x: x.split('|')[2])
+    df['stop'] = df['name'].apply(lambda x: x.split('|')[3])
+
+    # Step 1: Create a unique identifier for each range in ranges dataframe
+    genes['range_id'] = genes.index
+
+    # Step 2: Merge df with ranges based on conditions
+    df_merged = pd.merge(df, genes, on='contig')
+
+    # Step 3: Filter rows where df start and end values are within range start and end
+    df_filtered = df_merged[(df_merged['start_x'] >= df_merged['start_y']) & (df_merged['stop_x'] < df_merged['stop_y'])]
+
+    # Step 4: Group by range_id and aggregate val1 and val2 columns
+    aggregation_dict = {col: ['min', 'max', 'mean', 'sum'] for col in df_filtered.columns[1:-7]}
+    result = df_filtered.groupby('range_id').agg(aggregation_dict).reset_index()
+    result.drop(columns=["contig", "range_id", "start_x", "start_y", "stop_x", "stop_y"], inplace=True)
+
+    print(result)
+
+
+# sort then take first 1000
+def plot_methylation_levels_by_group(df, genome_name, coverage, fig_savepath="plots"):
+    df['contig'] = df['name'].apply(lambda x: x.split('|')[0])
+    df['start'] = pd.to_numeric(df['name'].apply(lambda x: x.split('|')[2]), downcast="integer")
+    df['stop'] = pd.to_numeric(df['name'].apply(lambda x: x.split('|')[3]), downcast="integer")
+
+    df.sort_values(by=["contig", "start", "stop"], inplace=True)
+    df.reset_index(drop=True, inplace=True)
+
+    # Aggregate every 1000th rows on the same contig
+    df['group'] = df.index // 1000
+
+    # Step 1: Calculate mean values for each group
+    group_stats = df.groupby(['group', 'sample'])['methylation_type'].agg(['mean', 'std']).reset_index()
+
+    # Step 2: Calculate mean difference between samples within each group
+    mean_diff_within_group = group_stats.groupby('group')['mean'].diff().abs()
+
+    # Step 3: Calculate variability within each group (standard deviation within each group)
+    std_within_group = group_stats.groupby('group')['std'].mean()
+
+    # Step 4: Determine groups to include based on mean difference criteria
+    groups_to_include = mean_diff_within_group >= 5 * std_within_group
+
+    # Step 5: Filter the original DataFrame based on groups_to_include
+    df = df[df['group'].isin(groups_to_include)]
+
+    for methylation_type in df.columns[1:-5]:
+        seaborn.boxplot(df, x="group", y=methylation_type, hue="sample", dodge="auto")
+        plt.show(block=True)
+
+    # df = df.groupby(["contig", "group"]).agg({col: ['min', 'max', 'mean', 'sum'] for col in df.columns[1:-5]})
+
+    # # Normalize to sum
+    # for col in df.columns.levels[0][1:-5]:
+    #     for stat in ['min', 'max', 'mean']:
+    #         df[(col, stat)] = df[(col, stat)] / df[(col, 'sum')]
+    #
+    # # Plot each group mean, max, min
+    # df_melted = df.stack(level=0).reset_index()
+    # df_melted.columns = ['contig', 'group', 'variable', 'value']
+    #
+    # # Plot using seaborn
+    # plt.figure(figsize=(12, 8))
+    #
+    # for i, col in enumerate(df.columns.levels[0][1:-5]):
+    #     for j, stat in enumerate(stats_to_plot):
+    #         plt.subplot(len(df.columns.levels[0][1:-5]), len(stats_to_plot), i * len(stats_to_plot) + j + 1)
+    #         sns.boxplot(data=df_melted[df_melted['variable'] == stat], x='value', y='group', hue='contig', orient='h',
+    #                     linewidth=1.5)
+    #         plt.title(f'{col} - {stat.capitalize()}')
+    #         plt.xlabel('Normalized Value')
+    #         plt.ylabel('Group')
+    #
+    # plt.tight_layout()
+    # plt.show()

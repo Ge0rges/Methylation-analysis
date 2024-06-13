@@ -18,9 +18,12 @@ def run_meth_level_plots(genome_name, data_dir, coverage, fig_savepath="plots"):
 
     # Plot methylation levels per base
     methyl_data = load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations=False)
+    genes = get_genes(data_dir, genome_name)[['contig', 'start', 'stop']].drop_duplicates()
     if not methyl_data.empty:
         print(f"Plotting methyl data for {genome_name}")
-        plot_methylation_levels_per_base(methyl_data, genome_name, coverage, fig_savepath=fig_savepath)
+        #plot_methylation_levels_per_base(methyl_data, genome_name, coverage, fig_savepath=fig_savepath)
+        #plot_methylation_levels_by_gene(methyl_data, genes, genome_name, coverage, fig_savepath=fig_savepath)
+        plot_methylation_levels_by_group(methyl_data, genome_name, coverage, fig_savepath=fig_savepath)
 
     return
 

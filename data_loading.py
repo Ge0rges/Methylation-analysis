@@ -1,10 +1,8 @@
 import os
 import glob
-
-import pandas as pd
-
 from utils import *
 from Bio import SeqIO
+import pandas as pd
 
 
 def get_pileup(path) -> pd.DataFrame:
@@ -84,25 +82,43 @@ def get_coordinated_functions(data_dir, genome_name) -> pd.DataFrame:
     Read gene caller and functions from seperate files then intersect.
 
     Parameters:
+    data_dir (str): The path to the data directory.
     genome_name (str): Genome name.
 
     Returns:
     pandas.DataFrame: DataFrame with gene functions.
     """
     # Load data
-    gene_calls = pd.read_csv(f"{data_dir}/{genome_name}/gene-calls.txt", sep=",").drop(columns=["source"])
     function_calls = pd.read_csv(f"{data_dir}/{genome_name}/function-calls.txt", sep="\t")
+    gene_calls = get_genes(data_dir, genome_name)
 
     # Ensure efficient data types
-    gene_calls['gene_callers_id'] = gene_calls['gene_callers_id'].astype('int32')
-    function_calls['gene_callers_id'] = function_calls['gene_callers_id'].astype('int32')
+    function_calls['gene_callers_id'] = pd.to_numeric(function_calls['gene_callers_id'], downcast="integer")
 
     # Merge using efficient indexing
     coordinated_functions = pd.merge(gene_calls, function_calls, on='gene_callers_id')
-    coordinated_functions['e_value'] = coordinated_functions['e_value'].astype(float)
+    coordinated_functions['e_value'] = pd.to_numeric(coordinated_functions['e_value'], downcast="float")
+
+    assert gene_calls['gene_callers_id'].nunique() <= coordinated_functions['gene_callers_id'].nunique(), "Not all genes were conserved"
 
     return coordinated_functions
 
+
+def get_genes(data_dir, genome_name, drop_source=True) -> pd.DataFrame:
+    """
+    Parameters:
+    data_dir (str): The path to the data directory.
+    genome_name (str): Genome name.
+
+    Returns:
+    pandas.DataFrame: DataFrame with gene functions.
+    """
+    gene_calls = pd.read_csv(f"{data_dir}/{genome_name}/gene-calls.txt", sep=",")
+    if drop_source:
+        gene_calls.drop(columns=["source"])
+    gene_calls['gene_callers_id'] = pd.to_numeric(gene_calls['gene_callers_id'], downcast="integer")
+
+    return gene_calls
 
 def get_genomic_sequence(genome_name) -> dict:
     """
@@ -169,7 +185,7 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
     if common_locations:
         # Get the index of common names
         common_index = None
-        for i, group in enumerate(combined_methyl_data.groupby("sample")):
+        for i, (sample, group) in enumerate(combined_methyl_data.groupby("sample")):
             group.set_index("name", inplace=True)
 
             if i == 0:
@@ -178,10 +194,10 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
                 common_index = common_index.intersection(group.index)
 
         # Keep only the common indices and set name back to a column
-        combined_methyl_data = combined_methyl_data.loc[common_index].reset_index(names="name")
+        combined_methyl_data = combined_methyl_data.set_index("name").loc[common_index].reset_index(names="name")
 
         # Check that every dataframe has the same names
-        name_sets = [group['name'] for group in combined_methyl_data.groupby("sample")]
+        name_sets = [group['name'] for sample, group in combined_methyl_data.groupby("sample")]
         assert all([np.array_equal(name_set, name_sets[0]) for name_set in
                     name_sets]), "Not all methyl methyl_dfs have the same regions"
 

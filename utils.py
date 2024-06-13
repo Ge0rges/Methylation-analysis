@@ -132,8 +132,8 @@ def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
         'inclusive start position']) == 1), "Given regions larger than a single nucleotide"
 
     # Merge columns chrom, inclusive start position, and exclusive end position into a single column called 'name' for easy comparison
-    methyl_data['name'] = methyl_data['chrom'] + '_' + methyl_data['strand'] + ":" + methyl_data[
-        'inclusive start position'].astype(str) + "-" + methyl_data['exclusive end position'].astype(str)
+    methyl_data['name'] = methyl_data['chrom'] + '|' + methyl_data['strand'] + "|" + methyl_data[
+        'inclusive start position'].astype(str) + "|" + methyl_data['exclusive end position'].astype(str)
 
     # Check no negative valuesin Ndiff and Nvalid_cov
     assert all(methyl_data[methyl_data['Ndiff'] >= 0]) and all(methyl_data[methyl_data['Nvalid_cov'] >= 0]) and all(methyl_data[methyl_data['Ncanonical'] >= 0])
