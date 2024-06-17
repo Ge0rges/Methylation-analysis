@@ -141,6 +141,9 @@ def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
     # Drop rows where Ndiff is larger than Nvalid_cov
     methyl_data = methyl_data[methyl_data['Ndiff'] < methyl_data['Nvalid_cov']].copy()
 
+    # Make sure we are handling supported data
+    assert methyl_data['modified base code and motif'].unique() == {'a', 'm', '21839'}, "Unsupported nucleotide types called"
+
     # Handle different nucleotide types called by keeping group with largest Nvalid_cov
     mod_base_map = {"a": "A", "m": "C", "21839": "C"}
     methyl_data['mod_group'] = methyl_data['modified base code and motif'].map(mod_base_map)

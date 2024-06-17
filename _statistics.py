@@ -44,7 +44,6 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     df = pd.get_dummies(df, columns=['sample'], prefix='sample', dtype=int)
 
     # Get features
-    t = df['sample_1']
     X = pd.concat([df['name'], df['sample_0'], df['sample_1']], axis=1)
     X_restricted = pd.concat([df['name'], df['sample_0']], axis=1)
     y = df.iloc[:, 1:-2]
@@ -56,21 +55,21 @@ def logistic_regression_pvalue(df, p_value_threshold=0.05):
     X_restricted = sm.add_constant(X_restricted)
 
     # Fit the logistic regression models
-    model = sm.MNLogit(y, X).fit(method="lbfgs")
-    restricted_model = sm.MNLogit(y, X_restricted).fit(method="lbfgs")
+    model = sm.MNLogit(y, X).fit()
+    restricted_model = sm.MNLogit(y, X_restricted).fit()
 
     # Get the rao score
-    #score_test_result = restricted_model.score_test(exog_extra=t)
-    params_r = np.concatenate((restricted_model.params.to_numpy(), [[0, 0, 0]]), axis=0).ravel("f")
-    score_test_result = model.score_test(params_constrained=params_r, k_constraints=1)
+    params_r = np.concatenate((restricted_model.params.to_numpy(), np.zeros((1, X.shape[1]-1))), axis=0).ravel("f")
+    score_test_result = model.score_test(params_constrained=params_r, k_constraints=X.shape[1]-1)
 
-    # Compute wald test
-    # Define the restriction matrix R
-    # For example, if we want to test if the coefficients of 'sample_0' and 'sample_1' are jointly zero:
-    R = [[0, 1, 0],  # Coefficient of 'sample_0'
-         [0, 0, 1]]  # Coefficient of 'sample_1'
+    # Make the restriction matrix
+    num_classes = y.shape[1] - 1
+    num_params_per_class = X.shape[1]
 
-    # Perform the Wald test
+    R = np.zeros((num_classes, num_classes*num_params_per_class))
+    for i in range(num_classes):
+        R[i, i * num_params_per_class + 3] = 1
+
     wald_test = model.wald_test(R)
 
     print(f"Difference between p_values {score_test_result[1] - wald_test.pvalue}")

@@ -1,8 +1,8 @@
 import os
 import glob
+import pandas as pd
 from utils import *
 from Bio import SeqIO
-import pandas as pd
 
 
 def get_pileup(path) -> pd.DataFrame:
