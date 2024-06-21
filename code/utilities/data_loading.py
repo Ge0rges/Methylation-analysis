@@ -1,7 +1,7 @@
 import os
 import glob
 import pandas as pd
-from utils import *
+from utilities.utils import *
 from Bio import SeqIO
 
 
@@ -119,6 +119,7 @@ def get_genes(data_dir, genome_name, drop_source=True) -> pd.DataFrame:
     gene_calls['gene_callers_id'] = pd.to_numeric(gene_calls['gene_callers_id'], downcast="integer")
 
     return gene_calls
+
 
 def get_genomic_sequence(genome_name) -> dict:
     """

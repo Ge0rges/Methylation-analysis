@@ -2,8 +2,8 @@ __pycache__/*
 plots/*
 .idea/*
 data/methylation*
-/plots_10
-/plots_5
+/plots/plots_10
+/plots/plots_5
 /R
 data/._.DS_Store
 data/._methylation_5
@@ -15,3 +15,5 @@ data/mag_eval/._coverm.tsv
 data/mag_eval/._gtdbtk.tsv
 *._*
 *.DS_Store
+/code/utilities/__pycache__
+/code/__pycache__
