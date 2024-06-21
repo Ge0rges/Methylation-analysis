@@ -3,7 +3,9 @@ import vaex
 import textwrap
 import numpy as np
 import pandas as pd
+import polars as pl
 import matplotlib.pyplot as plt
+from itertools import combinations
 
 
 barcode_sample_map = {"Barcode01": "S2-1",
@@ -118,6 +120,26 @@ def select_best_annotation_row(group) -> pd.DataFrame:
     return group.sort_values(by=['e_value', 'accession_split_len']).iloc[0]
 
 
+def call_function_pairwise(df, function):
+    samples = df['sample'].unique()
+    sample_combinations = list(combinations(samples, 2))
+
+    results = {}
+    for i, (sample1, sample2) in enumerate(sample_combinations):
+
+        sample_pair = None
+        if type(df) == pl.DataFrame or type(df) == pl.LazyFrame:
+            sample_pair = df.filter(pl.col("sample").is_in([sample1, sample2]))
+
+        elif type(df) == pd.DataFrame:
+            sample_pair = df[df['sample'].isin([sample1, sample2])]
+
+        results[sample1, sample2] = function(sample_pair)
+        print(f"Done with {i+1}/{len(sample_combinations)}")
+
+    return results
+
+
 def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
     """
     Reshape the methyl_data dataframe to a matrix where each row is a region and each column is a modification type
@@ -142,7 +164,8 @@ def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
     methyl_data = methyl_data[methyl_data['Ndiff'] < methyl_data['Nvalid_cov']].copy()
 
     # Make sure we are handling supported data
-    assert methyl_data['modified base code and motif'].unique() == {'a', 'm', '21839'}, "Unsupported nucleotide types called"
+    assert set(methyl_data['modified base code and motif'].unique()).issubset({'a', 'm', '21839'}), \
+        f"Unexpected values found: {set(methyl_data['modified base code and motif'].unique()) - {'a', 'm', '21839'} }"
 
     # Handle different nucleotide types called by keeping group with largest Nvalid_cov
     mod_base_map = {"a": "A", "m": "C", "21839": "C"}
@@ -179,6 +202,44 @@ def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
     assert all(pivot_df.groupby('name').sum().sum(axis=1) == methyl_data.groupby('name')['Nvalid_cov'].first()), "Sum of modifications in pivot_df is not equal to Nvalid_cov in methyl_data"
 
     return pivot_df
+
+
+def group_methyl_data_by_genes(df, genes, aggregate=[pl.sum]) -> pd.DataFrame:
+    """
+    Aggregate methylation data by genes.
+
+    :param df: The methylation data as a count table
+    :type df: pd.Dataframe
+    :param genes: The genes as a list of ranges
+    :type genes: pd.Dataframe
+    :param aggregate: A list of aggregation functions to apply to the columns e.g. [pl.min, pl.max, pl.mean, pl.sum]
+    :type aggregate: list
+    :return: The aggregated methylation data.
+    :rtype: pd. Dataframe
+    """
+    df = df.collect().lazy()
+
+    df = df.with_columns(
+        contig=pl.col('name').str.split(by='|').list.get(0),
+        start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
+        stop=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
+    )
+
+    # Create a unique identifier for each range in ranges dataframe
+    genes = genes.with_row_index('range_id')
+
+    # Merge df with ranges based on conditions
+    df_merged = df.join(genes, on='contig')
+
+    # Filter rows where df start and end values are within range start and end.
+    # Gene range is inclusive of end, modkit bed is not.
+    df_filtered = df_merged.filter((pl.col('start') >= pl.col('start_right')) & (pl.col('stop') < pl.col('stop_right')))
+    df_filtered = df_filtered.drop(['contig', 'start', 'start_right', 'stop', 'stop_right'])
+
+    # Group by range_id and aggregate columns
+    result = df_filtered.group_by('range_id').sum()
+
+    return result.drop('range_id')
 
 
 # From https://github.com/vaexio/vaex/issues/2391

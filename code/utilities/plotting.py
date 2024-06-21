@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-from utils import truncate_label, PlotMarker
+from utilities.utils import truncate_label, PlotMarker, group_methyl_data_by_genes
 
 plt.style.use('ggplot')
 
@@ -162,25 +162,8 @@ def plot_methylation_levels_per_base(df, genome_name, coverage, fig_savepath="pl
 
 
 def plot_methylation_levels_by_gene(df, genes, genome_name, coverage, fig_savepath="plots"):
-    df['contig'] = df['name'].apply(lambda x: x.split('|')[0])
-    df['start'] = df['name'].apply(lambda x: x.split('|')[2])
-    df['stop'] = df['name'].apply(lambda x: x.split('|')[3])
-
-    # Step 1: Create a unique identifier for each range in ranges dataframe
-    genes['range_id'] = genes.index
-
-    # Step 2: Merge df with ranges based on conditions
-    df_merged = pd.merge(df, genes, on='contig')
-
-    # Step 3: Filter rows where df start and end values are within range start and end
-    df_filtered = df_merged[(df_merged['start_x'] >= df_merged['start_y']) & (df_merged['stop_x'] < df_merged['stop_y'])]
-
-    # Step 4: Group by range_id and aggregate val1 and val2 columns
-    aggregation_dict = {col: ['min', 'max', 'mean', 'sum'] for col in df_filtered.columns[1:-7]}
-    result = df_filtered.groupby('range_id').agg(aggregation_dict).reset_index()
-    result.drop(columns=["contig", "range_id", "start_x", "start_y", "stop_x", "stop_y"], inplace=True)
-
-    print(result)
+    df = group_methyl_data_by_genes(df, genes, aggregate=['min', 'max', 'mean', 'sum'])
+    pass
 
 
 # sort then take first 1000
@@ -206,7 +189,7 @@ def plot_methylation_levels_by_group(df, genome_name, coverage, fig_savepath="pl
         group_stats['sample_std'] = group_stats['sample'].map(df_std)
 
         # Define the conditions for including groups
-        n = 5
+        n = 0.5
         conditions = (
                 (group_stats['mean'] > n * group_stats['sample_mean']) |
                 (group_stats['std'] > n * group_stats['sample_std']) |
@@ -218,7 +201,6 @@ def plot_methylation_levels_by_group(df, genome_name, coverage, fig_savepath="pl
         df = df[df['group'].isin(groups_to_include)]
 
         # Create figure
-
         plots = [seaborn.boxplot, seaborn.violinplot, seaborn.boxenplot]
 
         for plot in plots:

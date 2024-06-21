@@ -1,5 +1,5 @@
-from data_loading_polars import *
-from data_loading import *
+from code.Utilities.data_loading_polars import *
+from code.Utilities.data_loading import *
 
 if __name__ == "__main__":
     data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data/methylation_5")

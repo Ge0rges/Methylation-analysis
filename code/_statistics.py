@@ -1,3 +1,4 @@
+import math
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
@@ -140,11 +141,11 @@ def willis_dmr_test_r(combined_methyl_data):
     Y = combined_methyl_data.drop(columns=["name", "sample"])
     X = pd.get_dummies(combined_methyl_data["sample"], dtype=int)
 
-    # Check X, Y and combined_methyl_data have the same number of rows
+    # Check X, Y and df have the same number of rows
     assert X.shape[0] == Y.shape[0] == combined_methyl_data.shape[
-        0], "X, Y and combined_methyl_data have different number of rows"
+        0], "X, Y and df have different number of rows"
 
-    # Check that for any row the value of sample in combined_methyl_data is True in the corresponding column in X
+    # Check that for any row the value of sample in df is True in the corresponding column in X
     for index, row in combined_methyl_data.iterrows():
         sample_value = row["sample"]
         assert X.loc[index, sample_value] == 1, f"One-hot encoding failed for row {index}"
@@ -294,6 +295,15 @@ def willis_dmr_test(combined_methyl_data):
         # Place the identity matrix
         H2[row_start:row_end, col_start:col_end] = np.eye(p)
 
+    # Save all the matrices to a csv
+    pd.DataFrame(X).to_csv("X.csv")
+    pd.DataFrame(Y).to_csv("Y.csv")
+    pd.DataFrame(theta_hat).to_csv("theta_hat.csv")
+    pd.DataFrame(s_theta).to_csv("s_theta.csv")
+    pd.DataFrame(D_hat_Y).to_csv("D_hat_Y.csv")
+    pd.DataFrame(I_hat_Y).to_csv("I_hat_Y.csv")
+    pd.DataFrame(H2).to_csv("H2.csv")
+
     # Calculate T strong
     inverse_I_hat_Y = np.linalg.inv(I_hat_Y)
     t_strong = s_theta.T @ inverse_I_hat_Y @ H2.T @ np.linalg.inv(
@@ -324,30 +334,52 @@ def modkit_llr(modkit_score, num_tests, p_value_threshold=0.05):
     return corrected_p_value < p_value_threshold
 
 
-def paired_t_test(df, p_value_threshold=0.05):
-    """
-    Perform a paired t-test on the methylation data.
+def pearson_chi_squared(df, p_value_threshold=0.05):
+    # Perform a Pearson's Chi-squared test
+    # https://online.stat.psu.edu/stat504/book/export/html/720
+    # https://en.wikipedia.org/wiki/Pearson%27s_chi-squared_test
+    df = df.drop(["sample"])
 
-    Parameters:
-    df (pd.DataFrame): The DataFrame containing the methylation data.
+    return stats.chi2_contingency(df).pvalue < p_value_threshold
 
-    Returns:
-    Bool: Wehether any one methylation column is different.
-    """
 
-    # Extract the two samples
-    samples = df['sample'].unique()
-    assert len(samples) == 2, "The DataFrame must contain exactly two samples for a paired t-test"
+def fisher_exact_test(df, p_value_threshold=0.05):
+    # Perform a Fischer's exact test
+    # https://en.wikipedia.org/wiki/Fisher%27s_exact_test
+    # https://github.com/scipy/scipy/issues/7099
+    def untab(table):
+        r, c = table.shape
+        x = []
+        y = []
+        for i in range(r):
+            for j in range(c):
+                x += ([i] * table[i, j])
+                y += ([j] * table[i, j])
+        return np.asarray(x), np.asarray(y)
 
-    # Do a paired t-test for each methylation column
-    p_values = []
-    for column in df.columns[1:-1]:
-        sample1 = df[df['sample'] == samples[0]][column]
-        sample2 = df[df['sample'] == samples[1]][column]
+    def statistic(x, y):
+        table = stats.contingency.crosstab(x, y)[1]
+        return stats.contingency.chi2_contingency(table).statistic
 
-        # Perform the t-test
-        _, p_value = stats.ttest_rel(sample1, sample2)
-        p_values.append((column, p_value < p_value_threshold))
+    # Check that the data is in the correct format
+    assert df['name'].nunique == 1, "Fischer exact test is designed for one gene in many samples"
 
-    # If any -_values are significant return true
-    return any([p_value for _, p_value in p_values])
+    df.loc[:, 'name'] = df['name'].astype('category').cat.codes
+
+    observed = np.asarray(df.drop(columns="sample"))
+
+    rowsums, colsums = stats.contingency.margins(observed)
+    rng = np.random.default_rng(2395834589245)
+    X = stats.random_table(rowsums.ravel(), colsums.ravel(), seed=rng)
+
+    n_mc_samples = 9999
+    null_distribution = []
+    for i in range(n_mc_samples):
+        table = X.rvs()
+        null_distribution.append(statistic(table))
+    null_distribution = np.asarray(null_distribution)
+
+    n_extreme = np.sum(null_distribution >= statistic(observed))
+    pvalue = (n_extreme + 1) / (n_mc_samples + 1)
+
+    return pvalue < p_value_threshold

@@ -1,8 +1,7 @@
 import pandas as pd
 import seaborn as sns
-from itertools import cycle
 import matplotlib.pylab as plt
-from utils import barcode_sample_map, read_counts
+from code.Utilities.utils import barcode_sample_map, read_counts
 
 
 def plot_coverage():
@@ -13,7 +12,7 @@ def plot_coverage():
     """
 
     # Load data
-    coverage = pd.read_csv("data/mag_eval/coverm.tsv", sep="\t", header=0)
+    coverage = pd.read_csv("../../data/mag_eval/coverm.tsv", sep="\t", header=0)
 
     # Clean the mag names
     coverage['Genome'] = coverage['Genome'].str.title()
@@ -47,8 +46,8 @@ def plot_mag_eval():
     :return: Saves a file
     """
     # Load data
-    checkm2_quality = pd.read_csv("data/mag_eval/checkm2.tsv", sep="\t", header=0)
-    anvio_quality = pd.read_csv("data/mag_eval/anvio.tsv", sep="\t", header=0)
+    checkm2_quality = pd.read_csv("../../data/mag_eval/checkm2.tsv", sep="\t", header=0)
+    anvio_quality = pd.read_csv("../../data/mag_eval/anvio.tsv", sep="\t", header=0)
 
     # Merge the quality dataframes
     checkm2_quality['Name'] = checkm2_quality['Name'].str.replace("_r-contigs", "_r")

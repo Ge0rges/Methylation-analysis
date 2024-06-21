@@ -15,7 +15,7 @@ def get_pileup_polars(path) -> pl.LazyFrame:
     pileup = pl.scan_csv(path, separator="\t", has_header=False, new_columns=["chrom", "inclusive start position", "exclusive end position", "modified base code and motif", "score", "strand", "start position2", "end position2", "color", "Nvalid_cov", "fraction modified", "Nmod", "Ncanonical", "Nother_mod", "Ndelete", "Nfail", "Ndiff", "Nnocall"])
 
     # Drop redundant columns
-    pileup = pileup.drop(columns=["score", "start position2", "end position2", "color"])
+    pileup = pileup.drop("score", "start position2", "end position2", "color")
 
     return pileup
 
@@ -47,7 +47,7 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_lo
 
         # Add sample column
         sample_name = os.path.basename(bed_file).split(".")[0]
-        methyl_data = methyl_data.with_columns(pl.lit(sample_name).alias('sample'))
+        methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
 
         # Keep only common locations
         if common_locations and i > 0:
@@ -65,9 +65,9 @@ def reshape_pileup_to_matrix_polars(methyl_data, genome_name) -> pl.LazyFrame:
     methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
 
     mod_base_map = {"a": "A", "m": "C", "21839": "C"}
-    methyl_data = methyl_data.with_columns(pl.col('modified base code and motif').map_dict(mod_base_map).alias('mod_group'))
+    methyl_data = methyl_data.with_columns(pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
 
-    grouped = methyl_data.groupby(['name', 'mod_group']).agg(pl.max('Nvalid_cov').alias('max_valid_cov'))
+    grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov').alias('max_valid_cov'))
     methyl_data = methyl_data.join(grouped, on=['name', 'mod_group'], how='inner').filter(pl.col('Nvalid_cov') == pl.col('max_valid_cov'))
 
     pivot_df = methyl_data.collect(streaming=True).pivot(index='name', columns='modified base code and motif', values='Nmod', aggregate_function='first').lazy()
