@@ -173,6 +173,7 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
             methyl_data["sample"] = os.path.basename(bed_file).split(".")[0]
 
             methyl_dfs.append(methyl_data)
+            print(f"Reshaped {i+1}/{len(bed_files)} bed files")
 
         # Build matrix for statistical testing
         combined_methyl_data = pd.concat(methyl_dfs, ignore_index=True)

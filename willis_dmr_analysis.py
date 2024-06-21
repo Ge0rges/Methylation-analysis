@@ -36,13 +36,13 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     # Load the data
     combined_methyl_data = load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations=False)
 
+    print("Got combined methyl data")
+
     # Paired t-test
     #plot_pairwise_results(pairwise_epigenomes(combined_methyl_data, paired_t_test), genome_name + " using paired t-test")
 
     # Keep first 100 rows of each sample
-    combined_methyl_data = combined_methyl_data.groupby('sample').head(1)
-    # print("WARNING: in debug mode cropped data")
-    combined_methyl_data = combined_methyl_data[combined_methyl_data['sample'].isin(["top", "middle", "bottom"])]
+    combined_methyl_data = combined_methyl_data[combined_methyl_data['sample'].isin(["top", "bottom"])]
     if not combined_methyl_data.empty:
         willis_dmr_test(combined_methyl_data)
 
@@ -53,7 +53,7 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
 if __name__ == "__main__":
     # For each folder in the data directory
     print("Running Willis DMR analysis at coverage 5")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data/methylation_5")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../methylation_5")
     folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
 
     run_analysis("polaribacter_r-contigs", "dmr_by_gene", data_dir, fig_savepath="plots_5")
