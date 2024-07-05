@@ -2,6 +2,7 @@ from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
 
+
 def get_dmr_by_sample_annotated(data_dir, genome_name, bed_files):
     # Get all the methylation data from the bed files
     dmrs = []
@@ -20,7 +21,7 @@ def get_dmr_by_sample_annotated(data_dir, genome_name, bed_files):
 
     # Dropping all other columns except the ones in columns_to_keep
     #df = df.drop(columns=["name", "gene_callers_id", "direction", "call_type", "rbs_spacer", "gc_cont",
-    df = df.drop(columns=["name", "gene_callers_id", "direction", "call_type", "partial", "accession", "e_value"])
+    df = df.drop(columns=["name", "gene_callers_id", "accession"])
     return df
 
 
@@ -42,9 +43,6 @@ def add_functional_annotations(dmrs, data_dir, genome_name):
     # Define a condition for DMRs that actually overlap the annotated regions
     condition = (merged_df['start_x'] >= merged_df['start_y']) & (merged_df['end'] <= merged_df['stop'])
 
-    # Hacky solution, but drop partial because it's a boolean column and we don't need it later
-    merged_df.drop(columns=["partial"], inplace=True)
-
     # For rows not meeting the condition, clear out irrelevant function columns and set default values
     merged_df.loc[~condition, func_cols] = pd.NA
     merged_df.loc[~condition, "gene_callers_id"] = -1
@@ -54,7 +52,7 @@ def add_functional_annotations(dmrs, data_dir, genome_name):
     # Remove duplicate entries from the merged DataFrame
     merged_df.drop_duplicates(inplace=True)
 
-    # Convert the 'accession' column to string format for processing
+    # Convert the 'accession' column to string format for processing l
     merged_df['accession'] = merged_df['accession'].astype(str)
 
     # Apply the helper function on groups defined by unique columns, and remove the temporary column afterwards
@@ -68,7 +66,7 @@ def add_functional_annotations(dmrs, data_dir, genome_name):
     assert merged_df.shape[0] == merged_df.groupby(unique_cols).ngroups, "There are duplicate groups in the result."
 
     # Clean up by dropping columns that are no longer needed
-    merged_df.drop(columns=["contig", "start_y", "stop", "version"], inplace=True)
+    merged_df.drop(columns=["contig", "start_y", "stop", "e_value"], inplace=True)
 
     return merged_df
 
@@ -102,9 +100,9 @@ def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
         return
 
     # Keep only statistically significant DMRs
-    #methyl_data['num_tests'] = methyl_data.groupby('comparison')['comparison'].transform('count')
-    #methyl_data['test_result'] = methyl_data.apply(lambda x: modkit_llr(x['score'], x['num_tests']), axis=1)
-    #methyl_data = methyl_data[methyl_data['test_result']]
+    methyl_data['num_tests'] = methyl_data.groupby('comparison')['comparison'].transform('count')
+    methyl_data['test_result'] = methyl_data.apply(lambda x: modkit_llr(x['score'], x['num_tests']), axis=1)
+    methyl_data = methyl_data[methyl_data['test_result']]
 
     # Handle empty
     if methyl_data.empty:

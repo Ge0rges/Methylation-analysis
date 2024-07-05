@@ -99,13 +99,13 @@ def get_coordinated_functions(data_dir, genome_name) -> pd.DataFrame:
     coordinated_functions = pd.merge(gene_calls, function_calls, on='gene_callers_id')#, how="left")
     #coordinated_functions.fillna("Unknown", inplace=True)
     coordinated_functions['e_value'] = pd.to_numeric(coordinated_functions['e_value'], downcast="float")
-    
+
     assert gene_calls['gene_callers_id'].nunique() >= coordinated_functions['gene_callers_id'].nunique(), "Not all genes were conserved"
-    
+
     return coordinated_functions
 
 
-def get_genes(data_dir, genome_name, drop_source=True) -> pd.DataFrame:
+def get_genes(data_dir, genome_name, drop_extras=True) -> pd.DataFrame:
     """
     Parameters:
     data_dir (str): The path to the data directory.
@@ -115,8 +115,8 @@ def get_genes(data_dir, genome_name, drop_source=True) -> pd.DataFrame:
     pandas.DataFrame: DataFrame with gene functions.
     """
     gene_calls = pd.read_csv(f"{data_dir}/{genome_name}/gene-calls.txt", sep="\t")
-    if drop_source:
-        gene_calls.drop(columns=["source"])
+    if drop_extras:
+        gene_calls.drop(columns=["source", "version", "direction", "partial", "call_type"], inplace=True)
     gene_calls['gene_callers_id'] = pd.to_numeric(gene_calls['gene_callers_id'], downcast="integer")
 
     return gene_calls
@@ -131,7 +131,7 @@ def get_genomic_sequence(genome_name) -> dict:
     :return: Dataframe of file data
     :rtype: pandas.DataFrame
     """
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "data", "mags", f"{genome_name}.fna")
+    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{genome_name}.fna")
     fasta_file = SeqIO.parse(path, "fasta")
     fasta_dict = {}
     for record in fasta_file:
@@ -177,7 +177,7 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
 
             methyl_dfs.append(methyl_data)
             print(f"Reshaped {i+1}/{len(bed_files)} bed files")
-            
+
 
         # Build matrix for statistical testing
         combined_methyl_data = pd.concat(methyl_dfs, ignore_index=True)
