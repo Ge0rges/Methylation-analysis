@@ -34,7 +34,7 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_lo
     :rtype: pd.DataFrame
     """
     # Load the methyl_dfs from the bed files
-    bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name), "*.bed"))
+    bed_files = [f for f in glob.glob(os.path.join(data_dir, genome_name, "*.bed")) if '-bedgraph' not in os.path.basename(f)]
 
     if len(bed_files) == 0:
         print(f"No pileup bed files found for {data_dir}/{genome_name}")

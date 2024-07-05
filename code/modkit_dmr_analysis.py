@@ -19,8 +19,8 @@ def get_dmr_by_sample_annotated(data_dir, genome_name, bed_files):
     df = add_functional_annotations(dmrs, data_dir, genome_name)
 
     # Dropping all other columns except the ones in columns_to_keep
-    df = df.drop(columns=["name", "gene_callers_id", "direction", "call_type", "rbs_spacer", "gc_cont",
-                          "partial", "accession", "e_value"])
+    #df = df.drop(columns=["name", "gene_callers_id", "direction", "call_type", "rbs_spacer", "gc_cont",
+    df = df.drop(columns=["name", "gene_callers_id", "direction", "call_type", "partial", "accession", "e_value"])
     return df
 
 
@@ -89,6 +89,7 @@ def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
 
     # Load the data from the bed files
     bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name, dmr_type), "*.bed"))
+    bed_files = [file for file in bed_files if not file.endswith('-bedgraph.bed')]
     if len(bed_files) == 0:
         print(f"No DMR bed files found for {genome_name}")
         return
@@ -101,9 +102,9 @@ def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
         return
 
     # Keep only statistically significant DMRs
-    methyl_data['num_tests'] = methyl_data.groupby('comparison')['comparison'].transform('count')
-    methyl_data['test_result'] = methyl_data.apply(lambda x: modkit_llr(x['score'], x['num_tests']), axis=1)
-    methyl_data = methyl_data[methyl_data['test_result']]
+    #methyl_data['num_tests'] = methyl_data.groupby('comparison')['comparison'].transform('count')
+    #methyl_data['test_result'] = methyl_data.apply(lambda x: modkit_llr(x['score'], x['num_tests']), axis=1)
+    #methyl_data = methyl_data[methyl_data['test_result']]
 
     # Handle empty
     if methyl_data.empty:
@@ -123,13 +124,25 @@ def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
 if __name__ == "__main__":
     # For each folder in the data directory
     print("Running DMR analysis at coverage 5")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data", "methylation_5")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../", "methylation_5")
     for genome in os.listdir(data_dir):
         # Run the DMR analysis for the genome
         run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5")
 
     print("Running DMR analysis at coverage 10")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data", "methylation_10")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../", "methylation_10")
     for genome in os.listdir(data_dir):
         # Run the DMR analysis for the genome
         run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_10")
+    
+    print("Running DMR analysis at coverage 5 agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../", "methylation_5_agg")
+    for genome in os.listdir(data_dir):
+        # Run the DMR analysis for the genome
+        run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5_agg")
+
+    print("Running DMR analysis at coverage 10 agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../", "methylation_10_agg")
+    for genome in os.listdir(data_dir):
+        # Run the DMR analysis for the genome
+        run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_10_agg")

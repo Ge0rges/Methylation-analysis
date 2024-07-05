@@ -96,11 +96,12 @@ def get_coordinated_functions(data_dir, genome_name) -> pd.DataFrame:
     function_calls['gene_callers_id'] = pd.to_numeric(function_calls['gene_callers_id'], downcast="integer")
 
     # Merge using efficient indexing
-    coordinated_functions = pd.merge(gene_calls, function_calls, on='gene_callers_id')
+    coordinated_functions = pd.merge(gene_calls, function_calls, on='gene_callers_id')#, how="left")
+    #coordinated_functions.fillna("Unknown", inplace=True)
     coordinated_functions['e_value'] = pd.to_numeric(coordinated_functions['e_value'], downcast="float")
-
-    assert gene_calls['gene_callers_id'].nunique() <= coordinated_functions['gene_callers_id'].nunique(), "Not all genes were conserved"
-
+    
+    assert gene_calls['gene_callers_id'].nunique() >= coordinated_functions['gene_callers_id'].nunique(), "Not all genes were conserved"
+    
     return coordinated_functions
 
 
@@ -113,7 +114,7 @@ def get_genes(data_dir, genome_name, drop_source=True) -> pd.DataFrame:
     Returns:
     pandas.DataFrame: DataFrame with gene functions.
     """
-    gene_calls = pd.read_csv(f"{data_dir}/{genome_name}/gene-calls.txt", sep=",")
+    gene_calls = pd.read_csv(f"{data_dir}/{genome_name}/gene-calls.txt", sep="\t")
     if drop_source:
         gene_calls.drop(columns=["source"])
     gene_calls['gene_callers_id'] = pd.to_numeric(gene_calls['gene_callers_id'], downcast="integer")
@@ -162,6 +163,7 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
     except FileNotFoundError:
         # Load the methyl_dfs from the bed files
         bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name), "*.bed"))
+        bed_files = [file for file in bed_files if not file.endswith('-bedgraph.bed')]
 
         if len(bed_files) == 0:
             print(f"No pileup bed files found for {data_dir}/{genome_name}")
@@ -175,6 +177,7 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
 
             methyl_dfs.append(methyl_data)
             print(f"Reshaped {i+1}/{len(bed_files)} bed files")
+            
 
         # Build matrix for statistical testing
         combined_methyl_data = pd.concat(methyl_dfs, ignore_index=True)

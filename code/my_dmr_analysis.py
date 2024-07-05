@@ -43,7 +43,7 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
 if __name__ == "__main__":
     # For each folder in the data directory
     print("Running Willis DMR analysis at coverage 5")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/methylation_5")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_5")
     folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
 
     run_analysis("polaribacter_r-contigs", "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5")

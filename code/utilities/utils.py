@@ -178,10 +178,8 @@ def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
     grouped = methyl_data.groupby(['name', 'mod_group'])
     max_valid_cov = grouped['Nvalid_cov'].transform('max')
     base_corrected_df = methyl_data[methyl_data['Nvalid_cov'] == max_valid_cov]
-
-    # Check that for each name, there is only mod_group value
-    assert base_corrected_df.groupby('name')[
-               'mod_group'].nunique().max() == 1, "There are multiple nucleotide types called for the same region"
+    
+    assert base_corrected_df.groupby('name')['mod_group'].nunique().max() == 1, "There are multiple nucleotide types called for the same region"
 
     # Create a new dataframe where there is a row per name, and a column per diffferent value in
     # 'modified base code and motif' where the value of that column is the value in 'Nmod'
@@ -224,6 +222,11 @@ def group_methyl_data_by_genes(df, genes, aggregate=[pl.sum]) -> pd.DataFrame:
         start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
         stop=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
     )
+
+    a = df.select('contig').unique().collect().get_column('contig').to_list()
+    b = genes.select('contig').unique().collect().get_column('contig').to_list()
+    
+    assert all(g1 in b for g1 in a), "Not all contigs are in this genome."
 
     # Create a unique identifier for each range in ranges dataframe
     genes = genes.with_row_index('range_id')

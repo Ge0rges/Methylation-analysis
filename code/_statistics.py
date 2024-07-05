@@ -340,7 +340,7 @@ def pearson_chi_squared(df, p_value_threshold=0.05):
     # https://en.wikipedia.org/wiki/Pearson%27s_chi-squared_test
     df = df.drop(["sample"])
 
-    return stats.chi2_contingency(df).pvalue < p_value_threshold
+    return stats.chi2_contingency(df.collect()).pvalue < p_value_threshold
 
 
 def fisher_exact_test(df, p_value_threshold=0.05):
