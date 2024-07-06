@@ -3,6 +3,7 @@ import seaborn
 import vaex
 import numpy as np
 import pandas as pd
+import polars as pl
 import seaborn as sns
 import matplotlib.pyplot as plt
 from utilities.utils import truncate_label, PlotMarker, group_methyl_data_by_genes
@@ -117,10 +118,6 @@ def plot_methylation_levels_per_base(df, genome_name, coverage, fig_savepath="pl
     # Normalize counts by coverage
     samples = df['sample'].unique()
 
-    # # Show row with top 10 values
-    # top_rows = pd.concat([df.nlargest(100, col) for col in methylation_types])
-    # print(top_rows)
-
     # Iterate through each methylation type and plot its values
     for methylation_type in methylation_types:
 
@@ -158,12 +155,25 @@ def plot_methylation_levels_per_base(df, genome_name, coverage, fig_savepath="pl
                    plot_markers[:len(samples)]]
         plt.legend(handles, samples, title="Samples")
 
-        plt.show(block=True)
+        plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_{methylation_type}_perbase.pdf", format='pdf')
 
 
 def plot_methylation_levels_by_gene(df, genes, genome_name, coverage, fig_savepath="plots"):
-    df = group_methyl_data_by_genes(df, genes, aggregate=['min', 'max', 'mean', 'sum'])
-    pass
+    df = group_methyl_data_by_genes(pl.from_pandas(df), genes).collect()
+
+    for methylation_type in df.columns[1:-5]:
+        # Create figure
+        plots = [seaborn.boxplot, seaborn.violinplot, seaborn.boxenplot]
+
+        for plot in plots:
+            plt.figure(figsize=(40, 10))
+
+            plot(df, x="range_id", y=methylation_type, hue="sample")
+
+            plt.title(f"{genome_name} - {coverage} - {methylation_type}")
+
+            plt.tight_layout()
+            plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_{methylation_type}_{plot.__name__}.pdf", format='pdf')
 
 
 # sort then take first 1000
@@ -211,4 +221,4 @@ def plot_methylation_levels_by_group(df, genome_name, coverage, fig_savepath="pl
             plt.title(f"{genome_name} - {coverage} - {methylation_type}")
 
             plt.tight_layout()
-            plt.show(block=True)
+            plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_{methylation_type}_{plot.__name__}.pdf", format='pdf')

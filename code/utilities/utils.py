@@ -178,7 +178,7 @@ def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
     grouped = methyl_data.groupby(['name', 'mod_group'])
     max_valid_cov = grouped['Nvalid_cov'].transform('max')
     base_corrected_df = methyl_data[methyl_data['Nvalid_cov'] == max_valid_cov]
-    
+
     assert base_corrected_df.groupby('name')['mod_group'].nunique().max() == 1, "There are multiple nucleotide types called for the same region"
 
     # Create a new dataframe where there is a row per name, and a column per diffferent value in
@@ -202,7 +202,7 @@ def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
     return pivot_df
 
 
-def group_methyl_data_by_genes(df, genes, aggregate=[pl.sum]) -> pd.DataFrame:
+def group_methyl_data_by_genes(df, genes) -> pl.LazyFrame:
     """
     Aggregate methylation data by genes.
 
@@ -225,7 +225,7 @@ def group_methyl_data_by_genes(df, genes, aggregate=[pl.sum]) -> pd.DataFrame:
 
     a = df.select('contig').unique().collect().get_column('contig').to_list()
     b = genes.select('contig').unique().collect().get_column('contig').to_list()
-    
+
     assert all(g1 in b for g1 in a), "Not all contigs are in this genome."
 
     # Create a unique identifier for each range in ranges dataframe
@@ -239,10 +239,7 @@ def group_methyl_data_by_genes(df, genes, aggregate=[pl.sum]) -> pd.DataFrame:
     df_filtered = df_merged.filter((pl.col('start') >= pl.col('start_right')) & (pl.col('stop') < pl.col('stop_right')))
     df_filtered = df_filtered.drop(['contig', 'start', 'start_right', 'stop', 'stop_right'])
 
-    # Group by range_id and aggregate columns
-    result = df_filtered.group_by('range_id').sum()
-
-    return result.drop('range_id')
+    return df_filtered
 
 
 # From https://github.com/vaexio/vaex/issues/2391
