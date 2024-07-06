@@ -67,9 +67,9 @@ def truncate_label(label, max_length=70, max_lines=4):
     # Hide extra alternatives
     i = 0
     result = label.split("!!!")[i]
-    while i+1 < len(label.split("!!!")) and len(result + label.split("!!!")[i+1]) < max_length * max_lines:
+    while i+1 < len(label.split("!!!")) and len(result + "!!!" + label.split("!!!")[i+1]) < max_length * max_lines:
         i += 1
-        result += label.split("!!!")[i]
+        result += "!!!" + label.split("!!!")[i]
 
     result += " !!!..." if len(label.split("!!!")) > i+1 else ""
 

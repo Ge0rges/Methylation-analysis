@@ -100,7 +100,11 @@ def plot_heatmap(heatmap_data, ax, source, index):
         ax.set_ylabel('Gene Function' if index == 1 else '', fontsize=30)
 
         # Truncate Y-axis labels
-        y_labels = [truncate_label(lbl.get_text()) for lbl in ax.get_yticklabels()]
+        num_y_labels = len(ax.get_yticklabels())
+        ax_height_in = ax.get_window_extent().height / plt.gcf().dpi
+        num_lines = max(1, int(ax_height_in / num_y_labels * 2))  # Adjust the multiplier as necessary
+
+        y_labels = [truncate_label(lbl.get_text(), max_lines=num_lines) for lbl in ax.get_yticklabels()]
         ax.set_yticklabels(y_labels, rotation=0, ha='right', fontsize=20)
 
         # Orientate the X-acis labels
