@@ -22,7 +22,7 @@ def run_meth_level_plots(genome_name, data_dir, coverage, fig_savepath="plots"):
 
     if not methyl_data.empty:
         print(f"Plotting methyl data for {genome_name}")
-        plot_methylation_levels_per_base(methyl_data, genome_name, coverage, fig_savepath=fig_savepath)
+        #plot_methylation_levels_per_base(methyl_data, genome_name, coverage, fig_savepath=fig_savepath)
         plot_methylation_levels_by_gene(methyl_data, genes, genome_name, coverage, fig_savepath=fig_savepath)
         plot_methylation_levels_by_group(methyl_data, genome_name, coverage, fig_savepath=fig_savepath)
 
@@ -33,7 +33,6 @@ if __name__ == "__main__":
     # For each folder in the data directory
     print("Plotting methylation level at coverage 5")
     data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../", "methylation_5")
-    run_meth_level_plots("polaribacter_r-contigs",  data_dir, "meth_5", fig_savepath="plots_5")
 
     for genome in os.listdir(data_dir):
         # Run the DMR analysis for the genome

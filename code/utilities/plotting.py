@@ -163,7 +163,7 @@ def plot_methylation_levels_per_base(df, genome_name, coverage, fig_savepath="pl
 
 
 def plot_methylation_levels_by_gene(df, genes, genome_name, coverage, fig_savepath="plots"):
-    df = group_methyl_data_by_genes(pl.from_pandas(df), genes).collect()
+    df = group_methyl_data_by_genes(pl.from_pandas(df).lazy(), pl.from_pandas(genes).lazy()).collect()
 
     for methylation_type in df.columns[1:-5]:
         # Create figure
