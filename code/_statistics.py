@@ -153,12 +153,11 @@ def willis_dmr_test_r(combined_methyl_data):
                    index, X.columns != sample_value].sum() == 0, f"One-hot encoding failed for row {index}: More than one column has value 1"
 
     # Call R function
-    r = robjects.r
-    r['source']('R/get_multinom_score.R')
+    raoBust = robjects.packages.importr('raoBust')
+    numpy2ri.activate()
     np_cv_rules = default_converter + numpy2ri.converter
     with np_cv_rules.context():
-        get_multinom_score = robjects.globalenv['get_multinom_score']
-        result = get_multinom_score(np.array(X), np.array(Y), strong=False, j=0)
+        result = raoBust.multinom_test(np.array(X), np.array(Y), strong=True, j=False, penalty=False)
     return result
 
 
