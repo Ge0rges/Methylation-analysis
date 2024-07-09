@@ -23,7 +23,6 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     # Load the data
     combined_methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False)
 
-    # Try chi2 test
     genes = pl.from_pandas(get_genes(data_dir, genome_name)[['contig', 'start', 'stop']].drop_duplicates()).lazy()
     df = group_methyl_data_by_genes(combined_methyl_data, genes)
     result = {}
@@ -31,9 +30,7 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
         result[gene] = pearson_chi_squared(df.filter(pl.col('name') == gene))
 
     # Keep two samples and try to run the logistic regression
-    combined_methyl_data = combined_methyl_data.filter(pl.col("sample").is_in(["top", "bottom"]))
 
-    if not combined_methyl_data.empty:
         logistic_regression_pvalue(combined_methyl_data.collect().to_pandas())
 
     # Rao score
