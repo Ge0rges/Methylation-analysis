@@ -147,7 +147,7 @@ def plot_drift_track(results_df, variables_to_plot, names, cmaps, legend_labels,
     # Setup the figure layout
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(10 * n_cols, 10 * n_rows),
                             subplot_kw={'projection': ccrs.NorthPolarStereo()})
-    axs = axs.flatten()
+    axs = axs.flatten() if n_rows > 1 or n_cols > 1 else [axs]
 
     # Plot each variable on its own subplot
     for i, variable_to_plot in enumerate(variables_to_plot):
