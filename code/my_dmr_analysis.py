@@ -1,7 +1,7 @@
 import os
 import polars as pl
 from _statistics import *
-from utilities.utils import group_methyl_data_by_genes
+from utilities.utils import group_methyl_data_by_genes, barcode_sample_map
 from utilities.data_loading import load_combined_methyl_data_for_genome, get_genes
 from utilities.data_loading_polars import load_combined_methyl_data_for_genome_polars
 
@@ -21,7 +21,7 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     """
 
     # Load the data
-    combined_methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False)
+    combined_methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False).collect()
 
     # # Try chi2 test
     # genes = pl.from_pandas(get_genes(data_dir, genome_name)[['contig', 'start', 'stop']].drop_duplicates()).lazy()
@@ -31,13 +31,17 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     #     result[gene] = pearson_chi_squared(df.filter(pl.col('name') == gene))
 
     # Keep two samples and try to run the logistic regression
-    combined_methyl_data = combined_methyl_data.filter(pl.col("sample").is_in(["top", "bottom", "middle"]))
+    combined_methyl_data = combined_methyl_data.with_columns(pl.col("sample").replace(barcode_sample_map, default=pl.first()))
+    combined_methyl_data = combined_methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Run the Willis DMR test on each group of same "name" rows
-    grouped_data = combined_methyl_data.groupby("name")
-    for name, group in grouped_data:
-        group_data = group.collect()
-        result = willis_dmr_test_r(group_data)
+    names = combined_methyl_data.get_column("name").unique().to_list()
+    for name in names:
+        group = combined_methyl_data.filter(pl.col("name") == name)
+        if group.height != 9:
+            continue
+
+        result = willis_dmr_test_r(group)
         print(result)
 
     # if not combined_methyl_data.empty:
@@ -49,11 +53,11 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
 
 if __name__ == "__main__":
     # For each folder in the data directory
-    print("Running Willis DMR analysis at coverage 5")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_5")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/methylation_5_agg")
     folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
 
-    run_analysis("polaribacter_r-contigs", "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5")
+    run_analysis("polaribacter_r-contigs", "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5_agg")
+    run_analysis("Pelagibacter_r-contigs", "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5_agg")
 
     # for genome in folders:
     #     # Run the DMR analysis for the genome

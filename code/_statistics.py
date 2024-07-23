@@ -137,6 +137,7 @@ def willis_dmr_test_r(combined_methyl_data):
     import rpy2.robjects as robjects
     from rpy2.robjects import numpy2ri
     from rpy2.robjects import default_converter
+    from rpy2.robjects.packages import importr
 
     Y = combined_methyl_data.drop(columns=["name", "sample"])
     X = pd.get_dummies(combined_methyl_data["sample"], dtype=int)
@@ -144,20 +145,20 @@ def willis_dmr_test_r(combined_methyl_data):
     # Check X, Y and df have the same number of rows
     assert X.shape[0] == Y.shape[0] == combined_methyl_data.shape[
         0], "X, Y and df have different number of rows"
+    
+    # If there are any empty cols in Y remove them
+    non_zero_columns = np.any(Y != 0, axis=0)
+    X_new = X[:, non_zero_columns]
+    Y_new = Y[:, non_zero_columns]
 
-    # Check that for any row the value of sample in df is True in the corresponding column in X
-    for index, row in combined_methyl_data.iterrows():
-        sample_value = row["sample"]
-        assert X.loc[index, sample_value] == 1, f"One-hot encoding failed for row {index}"
-        assert X.loc[
-                   index, X.columns != sample_value].sum() == 0, f"One-hot encoding failed for row {index}: More than one column has value 1"
-
+    print(X)
+    print(Y)
     # Call R function
-    raoBust = robjects.packages.importr('raoBust')
+    raobust = importr('raoBust')
     numpy2ri.activate()
     np_cv_rules = default_converter + numpy2ri.converter
     with np_cv_rules.context():
-        result = raoBust.multinom_test(np.array(X), np.array(Y), strong=True, j=False, penalty=False)
+        result = raobust.multinom_test(X.to_numpy(), Y.to_numpy(), strong=True, j=False, penalty=False)
     return result
 
 

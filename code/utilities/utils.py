@@ -1,5 +1,4 @@
 import scipy
-import vaex
 import textwrap
 import numpy as np
 import pandas as pd
@@ -8,41 +7,63 @@ import matplotlib.pyplot as plt
 from itertools import combinations
 
 
-barcode_sample_map = {"Barcode01": "S2-1",
-                      "Barcode02": "S2-2",
-                      "Barcode03": "S2-3",
-                      "Barcode04": "Control",
-                      "Barcode05": "S3-1",
-                      "Barcode06": "S3-2",
-                      "Barcode07": "S3-3",
-                      "Barcode08": "S4-1",
-                      "Barcode09": "S4-2",
-                      "Barcode10": "S4-3",
-                      "Barcode11": "IC3-1 (30 cm)",
-                      "Barcode12": "IC3-2 (160 cm)",
-                      "Barcode13": "IC3-3 (205 cm)",
-                      "Barcode14": "IC3-4 (70 cm)",
-                      "Top": "Sackhole Top (40 cm)",
-                      "Bottom": "Sackhole Bottom (160cm)",
-                      "Middle": "Sackhole Middle (70 cm)",
-                      "Control": "Control"
+readable_methylation_name = {"21839": "4mC", "a": "6mA", "m":"5mC"}
+
+readable_sample_name = {"barcode01": "S2-1",
+                      "barcode02": "S2-2",
+                      "barcode03": "S2-3",
+                      "barcode04": "Control",
+                      "barcode05": "S3-1",
+                      "barcode06": "S3-2",
+                      "barcode07": "S3-3",
+                      "barcode08": "S4-1",
+                      "barcode09": "S4-2",
+                      "barcode10": "S4-3",
+                      "barcode11": "IC3-1 (30 cm)",
+                      "barcode12": "IC3-2 (160 cm)",
+                      "barcode13": "IC3-3 (205 cm)",
+                      "barcode14": "IC3-4 (70 cm)",
+                      "top": "Sackhole Top (40 cm)",
+                      "bottom": "Sackhole Bottom (160 cm)",
+                      "middle": "Sackhole Middle (70 cm)",
+                      "control": "Control"
 }
 
+barcode_sample_map = {"barcode01": "top",
+                      "barcode02": "middle",
+                      "barcode03": "bottom",
+                      "barcode04": "control",
+                      "barcode05": "top",
+                      "barcode06": "middle",
+                      "barcode07": "bottom",
+                      "barcode08": "top",
+                      "barcode09": "middle",
+                      "barcode10": "bottom",
+                      "barcode11": "core-40",
+                      "barcode12": "core-160",
+                      "barcode13": "core-205",
+                      "barcode14": "core-70",
+                      "top": "top",
+                      "middle": "middle",
+                      "bottom": "bottom"
+}
+
+
 read_counts = {
-    "Barcode01": 1093788,
-    "Barcode02": 296042,
-    "Barcode03": 5812056,
-    "Barcode04": 57626,
-    "Barcode05": 344880,
-    "Barcode06": 180208,
-    "Barcode07": 1056185,
-    "Barcode08": 178883,
-    "Barcode09": 1776313,
-    "Barcode10": 1163651,
-    "Barcode11": 41324,
-    "Barcode12": 591165,
-    "Barcode13": 39685,
-    "Barcode14": 96793,
+    "barcode01": 1093788,
+    "barcode02": 296042,
+    "barcode03": 5812056,
+    "barcode04": 57626,
+    "barcode05": 344880,
+    "barcode06": 180208,
+    "barcode07": 1056185,
+    "barcode08": 178883,
+    "barcode09": 1776313,
+    "barcode10": 1163651,
+    "barcode11": 41324,
+    "barcode12": 591165,
+    "barcode13": 39685,
+    "barcode14": 96793,
 }
 
 
@@ -237,117 +258,13 @@ def group_methyl_data_by_genes(df, genes) -> pl.LazyFrame:
     # Filter rows where df start and end values are within range start and end.
     # Gene range is inclusive of end, modkit bed is not.
     df_filtered = df_merged.filter((pl.col('start') >= pl.col('start_right')) & (pl.col('stop') < pl.col('stop_right')))
-    df_filtered = df_filtered.drop(['contig', 'start', 'start_right', 'stop', 'stop_right'])
+    
+    # Clean
+    result = df_filtered.sort(by=['contig', 'start_right'])
+    result = result.with_columns(
+            pl.col("range_id").rank("dense").alias("gene_id") - 1
+    )
+    result = result.drop(['contig', 'start', 'start_right', 'stop', 'stop_right', 'range_id'])
 
-    return df_filtered
+    return result
 
-
-# From https://github.com/vaexio/vaex/issues/2391
-class PlotMarker:
-    def __init__(self, shape='filled-circle', radius=5, color=None):
-        if color is None:
-            color = [0, 0.4470, 0.7410]
-        self.shape = shape
-        self.radius = radius
-        self.color = color
-
-
-# Custom interactive scatter plot
-@vaex.register_dataframe_accessor('my_viz', override=True)
-class ScatterPlot(object):
-    def __init__(self, df):
-        self.df = df
-
-    def my_scatter(self, x, y, marker=PlotMarker()):
-        # Get data limits
-        x_lims = x.minmax()
-        y_lims = y.minmax()
-
-        # get axis limits
-        ax = plt.gca()
-        fig = ax.figure
-        if len(ax.get_images()) == 0:
-            # Zoom slightly out on x-axis, to ensure all data is easily visible
-            ylim_range = (y_lims[1] - y_lims[0])
-            y_lims = [y_lims[0] - 0.05 * ylim_range, y_lims[1] + 0.1 * ylim_range]
-        else:
-            # If another scatter is already plotted, zoom out if neccesary, but don't zoom in
-            ylim_range = max(y_lims[1], ax.get_ylim()[1]) - min(y_lims[0], ax.get_ylim()[0])
-            y_lims[0] = min(y_lims[0] - 0.05 * ylim_range, ax.get_ylim()[0])
-            y_lims[1] = max(y_lims[1] + 0.05 * ylim_range, ax.get_ylim()[1])
-
-        ax.set_xlim(x_lims)
-        ax.set_ylim(y_lims)
-
-        im, panning = None, None
-
-        def update_plot(_=None):
-            nonlocal im, panning
-
-            if panning:  # Panning will result in a constant stream of callbacks. Updating each time is laggy.
-                return
-
-            # Fetch size of plot area in pixels
-            bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
-            [width_pixels, height_pixels] = [round(bbox.width * fig.dpi), round(bbox.height * fig.dpi)]
-
-            # Get axis limits to calculate scatter plot with
-            [xlims, ylims] = [ax.get_xlim(), ax.get_ylim()]
-
-            # Make a heatmap of the data counts with bins equal to the screen resolution of the figure
-            counts = self.df.count(None, binby=[x, y], shape=[width_pixels, height_pixels], limits=[xlims, ylims])
-            color_plot = _make_scatter_plot_image(counts, marker)
-
-            # Show image
-            if im is None:
-                im = plt.imshow(color_plot, extent=[xlims[0], xlims[1], ylims[0], ylims[1]], aspect='auto')
-            else:
-                # When refreshing the plot, update the old image
-                im.set(data=color_plot, extent=[xlims[0], xlims[1], ylims[0], ylims[1]])
-            ax.figure.canvas.draw()
-
-        update_plot()
-
-        ax.callbacks.connect('xlim_changed', update_plot)
-        ax.callbacks.connect('ylim_changed', update_plot)
-        fig.canvas.mpl_connect('resize_event', update_plot)
-
-        # When panning the view, the constant callbacks to update_plot cause lots of lag. Oly update when panning is finished
-        def panning_started(_=None):
-            nonlocal panning
-            panning = True
-
-        def panning_stopped(_=None):
-            nonlocal panning
-            panning = False
-            update_plot()
-
-        fig.canvas.mpl_connect('button_press_event', panning_started)
-        fig.canvas.mpl_connect('button_release_event', panning_stopped)
-
-
-def _make_scatter_plot_image(counts, marker):
-    xx, yy = np.mgrid[-marker.radius:marker.radius + 1, -marker.radius:marker.radius + 1]
-    if marker.shape == 'filled-circle':  # Circle (filled in)
-        footprint = xx ** 2 + yy ** 2 < (marker.radius + 0.5) ** 2
-    elif marker.shape == 'hollow-circle':  # Circle (not filled in)
-        footprint = np.logical_and((marker.radius - 0.5) ** 2 < xx ** 2 + yy ** 2,
-                                   xx ** 2 + yy ** 2 < (marker.radius + 0.5) ** 2)
-    elif marker.shape == 'filled-square':  # Square (filled in)
-        footprint = np.ones(shape=xx.shape)
-    elif marker.shape == 'hollow-square':  # Square (not filled in)
-        footprint = np.logical_or(np.logical_or(xx == marker.radius, xx == -marker.radius),
-                                  np.logical_or(yy == marker.radius, yy == -marker.radius))
-    elif marker.shape == 'cross':  # Cross
-        footprint = np.logical_or(xx - yy == 0, xx + yy == 0)
-    else:
-        raise Exception(f'Marker {marker.shape} in make_plot_image not recognized')
-
-    monochrome_scatter_plot = np.minimum(counts, 1)
-    monochrome_scatter_plot = np.rot90(monochrome_scatter_plot)
-    monochrome_scatter_plot_with_markers = scipy.ndimage.grey_dilation(monochrome_scatter_plot, footprint=footprint)
-    color_plot = np.stack([monochrome_scatter_plot_with_markers * marker.color[0],
-                           monochrome_scatter_plot_with_markers * marker.color[1],
-                           monochrome_scatter_plot_with_markers * marker.color[2],
-                           monochrome_scatter_plot_with_markers], axis=2)
-    return color_plot
