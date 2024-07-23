@@ -203,7 +203,7 @@ def plot_drift_track(results_df, variables_to_plot, names, cmaps, legend_labels,
     plt.tight_layout()
 
     # Save the figure
-    plt.savefig(save_path, format="pdf")
+    plt.savefig(save_path, format="scg")
 
 
 if __name__ == "__main__":
@@ -212,9 +212,21 @@ if __name__ == "__main__":
     retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
     openmeteo = openmeteo_requests.Client(session=retry_session)
 
-    data = load_or_fetch_data("../../data/drift/floe.json", "data/drift/drift_track.csv")
-    plot_drift_track(data, variables_to_plot=["sithick", "siage", "sisnthick", "so", "thetao", "atmospheric_temperature"],
-                     names=["Sea-ice thickness", "Age of sea ice", "Sea-ice snow thickness", "Sea water salinity", "Sea water potential temperature", "Atmospheric temperature"],
-                     cmaps=["Blues", "Blues", "Greys", "viridis", "coolwarm", "coolwarm"],
-                     legend_labels=["Thickness (m)", "Age (days)", "Thickness (m)", "Salinity (PSU)", "Potential temperature (°C)", "Temperature (°C)"],
-                     save_path="../../plots/drift_track_multiple_variables.pdf")
+    data = load_or_fetch_data("../../data/drift/floe.json", "../../data/drift/drift_track.csv")
+    # plot_drift_track(data, variables_to_plot=["sithick", "siage", "sisnthick", "so", "thetao", "atmospheric_temperature"],
+    #                  names=["Sea-ice thickness", "Age of sea ice", "Sea-ice snow thickness", "Sea water salinity", "Sea water potential temperature", "Atmospheric temperature"],
+    #                  cmaps=["Blues", "Blues", "Greys", "viridis", "coolwarm", "coolwarm"],
+    #                  legend_labels=["Thickness (m)", "Age (days)", "Thickness (m)", "Salinity (PSU)", "Potential temperature (°C)", "Temperature (°C)"],
+    #                  save_path="../../plots/drift_track_multiple_variables.svg")
+    plot_drift_track(data,
+                     variables_to_plot=["siage"],
+                     names=["Age of sea ice"],
+                     cmaps=["Blues"],
+                     legend_labels=["Age (days)"],
+                     save_path="../../plots/drift_track_siage.svg")
+    plot_drift_track(data,
+                     variables_to_plot=["atmospheric_temperature"],
+                     names=["Atmospheric temperature"],
+                     cmaps=["coolwarm"],
+                     legend_labels=["Temperature (°C)"],
+                     save_path="../../plots/drift_track_atmtemp.svg")

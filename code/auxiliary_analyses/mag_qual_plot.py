@@ -107,7 +107,7 @@ def plot_mag_eval():
     # axes[2].axis('off')  # Hide the axes for the table
 
     # Display the figure
-    plt.savefig("plots/mag_eval.pdf", format='pdf', bbox_inches='tight')
+    plt.savefig("plots/mag_eval.svg", format='svg', bbox_inches='tight')
 
 
 def read_count_plot():
@@ -122,7 +122,7 @@ def read_count_plot():
     sns.catplot(data=df, x="Sample", y="Read Count", kind="bar", height=5, aspect=3.5)
     plt.title("Read counts per sample")
 
-    plt.savefig("plots/read_counts.pdf", format='pdf', bbox_inches='tight')
+    plt.savefig("plots/read_counts.svg", format='svg', bbox_inches='tight')
 
 
 if __name__ == "__main__":
