@@ -35,12 +35,8 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     combined_methyl_data = combined_methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Run the Willis DMR test on each group of same "name" rows
-    names = combined_methyl_data.get_column("name").unique().to_list()
-    for name in names:
-        group = combined_methyl_data.filter(pl.col("name") == name)
-        if group.height != 9:
-            continue
-
+    groups = combined_methyl_data.group_by("name").filter(pl.len == 9).apply(willis_dmr_test_r)
+    for group in groups:
         result = willis_dmr_test_r(group)
         print(result)
 
