@@ -6,7 +6,7 @@ import pandas as pd
 import polars as pl
 import seaborn as sns
 import matplotlib.pyplot as plt
-from utilities.utils import truncate_label, PlotMarker, group_methyl_data_by_genes
+from utilities.utils import truncate_label, PlotMarker, group_methyl_data_by_genes, readable_sample_name, readable_methylation_name
 
 plt.style.use('ggplot')
 
@@ -51,11 +51,11 @@ def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene", fig_savepath
     number_of_sources = len(sources)
 
     # Calculate the number of rows and columns for a square-like layout
-    num_cols = math.ceil(math.sqrt(number_of_sources))
+    num_cols = max(1, math.ceil(math.sqrt(number_of_sources)))
     num_rows = math.ceil(number_of_sources / num_cols)
 
     # Figure size based on mumber of sources (1 per column)
-    fig = plt.figure(figsize=(40 * num_cols, 40 * num_rows), layout="constrained")
+    fig = plt.figure(figsize=(70 * num_cols, 70 * num_rows), layout="constrained")
 
     # Set a title
     htype = "gene" if "dmr_by_gene" in heatmap_type else "nucleotide"
@@ -73,8 +73,8 @@ def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene", fig_savepath
 
     # Save to file
     # plt.tight_layout()
-    genome_savepath = f"{fig_savepath}/{heatmap_type}_{genome_name}.pdf"
-    plt.savefig(genome_savepath, format='pdf', bbox_inches='tight')
+    genome_savepath = f"{fig_savepath}/{heatmap_type}_{genome_name}.svg"
+    plt.savefig(genome_savepath, format='svg')
 
     # Close the figure to free up memory
     plt.close(fig)
@@ -87,6 +87,8 @@ def plot_heatmap(heatmap_data, ax, source, index):
         cmap.set_bad('lightgray')
 
         # Plot heatmap
+        #q = heatmap_data.stack().quantile(0.5)
+        #heatmap_data = heatmap_data[heatmap_data.ge(q).any(axis=1)]
         sns.heatmap(heatmap_data, cmap=cmap, annot=False, fmt=".2f", linewidths=1, linecolor='white',
                     cbar_kws={'shrink': 0.8}, ax=ax, square=True)
 
@@ -112,117 +114,64 @@ def plot_heatmap(heatmap_data, ax, source, index):
         ax.set_xticklabels(x_labels, rotation=45, ha='right', fontsize=20)
 
     else:
-        ax.set_title(f"No Data for {source}", fontsize=60)
-
-
-def plot_methylation_levels_per_base(df, genome_name, coverage, fig_savepath="plots"):
-    df.iloc[:, 0] = pd.factorize(df['name'])[0]
-    methylation_types = df.columns[1:-1]
-
-    # Normalize counts by coverage
-    samples = df['sample'].unique()
-
-    # Iterate through each methylation type and plot its values
-    for methylation_type in methylation_types:
-
-        plot_markers = [
-            PlotMarker(shape='filled-circle', radius=1, color=[1, 0, 0]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0, 1, 0]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0, 0, 1]),
-            PlotMarker(shape='filled-circle', radius=1, color=[1, 0.4470, 0.7410]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0, 0.4470, 1]),
-            PlotMarker(shape='filled-circle', radius=1, color=[1, 0, 1]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0.2, 1, 0.2]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0.2, 0.2, 0.2]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0.5, 1, 0.2]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0.5, 1, 0.9]),
-            PlotMarker(shape='filled-circle', radius=1, color=[1, 0.6, 0.2]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0.6, 0.2, 1]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0.2, 0.6, 1]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0.2, 1, 0.6]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0.6, 1, 0.2]),
-            PlotMarker(shape='filled-circle', radius=1, color=[1, 0.2, 0.6]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0.6, 1, 0.6]),
-            PlotMarker(shape='filled-circle', radius=1, color=[0.6, 0.6, 1]),
-        ]
-
-        # Plot all samples for this methylation type using Matplotlib
-        for i, sample in enumerate(samples):
-            df_i = vaex.from_arrays(x=np.ascontiguousarray(df[df['sample'] == sample]['name']),
-                                    y=np.ascontiguousarray(df[df['sample'] == sample][methylation_type] / df[df['sample'] == sample][methylation_types].sum(axis=1))
-                                    )
-            df_i.my_viz.my_scatter(df_i.x, df_i.y, plot_markers[i])
-
-        plt.title(f"{genome_name} - {coverage} - {methylation_type}")
-
-        handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=marker.color, markersize=5, linestyle=None) for marker in
-                   plot_markers[:len(samples)]]
-        plt.legend(handles, samples, title="Samples")
-
-        plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_{methylation_type}_perbase.pdf", format='pdf')
+        ax.set_title(f"No data for {source}", fontsize=60)
 
 
 def plot_methylation_levels_by_gene(df, genes, genome_name, coverage, fig_savepath="plots"):
     df = group_methyl_data_by_genes(pl.from_pandas(df).lazy(), pl.from_pandas(genes).lazy()).collect()
+    df = df.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+    df = df.with_columns(pl.col('sample').replace(readable_sample_name))
 
-    for methylation_type in df.columns[1:-5]:
-        # Create figure
-        plots = [seaborn.boxplot, seaborn.violinplot, seaborn.boxenplot]
+    
+    methylation_types = df.columns[1:4]
+    n_types = len(methylation_types)
 
-        for plot in plots:
-            plt.figure(figsize=(40, 10))
+    # Create figure and subplots
+    fig, axes = plt.subplots(n_types*2, 1, figsize=(20, 5 * n_types), sharex=True, layout="constrained")
 
-            plot(df, x="range_id", y=methylation_type, hue="sample")
+    for i, methylation_type in enumerate(methylation_types):
+        ax_top = axes[i*2]
+        ax_bottom = axes[i*2+1]
 
-            plt.title(f"{genome_name} - {coverage} - {methylation_type}")
+        sns_plot_top = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_top)
+        sns_plot_bottom = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_bottom)
 
-            plt.tight_layout()
-            plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_{methylation_type}_{plot.__name__}.pdf", format='pdf')
+        ax_top.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
+        
+        ax_bottom.set(xlabel='Gene ID', ylabel=f"Number of observations")
+
+        sns_plot_top.legend().set_title("Sample")
+
+        try:
+            ax_top.set_ylim(bottom=df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.99)).to_numpy()[0][0])
+            ax_bottom.set_ylim(df.select(pl.min(methylation_type)).to_numpy()[0][0], df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.95)).to_numpy()[0][0])
+        except ValueError:
+            continue
+       
+        sns.despine(ax=ax_top, bottom=True)
+
+        d = .0025 
+        kwargs = dict(transform=ax_top.transAxes, color='k', clip_on=False)
+        ax_top.plot((-d, +d), (-d, +d), **kwargs)
+
+        kwargs.update(transform=ax_bottom.transAxes)
+        ax_bottom.plot((-d, +d), (1 - d, 1 + d), **kwargs)
+
+        ax_bottom.legend_.remove()
+        ax_top.set_xticks([])
+        pos = ax_bottom.get_position()
+        print(pos)
+        #ax_bottom.set_position([pos.x0, pos.y0 - 0.5, pos.width, pos.height])
+        
+        # Sort legend
+        handles, labels = ax_top.get_legend_handles_labels()
+        desired_order = ['Sackhole Top (40 cm)', 'Sackhole Middle (70 cm)', 'Sackhole Bottom (160 cm)']
+        sorted_handles_labels = sorted(zip(handles, labels), key=lambda x: desired_order.index(x[1]))
+        handles, labels = zip(*sorted_handles_labels)
+        ax_top.legend(handles, labels)
 
 
-# sort then take first 1000
-def plot_methylation_levels_by_group(df, genome_name, coverage, fig_savepath="plots"):
-    df['contig'] = df['name'].apply(lambda x: x.split('|')[0])
-    df['start'] = pd.to_numeric(df['name'].apply(lambda x: x.split('|')[2]), downcast="integer")
-    df['stop'] = pd.to_numeric(df['name'].apply(lambda x: x.split('|')[3]), downcast="integer")
+    fig.suptitle(f"Mean gene methylation for {genome_name}", fontsize=26)
 
-    df.sort_values(by=["contig", "start", "stop"], inplace=True)
-    df.reset_index(drop=True, inplace=True)
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene.svg", format='svg')
 
-    # Aggregate every 1000th rows on the same contig
-    df['group'] = df.groupby('contig').cumcount() // 1000
-
-    for methylation_type in df.columns[1:-5]:
-        # Dataset wide mean and standard deviation
-        df_mean = df.groupby("sample")[methylation_type].mean()
-        df_std = df.groupby("sample")[methylation_type].std()
-
-        # Group mean and standard deviation
-        group_stats = df.groupby(['group', 'sample'])[methylation_type].agg(['mean', 'std']).reset_index()
-        group_stats['sample_mean'] = group_stats['sample'].map(df_mean)
-        group_stats['sample_std'] = group_stats['sample'].map(df_std)
-
-        # Define the conditions for including groups
-        n = 0.5
-        conditions = (
-                (group_stats['mean'] > n * group_stats['sample_mean']) |
-                (group_stats['std'] > n * group_stats['sample_std']) |
-                (group_stats['mean'] < group_stats['sample_mean'] / n) |
-                (group_stats['std'] < group_stats['sample_std'] / n)
-        )
-
-        groups_to_include = group_stats[conditions]['group']
-        df = df[df['group'].isin(groups_to_include)]
-
-        # Create figure
-        plots = [seaborn.boxplot, seaborn.violinplot, seaborn.boxenplot]
-
-        for plot in plots:
-            plt.figure(figsize=(40, 10))
-
-            plot(df, x="group", y=methylation_type, hue="sample")
-
-            plt.title(f"{genome_name} - {coverage} - {methylation_type}")
-
-            plt.tight_layout()
-            plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_{methylation_type}_{plot.__name__}.pdf", format='pdf')

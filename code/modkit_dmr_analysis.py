@@ -110,6 +110,7 @@ def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
         return
 
     # Plot heatmap
+    methyl_data = methyl_data[methyl_data["source"].isin(["KOfam", "KEGG_Module"])]
     plot_all_sources_heatmaps(methyl_data, genome_name, heatmap_type=dmr_type, fig_savepath=fig_savepath)
 
     # # Get genomic sequence context, and for each DMR and add it to the DataFrame
@@ -120,27 +121,22 @@ def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
 
 
 if __name__ == "__main__":
-    # For each folder in the data directory
-    print("Running DMR analysis at coverage 5")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../", "methylation_5")
+    print("Running DMR analysis at coverage 5 agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data", "methylation_5_agg")
     for genome in os.listdir(data_dir):
-        # Run the DMR analysis for the genome
+        run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5_agg")
+
+    print("Running DMR analysis at coverage 5")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/", "methylation_5")
+    for genome in os.listdir(data_dir):
         run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5")
 
     print("Running DMR analysis at coverage 10")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../", "methylation_10")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/", "methylation_10")
     for genome in os.listdir(data_dir):
-        # Run the DMR analysis for the genome
         run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_10")
     
-    print("Running DMR analysis at coverage 5 agg")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../", "methylation_5_agg")
-    for genome in os.listdir(data_dir):
-        # Run the DMR analysis for the genome
-        run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5_agg")
-
     print("Running DMR analysis at coverage 10 agg")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../", "methylation_10_agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data", "methylation_10_agg")
     for genome in os.listdir(data_dir):
-        # Run the DMR analysis for the genome
         run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_10_agg")

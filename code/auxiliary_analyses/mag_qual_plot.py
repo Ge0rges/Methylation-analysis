@@ -1,7 +1,7 @@
 import pandas as pd
 import seaborn as sns
 import matplotlib.pylab as plt
-from code.Utilities.utils import barcode_sample_map, read_counts
+from code.Utilities.utils import readable_sample_name, read_counts
 
 
 def plot_coverage():
@@ -115,8 +115,8 @@ def read_count_plot():
     Barplot of read counts
     """
 
-    # Replace the key in read_counts with the value in barcode_sample_map
-    read_counts_renamed = {barcode_sample_map[key]: value for key, value in read_counts.items()}
+    # Replace the key in read_counts with the value in readable_sample_name
+    read_counts_renamed = {readable_sample_name[key]: value for key, value in read_counts.items()}
 
     df = pd.DataFrame(read_counts_renamed.items(), columns=["Sample", "Read Count"])
     sns.catplot(data=df, x="Sample", y="Read Count", kind="bar", height=5, aspect=3.5)
