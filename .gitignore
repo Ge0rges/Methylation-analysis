@@ -17,3 +17,4 @@ data/mag_eval/._gtdbtk.tsv
 *.DS_Store
 /code/utilities/__pycache__
 /code/__pycache__
+code/auxiliary_analyses/.cache.sqlite
