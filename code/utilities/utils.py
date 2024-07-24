@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 from itertools import combinations
+import utilities.data_loading as dl
 
 
 readable_methylation_name = {"21839": "4mC", "a": "6mA", "m": "5mC"}
@@ -270,3 +271,25 @@ def group_methyl_data_by_genes(df, genes) -> pl.LazyFrame:
 
     return result
 
+
+def group_and_normalize_data_for_methylation_level(df, genes, genome_name, aggregate=False):
+    df = group_methyl_data_by_genes(df, pl.from_pandas(genes).lazy()).collect()
+    df = df.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+
+    if aggregate:
+        df = df.with_columns(pl.col('sample').replace(barcode_sample_map))
+
+    # Normalize to coverage
+    coverages = dl.get_coverage("../data/", genome_name, agg=aggregate).drop(columns="Genome").to_dict("records")[0]
+    methylation_types = df.columns[1:4]
+
+    for key, value in coverages.items():
+        if value == 0 and key in df.select("sample").unique():
+            print(f"Coverage for {key} is 0")
+
+    df = df.select(pl.col(methylation_types) / pl.col('sample').replace_strict(coverages))
+
+    # Rename samples
+    df = df.with_columns(pl.col('sample').replace(readable_sample_name))
+
+    return df

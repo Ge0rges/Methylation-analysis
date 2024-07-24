@@ -1,7 +1,7 @@
 import os
 import glob
 import pandas as pd
-from utilities.utils import *
+import utilities.utils as utils
 from Bio import SeqIO
 
 
@@ -45,18 +45,18 @@ def get_dmrs(path) -> pd.DataFrame:
                         'samplea_percent_modified': 'float', 'sampleb_percent_modified': 'float'})
 
     # Seperate out the samplex_counts and_fractions columns
-    dmrs = expand_pivot_merge_sample_strings(dmrs, 'samplea_counts')
-    dmrs = expand_pivot_merge_sample_strings(dmrs, 'sampleb_counts')
-    dmrs = expand_pivot_merge_sample_strings(dmrs, 'samplea_fractions')
-    dmrs = expand_pivot_merge_sample_strings(dmrs, 'sampleb_fractions')
+    dmrs = utils.expand_pivot_merge_sample_strings(dmrs, 'samplea_counts')
+    dmrs = utils.expand_pivot_merge_sample_strings(dmrs, 'sampleb_counts')
+    dmrs = utils.expand_pivot_merge_sample_strings(dmrs, 'samplea_fractions')
+    dmrs = utils.expand_pivot_merge_sample_strings(dmrs, 'sampleb_fractions')
 
     # Remove the string columns
     dmrs.drop(columns=['samplea_counts', 'sampleb_counts', 'samplea_fractions', 'sampleb_fractions'], inplace=True)
 
     # Add a column to note the comparison done in this DMR
     sample_a_name, sample_b_name = os.path.basename(path).replace('.bed', '').split('_')
-    sample_a_name = barcode_sample_map[sample_a_name]
-    sample_b_name = barcode_sample_map[sample_b_name]
+    sample_a_name = utils.barcode_sample_map[sample_a_name]
+    sample_b_name = utils.barcode_sample_map[sample_b_name]
     dmrs["comparison"] = f"{sample_a_name}_VS_{sample_b_name}"
 
     return dmrs
@@ -92,7 +92,7 @@ def get_coverage(data_dir, genome_name=None, agg=False) -> pd.DataFrame:
         # Create a dictionary to map sample groups to barcodes
         sample_group_barcodes = {}
 
-        for barcode, group in barcode_sample_map.items():
+        for barcode, group in utils.barcode_sample_map.items():
             if barcode not in coverage.columns:
                 continue
 
@@ -108,7 +108,9 @@ def get_coverage(data_dir, genome_name=None, agg=False) -> pd.DataFrame:
         for group, barcodes in sample_group_barcodes.items():
             sample_group_coverages_df[group] = coverage[barcodes].mean(axis=1)
 
-    return sample_group_coverages_df
+        return sample_group_coverages_df
+
+    return coverage
 
 
 def get_coordinated_functions(data_dir, genome_name) -> pd.DataFrame:
@@ -130,8 +132,7 @@ def get_coordinated_functions(data_dir, genome_name) -> pd.DataFrame:
     function_calls['gene_callers_id'] = pd.to_numeric(function_calls['gene_callers_id'], downcast="integer")
 
     # Merge using efficient indexing
-    coordinated_functions = pd.merge(gene_calls, function_calls, on='gene_callers_id')#, how="left")
-    #coordinated_functions.fillna("Unknown", inplace=True)
+    coordinated_functions = pd.merge(gene_calls, function_calls, on='gene_callers_id')
     coordinated_functions['e_value'] = pd.to_numeric(coordinated_functions['e_value'], downcast="float")
 
     assert gene_calls['gene_callers_id'].nunique() >= coordinated_functions['gene_callers_id'].nunique(), "Not all genes were conserved"
@@ -206,7 +207,7 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
         methyl_dfs = []
         for i, bed_file in enumerate(bed_files):
             methyl_data = get_pileup(bed_file)
-            methyl_data = reshape_pileup_to_matrix(methyl_data, genome_name)
+            methyl_data = utils.reshape_pileup_to_matrix(methyl_data, genome_name)
             methyl_data["sample"] = os.path.basename(bed_file).split(".")[0]
 
             methyl_dfs.append(methyl_data)
