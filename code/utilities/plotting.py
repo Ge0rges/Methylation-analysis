@@ -67,9 +67,7 @@ def plot_all_sources_figure(df, genome_name, heatmap_type="gene", fig_savepath="
 
         # Filter data for the current source source and aggregate
         source_data = df[df['source'] == source]
-        aggregated_data = source_data.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index()
-
-        plot_function(aggregated_data.pivot(index='function', columns='comparison', values='score'), ax, source)
+        plot_function(source_data, ax, source)
 
     # Save to file
     # plt.tight_layout()
@@ -81,6 +79,8 @@ def plot_all_sources_figure(df, genome_name, heatmap_type="gene", fig_savepath="
 
 
 def plot_heatmap(df, ax, source):
+    df = df.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index().pivot(index='function', columns='comparison', values='score')
+
     if not df.empty:
         # Create color palette
         cmap = sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True)  #sns.color_palette("rocket", as_cmap=True)
