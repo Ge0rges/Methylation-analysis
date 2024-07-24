@@ -1,32 +1,34 @@
-import scipy
 import textwrap
 import numpy as np
 import pandas as pd
 import polars as pl
-import matplotlib.pyplot as plt
 from itertools import combinations
 
 
-readable_methylation_name = {"21839": "4mC", "a": "6mA", "m":"5mC"}
+readable_methylation_name = {"21839": "4mC", "a": "6mA", "m": "5mC"}
 
 readable_sample_name = {"barcode01": "S2-1",
-                      "barcode02": "S2-2",
-                      "barcode03": "S2-3",
-                      "barcode04": "Control",
-                      "barcode05": "S3-1",
-                      "barcode06": "S3-2",
-                      "barcode07": "S3-3",
-                      "barcode08": "S4-1",
-                      "barcode09": "S4-2",
-                      "barcode10": "S4-3",
-                      "barcode11": "IC3-1 (30 cm)",
-                      "barcode12": "IC3-2 (160 cm)",
-                      "barcode13": "IC3-3 (205 cm)",
-                      "barcode14": "IC3-4 (70 cm)",
-                      "top": "Sackhole Top (40 cm)",
-                      "bottom": "Sackhole Bottom (160 cm)",
-                      "middle": "Sackhole Middle (70 cm)",
-                      "control": "Control"
+                        "barcode02": "S2-2",
+                        "barcode03": "S2-3",
+                        "barcode04": "Control",
+                        "barcode05": "S3-1",
+                        "barcode06": "S3-2",
+                        "barcode07": "S3-3",
+                        "barcode08": "S4-1",
+                        "barcode09": "S4-2",
+                        "barcode10": "S4-3",
+                        "barcode11": "IC3-1 (30 cm)",
+                        "barcode12": "IC3-2 (160 cm)",
+                        "barcode13": "IC3-3 (205 cm)",
+                        "barcode14": "IC3-4 (70 cm)",
+                        "top": "Sackhole Top (40 cm)",
+                        "bottom": "Sackhole Bottom (160 cm)",
+                        "middle": "Sackhole Middle (70 cm)",
+                        "control": "Control",
+                        "core-40": "Ice core 40 cm",
+                        "core-160": "Ice core 160 cm",
+                        "core-205": "Ice core 205 cm",
+                        'core-70': "Ice core 70 cm"
 }
 
 barcode_sample_map = {"barcode01": "top",
@@ -247,7 +249,7 @@ def group_methyl_data_by_genes(df, genes) -> pl.LazyFrame:
     a = df.select('contig').unique().collect().get_column('contig').to_list()
     b = genes.select('contig').unique().collect().get_column('contig').to_list()
 
-    assert all(g1 in b for g1 in a), "Not all contigs are in this genome."
+    assert all(g1 in b for g1 in a), "Not all contigs are in this genome_name."
 
     # Create a unique identifier for each range in ranges dataframe
     genes = genes.with_row_index('range_id')
@@ -258,7 +260,7 @@ def group_methyl_data_by_genes(df, genes) -> pl.LazyFrame:
     # Filter rows where df start and end values are within range start and end.
     # Gene range is inclusive of end, modkit bed is not.
     df_filtered = df_merged.filter((pl.col('start') >= pl.col('start_right')) & (pl.col('stop') < pl.col('stop_right')))
-    
+
     # Clean
     result = df_filtered.sort(by=['contig', 'start_right'])
     result = result.with_columns(

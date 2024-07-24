@@ -1,6 +1,7 @@
 import pandas as pd
 import seaborn as sns
 import matplotlib.pylab as plt
+from code.Utilities.data_loading import get_coverage
 from code.Utilities.utils import readable_sample_name, read_counts
 
 
@@ -12,16 +13,13 @@ def plot_coverage():
     """
 
     # Load data
-    coverage = pd.read_csv("../../data/mag_eval/coverm.tsv", sep="\t", header=0)
+    coverage = get_coverage("../../data/")
+    coverage.rename(inplace=True, columns=readable_sample_name)
 
     # Clean the mag names
     coverage['Genome'] = coverage['Genome'].str.title()
     coverage.columns = coverage.columns.str.title()
     coverage['Genome'] = coverage['Genome'].str.replace("_R-Contigs", " sp.")
-
-    # Replace the coverage column names based on dictionnary mapping
-    coverage.columns = coverage.columns.str.replace(".Fastq Mean", "")
-    coverage.rename(inplace=True, columns=barcode_sample_map)
 
     # Format it
     coverage.set_index(coverage['Genome'], inplace=True)

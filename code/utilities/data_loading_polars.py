@@ -24,7 +24,7 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_lo
     """
     Load the methyl data from every sample into a matrix.
 
-    :param genome_name: Folder name of the genome.
+    :param genome_name: Folder name of the genome_name.
     :type genome_name: str
     :param data_dir: Path to the data directory.
     :type data_dir: str

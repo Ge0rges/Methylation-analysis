@@ -77,6 +77,40 @@ def get_sample_metadata(data_dir) -> pd.DataFrame:
     return metadata_df
 
 
+def get_coverage(data_dir, genome_name=None, agg=False) -> pd.DataFrame:
+    coverage = pd.read_csv(os.path.join(data_dir, "mag_eval/coverm.tsv"), sep="\t", header=0)
+
+    # Replace the coverage column names based on dictionnary mapping
+    coverage.columns = coverage.columns.str.replace(".fastq Mean", "")
+
+    # Get specific genome_name
+    if genome_name is not None:
+        coverage = coverage[coverage['Genome'] == genome_name]
+
+    # Aggregate by sample groups
+    if agg:
+        # Create a dictionary to map sample groups to barcodes
+        sample_group_barcodes = {}
+
+        for barcode, group in barcode_sample_map.items():
+            if barcode not in coverage.columns:
+                continue
+
+            if group not in sample_group_barcodes.keys():
+                sample_group_barcodes[group] = [barcode]
+            else:
+                sample_group_barcodes[group].append(barcode)
+
+        # Create an empty DataFrame to store the mean coverage per sample group
+        sample_group_coverages_df = coverage[['Genome']].copy()
+
+        # Calculate mean coverage for each sample group and add to the new DataFrame
+        for group, barcodes in sample_group_barcodes.items():
+            sample_group_coverages_df[group] = coverage[barcodes].mean(axis=1)
+
+    return sample_group_coverages_df
+
+
 def get_coordinated_functions(data_dir, genome_name) -> pd.DataFrame:
     """
     Read gene caller and functions from seperate files then intersect.
@@ -144,7 +178,7 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
     """
     Load the methyl data from every sample into a matrix.
 
-    :param genome_name: Folder name of the genome.
+    :param genome_name: Folder name of the genome_name.
     :type genome_name: str
     :param data_dir: Path to the data directory.
     :type data_dir: str
@@ -153,7 +187,7 @@ def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations
     :return: Dataframe of the combined methyl data.
     :rtype: pd.DataFrame
     """
-    # Check to see if CSV file exists for this genome
+    # Check to see if CSV file exists for this genome_name
     try:
         combined_methyl_data = pd.read_csv(f"{data_dir}/{genome_name}/combined_methyl_data.csv")
 

@@ -30,7 +30,7 @@ def add_functional_annotations(dmrs, data_dir, genome_name):
     Add functional annotations to DMRs (Differentially Methylated Regions) by matching DMR positions with
     genomic annotations to find overlaps. Drops the "partial" column from the merged DataFrame.
     """
-    # Load functional annotations for the specified genome from a data directory
+    # Load functional annotations for the specified genome_name from a data directory
     functions = get_coordinated_functions(data_dir, genome_name)
 
     # Rename 'start' column to 'start_y' to avoid name clash and remove 'gene_callers_id' from function columns
@@ -73,10 +73,10 @@ def add_functional_annotations(dmrs, data_dir, genome_name):
 
 def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     """
-    Run the DMR analysis for a specific genome, DMR type, and source.
+    Run the DMR analysis for a specific genome_name, DMR type, and source.
 
-    :param genome: Folder name of the genome.
-    :type genome: str
+    :param genome_name: Folder name of the genome_name.
+    :type genome_name: str
     :param dmr_type: Either dmr_by_gene or dmr_by_position, which is also the folder name
     :type dmr_type: str
     :param source: Either KEGG or COG for the functional annotation source.
@@ -111,7 +111,7 @@ def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
 
     # Plot heatmap
     methyl_data = methyl_data[methyl_data["source"].isin(["KOfam", "KEGG_Module"])]
-    plot_all_sources_heatmaps(methyl_data, genome_name, heatmap_type=dmr_type, fig_savepath=fig_savepath)
+    plot_all_sources(methyl_data, genome_name, heatmap_type=dmr_type, fig_savepath=fig_savepath, plot_function=plot_heatmap)
 
     # # Get genomic sequence context, and for each DMR and add it to the DataFrame
     # genome_dict = get_genomic_sequence(genome_name)
@@ -122,21 +122,21 @@ def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
 
 if __name__ == "__main__":
     print("Running DMR analysis at coverage 5 agg")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data", "methylation_5_agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "/Users/GeorgesKanaan/Desktop/methylation_data/methylation_5_agg")
     for genome in os.listdir(data_dir):
         run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5_agg")
 
     print("Running DMR analysis at coverage 5")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/", "methylation_5")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "/Users/GeorgesKanaan/Desktop/methylation_data/methylation_5")
     for genome in os.listdir(data_dir):
         run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5")
 
     print("Running DMR analysis at coverage 10")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/", "methylation_10")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "/Users/GeorgesKanaan/Desktop/methylation_data/methylation_10")
     for genome in os.listdir(data_dir):
         run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_10")
-    
+
     print("Running DMR analysis at coverage 10 agg")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data", "methylation_10_agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "/Users/GeorgesKanaan/Desktop/methylation_data/methylation_10_agg")
     for genome in os.listdir(data_dir):
         run_dmr_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="../plots/plots_10_agg")

@@ -1,12 +1,11 @@
 import math
-import seaborn
-import vaex
 import numpy as np
 import pandas as pd
 import polars as pl
 import seaborn as sns
+from utilities.utils import *
 import matplotlib.pyplot as plt
-from utilities.utils import truncate_label, PlotMarker, group_methyl_data_by_genes, readable_sample_name, readable_methylation_name
+from utilities.data_loading import get_coverage
 
 plt.style.use('ggplot')
 
@@ -37,16 +36,16 @@ def plot_pairwise_results(results, genome):
     plt.show()
 
 
-def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene", fig_savepath="plots"):
+def plot_all_sources(df, genome_name, heatmap_type="gene", fig_savepath="plots", plot_function=None):
     """
-    Plot heatmaps in a figure where each subfigure corresponds to a genome, and each subplot within a subfigure corresponds to a source.
+    Plot heatmaps in a figure where each subfigure corresponds to a genome_name, and each subplot within a subfigure corresponds to a source.
     In each heatmap, rows represent functions, columns represent samples, with cell values representing methylation measures.
 
     Parameters:
-    df (dict): Dictionary with genome names as keys and respective DataFrame as values.
-    genomes (list): List of genome names.
+    df (dict): Dictionary with genome_name names as keys and respective DataFrame as values.
+    genomes (list): List of genome_name names.
     """
-    # Create figure for each genome
+    # Create figure for each genome_name
     sources = df['source'].unique()
     number_of_sources = len(sources)
 
@@ -58,10 +57,12 @@ def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene", fig_savepath
     fig = plt.figure(figsize=(70 * num_cols, 70 * num_rows), layout="constrained")
 
     # Set a title
-    htype = "gene" if "dmr_by_gene" in heatmap_type else "nucleotide"
-    fig.suptitle(f'Heatmaps for {genome_name} by {htype}', fontsize=60)
+    region_type = "gene" if "dmr_by_gene" in heatmap_type else "nucleotide"
+    plot_type = "Heatmap" if plot_function == plot_heatmap else "Volcano"
+    genome_readable = genome_name.title().replace("_R-Contigs", " sp.")
+    fig.suptitle(f'{plot_type} for {genome_readable} by {region_type}', fontsize=60)
 
-    # Create subplots for each source within a genome
+    # Create subplots for each source within a genome_name
     for index, source in enumerate(sorted(sources), start=1):
         ax = fig.add_subplot(num_rows, num_cols, index)
 
@@ -69,27 +70,27 @@ def plot_all_sources_heatmaps(df, genome_name, heatmap_type="gene", fig_savepath
         source_data = df[df['source'] == source]
         aggregated_data = source_data.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index()
 
-        plot_heatmap(aggregated_data.pivot(index='function', columns='comparison', values='score'), ax, source, index)
+        plot_function(aggregated_data.pivot(index='function', columns='comparison', values='score'), ax, source, index)
 
     # Save to file
     # plt.tight_layout()
-    genome_savepath = f"{fig_savepath}/{heatmap_type}_{genome_name}.svg"
+    genome_savepath = f"{fig_savepath}/{plot_type}{region_type}_{genome_name}.svg"
     plt.savefig(genome_savepath, format='svg')
 
     # Close the figure to free up memory
     plt.close(fig)
 
 
-def plot_heatmap(heatmap_data, ax, source, index):
-    if not heatmap_data.empty:
+def plot_heatmap(df, ax, source, index):
+    if not df.empty:
         # Create color palette
         cmap = sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True)  #sns.color_palette("rocket", as_cmap=True)
         cmap.set_bad('lightgray')
 
         # Plot heatmap
-        #q = heatmap_data.stack().quantile(0.5)
-        #heatmap_data = heatmap_data[heatmap_data.ge(q).any(axis=1)]
-        sns.heatmap(heatmap_data, cmap=cmap, annot=False, fmt=".2f", linewidths=1, linecolor='white',
+        #q = df.stack().quantile(0.5)
+        #df = df[df.ge(q).any(axis=1)]
+        sns.heatmap(df, cmap=cmap, annot=False, fmt=".2f", linewidths=1, linecolor='white',
                     cbar_kws={'shrink': 0.8}, ax=ax, square=True)
 
         # Add labels at the top and bottom of the color bar
@@ -118,15 +119,27 @@ def plot_heatmap(heatmap_data, ax, source, index):
 
 
 def plot_methylation_levels_by_gene(df, genes, genome_name, coverage, fig_savepath="plots"):
-    df = group_methyl_data_by_genes(pl.from_pandas(df).lazy(), pl.from_pandas(genes).lazy()).collect()
+    df = group_methyl_data_by_genes(df, pl.from_pandas(genes).lazy()).collect()
     df = df.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+
+    if "agg" in coverage:
+        df = df.with_columns(pl.col('sample').replace(barcode_sample_map))
+
+    # Normalize to coverage
+    coverages = get_coverage("../data/", genome_name, agg=("agg" in coverage)).drop("Genome").to_dict("records")[0]
+    methylation_types = df.columns[1:4]
+
+    for key, value in coverages.items():
+        if value == 0 and key in df.select("sample").unique():
+            print(f"Coverage for {key} is 0")
+
+    df = df.select(pl.col(methylation_types) / pl.col('sample').replace_strict(coverages))
+
+    # Rename samples
     df = df.with_columns(pl.col('sample').replace(readable_sample_name))
 
-    
-    methylation_types = df.columns[1:4]
-    n_types = len(methylation_types)
-
     # Create figure and subplots
+    n_types = len(methylation_types)
     fig, axes = plt.subplots(n_types*2, 1, figsize=(20, 5 * n_types), sharex=True, layout="constrained")
 
     for i, methylation_type in enumerate(methylation_types):
@@ -137,7 +150,8 @@ def plot_methylation_levels_by_gene(df, genes, genome_name, coverage, fig_savepa
         sns_plot_bottom = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_bottom)
 
         ax_top.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
-        
+
+        ax_top.set(ylabel="")
         ax_bottom.set(xlabel='Gene ID', ylabel=f"Number of observations")
 
         sns_plot_top.legend().set_title("Sample")
@@ -145,24 +159,19 @@ def plot_methylation_levels_by_gene(df, genes, genome_name, coverage, fig_savepa
         try:
             ax_top.set_ylim(bottom=df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.99)).to_numpy()[0][0])
             ax_bottom.set_ylim(df.select(pl.min(methylation_type)).to_numpy()[0][0], df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.95)).to_numpy()[0][0])
+
         except ValueError:
             continue
-       
+
         sns.despine(ax=ax_top, bottom=True)
 
-        d = .0025 
+        d = .0025
         kwargs = dict(transform=ax_top.transAxes, color='k', clip_on=False)
         ax_top.plot((-d, +d), (-d, +d), **kwargs)
 
         kwargs.update(transform=ax_bottom.transAxes)
         ax_bottom.plot((-d, +d), (1 - d, 1 + d), **kwargs)
 
-        ax_bottom.legend_.remove()
-        ax_top.set_xticks([])
-        pos = ax_bottom.get_position()
-        print(pos)
-        #ax_bottom.set_position([pos.x0, pos.y0 - 0.5, pos.width, pos.height])
-        
         # Sort legend
         handles, labels = ax_top.get_legend_handles_labels()
         desired_order = ['Sackhole Top (40 cm)', 'Sackhole Middle (70 cm)', 'Sackhole Bottom (160 cm)']
@@ -170,8 +179,7 @@ def plot_methylation_levels_by_gene(df, genes, genome_name, coverage, fig_savepa
         handles, labels = zip(*sorted_handles_labels)
         ax_top.legend(handles, labels)
 
-
-    fig.suptitle(f"Mean gene methylation for {genome_name}", fontsize=26)
+    cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
+    fig.suptitle(f"Mean gene methylation by type for {cleaned_genome_name}", fontsize=26)
 
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene.svg", format='svg')
-
