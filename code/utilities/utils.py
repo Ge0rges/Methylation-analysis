@@ -287,7 +287,7 @@ def group_and_normalize_data_for_methylation_level(df, genes, genome_name, aggre
         if value == 0 and key in df.select("sample").unique():
             print(f"Coverage for {key} is 0")
 
-    df = df.select(pl.col(methylation_types) / pl.col('sample').replace_strict(coverages))
+    df = df.with_columns(pl.col(methylation_types) / pl.col('sample').replace_strict(coverages))
 
     # Rename samples
     df = df.with_columns(pl.col('sample').replace(readable_sample_name))
