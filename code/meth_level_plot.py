@@ -38,7 +38,7 @@ if __name__ == "__main__":
     for genome in os.listdir(data_dir):
         run_meth_level_plots(genome, data_dir, "meth_5_agg", fig_savepath="../plots/plots_5_agg")
 
-    print("Plotting methylation level at coverage 10")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/methylation_10")
+    print("Plotting methylation level at coverage 10_agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/methylation_10_agg")
     for genome in os.listdir(data_dir):
-        run_meth_level_plots(genome, data_dir, "meth_10", fig_savepath="../plots/plots_10")
+        run_meth_level_plots(genome, data_dir, "meth_10_agg", fig_savepath="../plots/plots_10_agg")

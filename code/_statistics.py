@@ -139,17 +139,15 @@ def willis_dmr_test_r(combined_methyl_data):
     from rpy2.robjects import default_converter
     from rpy2.robjects.packages import importr
 
-    Y = combined_methyl_data.drop(columns=["name", "sample"])
-    X = pd.get_dummies(combined_methyl_data["sample"], dtype=int)
+    Y = combined_methyl_data.drop(columns=["name", "sample"]).to_numpy()
+    X = pd.get_dummies(combined_methyl_data["sample"], dtype=int).to_numpy()
 
     # Check X, Y and df have the same number of rows
     assert X.shape[0] == Y.shape[0] == combined_methyl_data.shape[
         0], "X, Y and df have different number of rows"
     
     # If there are any empty cols in Y remove them
-    non_zero_columns = np.any(Y != 0, axis=0)
-    X_new = X[:, non_zero_columns]
-    Y_new = Y[:, non_zero_columns]
+    Y = Y[:, Y.any(0)]
 
     print(X)
     print(Y)
@@ -158,7 +156,7 @@ def willis_dmr_test_r(combined_methyl_data):
     numpy2ri.activate()
     np_cv_rules = default_converter + numpy2ri.converter
     with np_cv_rules.context():
-        result = raobust.multinom_test(X.to_numpy(), Y.to_numpy(), strong=True, j=False, penalty=False)
+        result = raobust.multinom_test(X, Y, strong=True, j=False, penalty=False)
     return result
 
 

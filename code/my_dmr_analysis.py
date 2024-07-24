@@ -35,8 +35,10 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     combined_methyl_data = combined_methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Run the Willis DMR test on each group of same "name" rows
-    groups = combined_methyl_data.group_by("name").filter(pl.len == 9).apply(willis_dmr_test_r)
-    for group in groups:
+    groups = combined_methyl_data.filter(pl.len().over("name") == 9).group_by(["name"])
+    print(combined_methyl_data.filter(pl.len().over("name") == 9))
+    for name, group in groups:
+        print(f"Running {group}")
         result = willis_dmr_test_r(group)
         print(result)
 
@@ -49,13 +51,13 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
 
 if __name__ == "__main__":
     # For each folder in the data directory
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/methylation_5_agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/methylation_5")
     folders = [f for f in os.listdir(data_dir) if os.path.isdir(os.path.join(data_dir, f))]
 
-    run_analysis("polaribacter_r-contigs", "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5_agg")
-    run_analysis("Pelagibacter_r-contigs", "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5_agg")
+    run_analysis("polaribacter_r-contigs", "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5")
+    run_analysis("Pelagibacter_r-contigs", "dmr_by_gene", data_dir, fig_savepath="../plots/plots_5")
 
-    # for genome in folders:
-    #     # Run the DMR analysis for the genome
-    #     print(f"Running analysis for {genome}")
-    #     run_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="plots/plots_5")
+    for genome in folders:
+         # Run the DMR analysis for the genome
+         print(f"Running analysis for {genome}")
+         run_analysis(genome, "dmr_by_gene", data_dir, fig_savepath="plots/plots_5")
