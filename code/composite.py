@@ -111,7 +111,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
         print(f"No stastistically significant DMRs found for {genome_name}")
         return
 
-    # Get heatmap data
+    # Get ax_heatmap data
     dmr_data = methyl_data[methyl_data["source"] == "KEGG_Module"]
 
     # Get methylation level data
@@ -127,10 +127,25 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     for i, methylation_type in enumerate(methylation_types):
         ax_top = axes[i*3]
         ax_bottom = axes[i*3+1]
-        heatmap = axes[i*3+2]
+        ax_heatmap = axes[i * 3 + 2]
+
+        # Merge DMR and methyl data
+        methyl_data = methyl_data.with_columns(
+            chrom=pl.col('name').str.split(by='|').list.get(0),
+            start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
+            stop=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
+        )
+        composite_data = methyl_data.join(dmr_data, on='chrom')
+
+        composite_data = composite_data.filter(
+            (pl.col('start') >= pl.col('start_x')) & (pl.col('stop') < pl.col('end')))
+
+        # Keep the dmr_data rows with top 10 score
+        composite_data = composite_data.sort('score', reverse=True).head(10).sort(['chrom', 'start_x', 'end'])
 
         plot_gene_methylation_level(ax_top, ax_bottom, methyl_data, methylation_type)
-        plot_heatmap(dmr_data, heatmap, "KEGG_Module")
+        plot_heatmap(composite_data, ax_heatmap, "KEGG_Module", True)
+        annotate_heatmap_to_meth_level(fig, ax_top, ax_heatmap, methyl_data, composite_data, methylation_type)
 
     return
 

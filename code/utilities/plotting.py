@@ -5,6 +5,8 @@ import polars as pl
 import seaborn as sns
 from utilities.utils import *
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
 
 plt.style.use('ggplot')
 
@@ -78,8 +80,12 @@ def plot_all_sources_figure(df, genome_name, heatmap_type="gene", fig_savepath="
     plt.close(fig)
 
 
-def plot_heatmap(df, ax, source):
-    df = df.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index().pivot(index='function', columns='comparison', values='score')
+def plot_heatmap(df, ax, source, horizontal=False):
+    df = df.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index()
+    if horizontal:
+        df = df.pivot(index='comparison', columns='function', values='score')
+    else:
+        df = df.pivot(index='function', columns='comparison', values='score')
 
     if not df.empty:
         # Create color palette
@@ -172,3 +178,21 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type):
     sorted_handles_labels = sorted(zip(handles, labels), key=lambda x: desired_order.index(x[1]))
     handles, labels = zip(*sorted_handles_labels)
     ax_top.legend(handles, labels)
+
+
+def annotate_heatmap_to_meth_level(fig, ax_top, ax_heatmap, methyl_data, composite_data, methylation_type):
+    dmr_data = composite_data.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index().pivot(index='comparison', columns='function', values='score')
+
+    num_points = len(dmr_data)
+    for i in range(num_points):
+        # Get the coordinates for the line plot
+        line_x, line_y = ax_top.transData.transform((composite_data['gene_id'][i], composite_data[methylation_type][i]))
+
+        # Get the corresponding coordinates on the heatmap
+        heatmap_x, heatmap_y = ax_heatmap.transData.transform(composite_data['function'][i], composite_data['comparison'][i])  # Assuming heatmap_data is 1D
+
+        # Create the arrow
+        arrow = patches.FancyArrowPatch((heatmap_x, heatmap_y), (line_x, line_y),
+                                        transform=fig.transFigure, color='red',
+                                        arrowstyle='->', mutation_scale=15)
+        fig.patches.append(arrow)
