@@ -119,15 +119,19 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     genes = get_genes(data_dir, genome_name)[['contig', 'start', 'stop']].drop_duplicates()
     methyl_data = group_and_normalize_data_for_methylation_level(methyl_data, genes, genome_name, ("agg" in coverage))
 
+    # Filter samples
+    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+    dmr_data = dmr_data[dmr_data["comparison"].isin(["top_VS_bottom", "middle_VS_bottom"])]
+
     # Create figure and subplots
     methylation_types = methyl_data.columns[1:4]
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(n_types * 3, 1, figsize=(20, 5 * n_types), sharex=True, layout="constrained")
+    fig, axes = plt.subplots(n_types * 3, 1, figsize=(20, 8 * n_types), sharex=True, layout="constrained")
 
     for i, methylation_type in enumerate(methylation_types):
-        ax_top = axes[i*3]
-        ax_bottom = axes[i*3+1]
-        ax_heatmap = axes[i * 3 + 2]
+        ax_heatmap = axes[i*3]
+        ax_top = axes[i*3+1]
+        ax_bottom = axes[i*3+2]
 
         # Merge DMR and methyl data
         methyl_data = methyl_data.with_columns(
@@ -135,23 +139,29 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
             start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
             stop=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
         )
-        composite_data = methyl_data.join(dmr_data, on='chrom')
+        composite_data = methyl_data.join(pl.from_pandas(dmr_data), on='chrom')
 
         composite_data = composite_data.filter(
             (pl.col('start') >= pl.col('start_x')) & (pl.col('stop') < pl.col('end')))
 
         # Keep the dmr_data rows with top 10 score
-        composite_data = composite_data.sort('score', reverse=True).head(10).sort(['chrom', 'start_x', 'end'])
+        composite_data = composite_data.sort('score', descending=True).head(10).sort(['chrom', 'start_x', 'end'])
 
         plot_gene_methylation_level(ax_top, ax_bottom, methyl_data, methylation_type)
-        plot_heatmap(composite_data, ax_heatmap, "KEGG_Module", True)
-        annotate_heatmap_to_meth_level(fig, ax_top, ax_heatmap, methyl_data, composite_data, methylation_type)
-
+        plot_heatmap(composite_data.to_pandas(), ax_heatmap, "KEGG_Module", True)
+        annotate_heatmap_to_meth_level(fig, ax_top, ax_heatmap, composite_data, methylation_type)
+    
+    # Save the figure
+    cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
+    fig.suptitle(f"Mean gene methylation and DMR score by type for {cleaned_genome_name}", fontsize=26)
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite.svg", format='svg')
+    
+    print(f"Done plotting composite for {genome_name}")
     return
 
 
 if __name__ == "__main__":
     print("Running DMR analysis at coverage 5 agg")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "/Users/GeorgesKanaan/Desktop/methylation_data/methylation_5_agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/methylation_5_agg")
     for genome in os.listdir(data_dir):
         run_dmr_analysis(genome, "dmr_by_gene", "5_agg", data_dir, fig_savepath="../plots/plots_5_agg")

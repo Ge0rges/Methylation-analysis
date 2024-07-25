@@ -120,7 +120,7 @@ def plot_heatmap(df, ax, source, horizontal=False):
         ax.set_xticklabels(x_labels, rotation=45, ha='right', fontsize=20)
 
     else:
-        ax.set_title(f"No data for {source}", fontsize=60)
+        ax.set_title(f"No heatmap data for {source}", fontsize=20)
 
 
 def plot_gene_methylation_level_figure(df, genome_name, coverage, fig_savepath="plots"):
@@ -144,7 +144,7 @@ def plot_gene_methylation_level_figure(df, genome_name, coverage, fig_savepath="
 
 def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type):
     sns_plot_top = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_top)
-    sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_bottom)
+    sns_plot_bottom = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_bottom)
 
     ax_top.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
 
@@ -152,23 +152,22 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type):
     ax_bottom.set(xlabel='Gene ID', ylabel=f"Number of observations")
 
     sns_plot_top.legend().set_title("Sample")
+    sns_plot_bottom.legend().remove()
 
     try:
-        ax_top.set_ylim(bottom=df.filter(pl.col(methylation_type) > 0).select(
-            pl.col(methylation_type).quantile(0.99)).to_numpy()[0][0])
-        ax_bottom.set_ylim(df.select(pl.min(methylation_type)).to_numpy()[0][0],
-                           df.filter(pl.col(methylation_type) > 0).select(
-                               pl.col(methylation_type).quantile(0.95)).to_numpy()[0][0])
+        ax_top.set_ylim(bottom=df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.99)).to_numpy()[0][0])
+        ax_bottom.set_ylim(df.select(pl.min(methylation_type)).to_numpy()[0][0], 
+                           df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.95)).to_numpy()[0][0])
 
     except ValueError:
         return
 
     sns.despine(ax=ax_top, bottom=True)
-
+    
+    # Diagonal lines for breakage of Y axis
     d = .0025
     kwargs = dict(transform=ax_top.transAxes, color='k', clip_on=False)
     ax_top.plot((-d, +d), (-d, +d), **kwargs)
-
     kwargs.update(transform=ax_bottom.transAxes)
     ax_bottom.plot((-d, +d), (1 - d, 1 + d), **kwargs)
 
@@ -180,16 +179,18 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type):
     ax_top.legend(handles, labels)
 
 
-def annotate_heatmap_to_meth_level(fig, ax_top, ax_heatmap, methyl_data, composite_data, methylation_type):
-    dmr_data = composite_data.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index().pivot(index='comparison', columns='function', values='score')
+def annotate_heatmap_to_meth_level(fig, ax_top, ax_heatmap, composite_data, methylation_type):
 
-    num_points = len(dmr_data)
-    for i in range(num_points):
-        # Get the coordinates for the line plot
-        line_x, line_y = ax_top.transData.transform((composite_data['gene_id'][i], composite_data[methylation_type][i]))
+    for i in range(composite_data.height):
+        # Get the coordinates on the respective plots plot
+        line_x, line_y = ax_top.transData.transform((composite_data.item(i, 'gene_id'), composite_data.item(i, methylation_type)))
 
-        # Get the corresponding coordinates on the heatmap
-        heatmap_x, heatmap_y = ax_heatmap.transData.transform(composite_data['function'][i], composite_data['comparison'][i])  # Assuming heatmap_data is 1D
+        x_index = composite_data.get_column('function').unique().to_list().index(composite_data.item(i, "function"))
+        y_index = composite_data.get_column('comparison').unique().to_list().index(composite_data.item(i, "comparison"))
+        
+        #print([i for i, x in enumerate(composite_data.get_column('function').to_list()) if x == composite_data.item(i, "function")])
+
+        heatmap_x, heatmap_y = ax_heatmap.transData.transform((x_index,  y_index))
 
         # Create the arrow
         arrow = patches.FancyArrowPatch((heatmap_x, heatmap_y), (line_x, line_y),
