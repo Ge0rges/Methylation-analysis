@@ -1,4 +1,5 @@
 import math
+import matplotlib
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -80,44 +81,65 @@ def plot_all_sources_figure(df, genome_name, heatmap_type="gene", fig_savepath="
     plt.close(fig)
 
 
-def plot_heatmap(df, ax, source, horizontal=False):
+def plot_heatmap(df, ax, source, fig=None, composite=False):
     df = df.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index()
-    if horizontal:
+    if composite:
         df = df.pivot(index='comparison', columns='function', values='score')
     else:
         df = df.pivot(index='function', columns='comparison', values='score')
 
     if not df.empty:
         # Create color palette
-        cmap = sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True)  #sns.color_palette("rocket", as_cmap=True)
+        cmap = sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True)
         cmap.set_bad('lightgray')
 
         # Plot heatmap
-        #q = df.stack().quantile(0.5)
-        #df = df[df.ge(q).any(axis=1)]
-        sns.heatmap(df, cmap=cmap, annot=False, fmt=".2f", linewidths=1, linecolor='white',
-                    cbar_kws={'shrink': 0.8}, ax=ax, square=True)
-
-        # Add labels at the top and bottom of the color bar
-        cbar = ax.collections[0].colorbar
-        cbar.ax.set_ylabel('Mean modkit score', fontsize=20)
+        sns.heatmap(df, cmap=cmap, annot=composite, fmt=".2f", linewidths=1, linecolor='white',
+                    cbar_kws={'shrink': 0.8}, ax=ax, square=(not composite), cbar=(not composite))
 
         # Set title and axis labels
-        ax.set_title(source, fontsize=40)
-        ax.set_xlabel('Comparison', fontsize=30)
-        ax.set_ylabel('Gene Function', fontsize=30)
+        if composite:
+            assert len(df.index) == 1, "Need to modify plotting code to support multiple heatmap rows"
 
-        # Truncate Y-axis labels
-        num_y_labels = len(ax.get_yticklabels())
-        ax_height_in = ax.get_window_extent().height / plt.gcf().dpi
-        num_lines = max(1, int(ax_height_in / num_y_labels * 2))  # Adjust the multiplier as necessary
+            # Set labels
+            ax.set_xlabel("Gene function")
+            ax.set_xlabel("")
 
-        y_labels = [truncate_label(lbl.get_text(), max_lines=num_lines) for lbl in ax.get_yticklabels()]
-        ax.set_yticklabels(y_labels, rotation=0, ha='right', fontsize=20)
+            # Truncate X-axis labels, move to top and rotate
+            x_labels = [truncate_label(lbl.get_text(), max_length=35, max_lines=4) for lbl in ax.get_xticklabels()]
+            ax.xaxis.tick_top()
+            ax.set_xticklabels(x_labels, rotation=0, ha='center')
 
-        # Orientate the X-acis labels
-        x_labels = ax.get_xticklabels()
-        ax.set_xticklabels(x_labels, rotation=45, ha='right', fontsize=20)
+            # Create offset transform by 5 points in x direction
+            dx = 0 / 72.
+            dy = 40 / 72.
+            offset = matplotlib.transforms.ScaledTranslation(dx, dy, fig.dpi_scale_trans)
+
+            # apply offset transform to all x ticklabels.
+            for label in ax.xaxis.get_majorticklabels():
+                label.set_transform(label.get_transform() + offset)
+
+        else:
+            # Add labels at the top and bottom of the color bar
+            cbar = ax.collections[0].colorbar
+            cbar.ax.set_ylabel('Mean modkit score', fontsize=20)
+
+            # Set labels
+            ax.set_title(source, fontsize=40)
+            ax.set_xlabel('Comparison', fontsize=30)
+            ax.set_ylabel('Gene Function', fontsize=30)
+
+            # Truncate Y-axis labels
+            num_y_labels = len(ax.get_yticklabels())
+            ax_height_in = ax.get_window_extent().height / plt.gcf().dpi
+            num_lines = max(1, int(ax_height_in / num_y_labels * 2))  # Adjust the multiplier as necessary
+
+            y_labels = [truncate_label(lbl.get_text(), max_lines=num_lines) for lbl in ax.get_yticklabels()]
+            ax.set_yticklabels(y_labels, rotation=0, ha='right', fontsize=20)
+
+            # Orientate the X-axis labels
+            x_labels = ax.get_xticklabels()
+            ax.set_xticklabels(x_labels, rotation=45, ha='center', fontsize=20)
 
     else:
         ax.set_title(f"No heatmap data for {source}", fontsize=20)
@@ -142,28 +164,30 @@ def plot_gene_methylation_level_figure(df, genome_name, coverage, fig_savepath="
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene.svg", format='svg')
 
 
-def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type):
+def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composite=False):
     sns_plot_top = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_top)
     sns_plot_bottom = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_bottom)
 
-    ax_top.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
+    if not composite:
+        ax_top.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
 
-    ax_top.set(ylabel="")
-    ax_bottom.set(xlabel='Gene ID', ylabel=f"Number of observations")
+    ax_top.set(xlabel="", ylabel="")
+    ax_bottom.set(xlabel='Gene ID', ylabel=f"Normalized methylation fraction")
 
     sns_plot_top.legend().set_title("Sample")
     sns_plot_bottom.legend().remove()
 
     try:
-        ax_top.set_ylim(bottom=df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.99)).to_numpy()[0][0])
-        ax_bottom.set_ylim(df.select(pl.min(methylation_type)).to_numpy()[0][0], 
-                           df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.95)).to_numpy()[0][0])
+        ax_top.set_ylim(bottom=df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.99)).item())
+        ax_bottom.set_ylim(df.select(pl.min(methylation_type)).item(),
+                           df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.95)).item())
 
     except ValueError:
         return
 
     sns.despine(ax=ax_top, bottom=True)
-    
+    ax_top.set_xticks([])
+
     # Diagonal lines for breakage of Y axis
     d = .0025
     kwargs = dict(transform=ax_top.transAxes, color='k', clip_on=False)
@@ -179,21 +203,18 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type):
     ax_top.legend(handles, labels)
 
 
-def annotate_heatmap_to_meth_level(fig, ax_top, ax_heatmap, composite_data, methylation_type):
+def annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data, methylation_type):
 
     for i in range(composite_data.height):
         # Get the coordinates on the respective plots plot
-        line_x, line_y = ax_top.transData.transform((composite_data.item(i, 'gene_id'), composite_data.item(i, methylation_type)))
+        xyMeth = (composite_data.item(i, 'gene_id'), ax_meth.get_ylim()[1])#composite_data.item(i, methylation_type))
 
-        x_index = composite_data.get_column('function').unique().to_list().index(composite_data.item(i, "function"))
-        y_index = composite_data.get_column('comparison').unique().to_list().index(composite_data.item(i, "comparison"))
-        
-        #print([i for i, x in enumerate(composite_data.get_column('function').to_list()) if x == composite_data.item(i, "function")])
-
-        heatmap_x, heatmap_y = ax_heatmap.transData.transform((x_index,  y_index))
+        x_heatmap = composite_data.get_column('function').to_list().index(composite_data.item(i, "function")) + 0.5
+        y_heatmap = 0#composite_data.get_column('comparison').unique().to_list().index(composite_data.item(i, "comparison"))
 
         # Create the arrow
-        arrow = patches.FancyArrowPatch((heatmap_x, heatmap_y), (line_x, line_y),
-                                        transform=fig.transFigure, color='red',
-                                        arrowstyle='->', mutation_scale=15)
-        fig.patches.append(arrow)
+        arrow = patches.ConnectionPatch(xyMeth, (x_heatmap, y_heatmap),
+                                        coordsA=ax_meth.transData, coordsB=ax_heatmap.transData,
+                                        axesA=ax_meth, axesB=ax_heatmap,
+                                        color='black', linewidth=1)
+        fig.add_artist(arrow)

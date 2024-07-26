@@ -94,25 +94,25 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
         print(f"No DMR bed files found for {genome_name}")
         return
 
-    methyl_data = get_dmr_by_sample_annotated(data_dir, genome_name, bed_files)
+    dmr_data = get_dmr_by_sample_annotated(data_dir, genome_name, bed_files)
 
     # Handle empty
-    if methyl_data.empty:
+    if dmr_data.empty:
         print(f"No DMRs found for {genome_name}")
         return
 
     # Keep only statistically significant DMRs
-    methyl_data['num_tests'] = methyl_data.groupby('comparison')['comparison'].transform('count')
-    methyl_data['test_result'] = methyl_data.apply(lambda x: modkit_llr(x['score'], x['num_tests']), axis=1)
-    methyl_data = methyl_data[methyl_data['test_result']]
+    dmr_data['num_tests'] = dmr_data.groupby('comparison')['comparison'].transform('count')
+    dmr_data['test_result'] = dmr_data.apply(lambda x: modkit_llr(x['score'], x['num_tests']), axis=1)
+    dmr_data = dmr_data[dmr_data['test_result']]
 
     # Handle empty
-    if methyl_data.empty:
+    if dmr_data.empty:
         print(f"No stastistically significant DMRs found for {genome_name}")
         return
 
     # Get ax_heatmap data
-    dmr_data = methyl_data[methyl_data["source"] == "KEGG_Module"]
+    dmr_data = dmr_data[dmr_data["source"] == "KEGG_Module"]
 
     # Get methylation level data
     methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False)
@@ -121,12 +121,13 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
     # Filter samples
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
-    dmr_data = dmr_data[dmr_data["comparison"].isin(["top_VS_bottom", "middle_VS_bottom"])]
+    dmr_data = dmr_data[dmr_data["comparison"].isin(["top_VS_bottom"])]
 
     # Create figure and subplots
     methylation_types = methyl_data.columns[1:4]
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(n_types * 3, 1, figsize=(20, 8 * n_types), sharex=True, layout="constrained")
+    fig, axes = plt.subplots(n_types * 3, 1, figsize=(20, 10 * n_types), sharex=False, layout="constrained",
+                             gridspec_kw={'height_ratios': [1, 2, 7] * n_types})
 
     for i, methylation_type in enumerate(methylation_types):
         ax_heatmap = axes[i*3]
@@ -142,26 +143,26 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
         composite_data = methyl_data.join(pl.from_pandas(dmr_data), on='chrom')
 
         composite_data = composite_data.filter(
-            (pl.col('start') >= pl.col('start_x')) & (pl.col('stop') < pl.col('end')))
+            (pl.col('start') >= pl.col('start_x')) & (pl.col('stop') <= pl.col('end')))
 
         # Keep the dmr_data rows with top 10 score
-        composite_data = composite_data.sort('score', descending=True).head(10).sort(['chrom', 'start_x', 'end'])
+        composite_data = composite_data.unique(subset=["function", "gene_id", "sample"]).select(pl.all().top_k_by("score", 10).over("sample", mapping_strategy="explode"))
 
-        plot_gene_methylation_level(ax_top, ax_bottom, methyl_data, methylation_type)
-        plot_heatmap(composite_data.to_pandas(), ax_heatmap, "KEGG_Module", True)
-        annotate_heatmap_to_meth_level(fig, ax_top, ax_heatmap, composite_data, methylation_type)
-    
+        plot_gene_methylation_level(ax_top, ax_bottom, methyl_data, methylation_type, composite=True)
+        plot_heatmap(composite_data.to_pandas(), ax_heatmap, "KEGG_Module", fig=fig, composite=True)
+        annotate_heatmap_to_meth_level(fig, ax_bottom, ax_heatmap, composite_data, methylation_type)
+
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
     fig.suptitle(f"Mean gene methylation and DMR score by type for {cleaned_genome_name}", fontsize=26)
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite.svg", format='svg')
-    
+
     print(f"Done plotting composite for {genome_name}")
     return
 
 
 if __name__ == "__main__":
     print("Running DMR analysis at coverage 5 agg")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/methylation_5_agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/methylation_data/methylation_5_agg")
     for genome in os.listdir(data_dir):
         run_dmr_analysis(genome, "dmr_by_gene", "5_agg", data_dir, fig_savepath="../plots/plots_5_agg")
