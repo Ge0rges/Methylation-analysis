@@ -62,6 +62,28 @@ def get_dmrs(path) -> pd.DataFrame:
     return dmrs
 
 
+def get_dmr_by_sample_annotated(data_dir, genome_name, bed_files):
+    # Get all the methylation data from the bed files
+    dmrs = []
+    for bed_file in bed_files:
+        dmrs.append(get_dmrs(bed_file))
+
+    # Concatenate the list of dmrs for this sample into a single dataframe
+    dmrs = pd.concat(dmrs, ignore_index=True)
+
+    # Handle empty
+    if dmrs.empty:
+        return dmrs
+
+    # Add functional annotation
+    df = utils.add_functional_annotations(dmrs, data_dir, genome_name)
+
+    # Dropping all other columns except the ones in columns_to_keep
+    #df = df.drop(columns=["name", "gene_callers_id", "direction", "call_type", "rbs_spacer", "gc_cont",
+    df = df.drop(columns=["name", "gene_callers_id", "accession"])
+    return df
+
+
 def get_sample_metadata(data_dir) -> pd.DataFrame:
     """
     Load the sample metadata from an Excel file.

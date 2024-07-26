@@ -226,7 +226,7 @@ def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
     return pivot_df
 
 
-def group_methyl_data_by_genes(df, genes) -> pl.LazyFrame:
+def group_methyl_data_by_genes(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
     """
     Aggregate methylation data by genes.
 
@@ -239,7 +239,6 @@ def group_methyl_data_by_genes(df, genes) -> pl.LazyFrame:
     :return: The aggregated methylation data.
     :rtype: pd. Dataframe
     """
-    df = df.collect().lazy()
 
     df = df.with_columns(
         contig=pl.col('name').str.split(by='|').list.get(0),
@@ -247,10 +246,12 @@ def group_methyl_data_by_genes(df, genes) -> pl.LazyFrame:
         stop=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
     )
 
-    a = df.select('contig').unique().collect().get_column('contig').to_list()
-    b = genes.select('contig').unique().collect().get_column('contig').to_list()
+
+    a = df.collect().select('contig').unique().get_column('contig').to_list()
+    b = genes.collect().select('contig').unique().get_column('contig').to_list()
 
     assert all(g1 in b for g1 in a), "Not all contigs are in this genome_name."
+    del a, b
 
     # Create a unique identifier for each range in ranges dataframe
     genes = genes.with_row_index('range_id')
@@ -272,16 +273,13 @@ def group_methyl_data_by_genes(df, genes) -> pl.LazyFrame:
     return result
 
 
-def group_and_normalize_data_for_methylation_level(df, genes, genome_name, aggregate=False):
-    df = group_methyl_data_by_genes(df, pl.from_pandas(genes).lazy()).collect()
-    df = df.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
-
+def normalize_data_for_methylation_level(df, genes, genome_name, aggregate=False):
     if aggregate:
         df = df.with_columns(pl.col('sample').replace(barcode_sample_map))
 
     # Normalize to coverage
     coverages = dl.get_coverage("../data/", genome_name, agg=aggregate).drop(columns="Genome").to_dict("records")[0]
-    methylation_types = df.columns[1:4]
+    methylation_types = df.collect_schema().names()[1:4]
 
     for key, value in coverages.items():
         if value == 0 and key in df.select("sample").unique():
@@ -293,3 +291,49 @@ def group_and_normalize_data_for_methylation_level(df, genes, genome_name, aggre
     df = df.with_columns(pl.col('sample').replace(readable_sample_name))
 
     return df
+
+
+def add_functional_annotations(dmrs, data_dir, genome_name):
+    """
+    Add functional annotations to DMRs (Differentially Methylated Regions) by matching DMR positions with
+    genomic annotations to find overlaps. Drops the "partial" column from the merged DataFrame.
+    """
+    # Load functional annotations for the specified genome_name from a data directory
+    functions = dl.get_coordinated_functions(data_dir, genome_name)
+
+    # Rename 'start' column to 'start_y' to avoid name clash and remove 'gene_callers_id' from function columns
+    func_cols = [col if col != "start" else "start_y" for col in functions.columns]
+    func_cols.remove("gene_callers_id")
+
+    # Merge DMR data with functional annotations based on contig name
+    merged_df = pd.merge(dmrs, functions, how='left', left_on='chrom', right_on='contig')
+
+    # Define a condition for DMRs that actually overlap the annotated regions
+    condition = (merged_df['start_x'] >= merged_df['start_y']) & (merged_df['end'] <= merged_df['stop'])
+
+    # For rows not meeting the condition, clear out irrelevant function columns and set default values
+    merged_df.loc[~condition, func_cols] = pd.NA
+    merged_df.loc[~condition, "gene_callers_id"] = -1
+    merged_df.loc[~condition, "source"] = "Unannotated"
+    merged_df.loc[~condition, "function"] = "Unknown"
+
+    # Remove duplicate entries from the merged DataFrame
+    merged_df.drop_duplicates(inplace=True)
+
+    # Convert the 'accession' column to string format for processing l
+    merged_df['accession'] = merged_df['accession'].astype(str)
+
+    # Apply the helper function on groups defined by unique columns, and remove the temporary column afterwards
+    unique_cols = ['name', 'gene_callers_id', 'source']
+    merged_df = (merged_df.groupby(unique_cols, as_index=False)
+                 .apply(select_best_annotation_row, include_groups=False)
+                 .drop('accession_split_len', axis=1))
+
+    # Ensure that all unique names from the DMRs are still present after merging and that there are no duplicate groups
+    assert set(merged_df["name"].unique()) == set(dmrs["name"].unique())
+    assert merged_df.shape[0] == merged_df.groupby(unique_cols).ngroups, "There are duplicate groups in the result."
+
+    # Clean up by dropping columns that are no longer needed
+    merged_df.drop(columns=["contig", "start_y", "stop", "e_value"], inplace=True)
+
+    return merged_df
