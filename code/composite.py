@@ -37,61 +37,63 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     dmr_data['num_tests'] = dmr_data.groupby('comparison')['comparison'].transform('count')
     dmr_data['test_result'] = dmr_data.apply(lambda x: modkit_llr(x['score'], x['num_tests']), axis=1)
     dmr_data = dmr_data[dmr_data['test_result']]
+    
+    # Filter source and comparison
+    source = "KEGG_Module"
+    dmr_data = dmr_data[dmr_data["source"] == source]
+    dmr_data = dmr_data[dmr_data["comparison"].isin(["top_VS_bottom"])]
+
+    # Keep top 10
+    dmr_data = dmr_data.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index().nlargest(10, "score", keep="all")
 
     # Handle empty
     if dmr_data.empty:
         print(f"No stastistically significant DMRs found for {genome_name}")
         return
 
-    # Get ax_heatmap data
-    dmr_data = dmr_data[dmr_data["source"] == "KEGG_Module"]
-
-    # Get methylation level data
+        # Get methylation level data
     methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False).collect()
     genes = get_genes(data_dir, genome_name)[['contig', 'start', 'stop']].drop_duplicates()
 
     # Filter samples
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).lazy()
-    dmr_data = pl.from_pandas(dmr_data[dmr_data["comparison"].isin(["top_VS_bottom"])]).lazy()
+    dmr_data = pl.from_pandas(dmr_data)
 
     # Group
     methyl_data = group_methyl_data_by_genes(methyl_data, pl.from_pandas(genes).lazy())
     methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage))
     
+    # Collect
+    methyl_data = methyl_data.collect()
+    
+    # Merge DMR and methyl data
+    methyl_data = methyl_data.with_columns(
+        chrom=pl.col('name').str.split(by='|').list.get(0),
+        start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
+        stop=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
+    )
+        
+    composite_data = methyl_data.join(dmr_data, on='chrom')
+
+    composite_data = composite_data.filter(
+        (pl.col('start') >= pl.col('start_x')) & (pl.col('stop') <= pl.col('end')))
+
     # Create figure and subplots
     methylation_types = methyl_data.collect_schema().names()[1:4]
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(n_types * 3, 1, figsize=(20, 10 * n_types), sharex=False, layout="constrained",
-                             gridspec_kw={'height_ratios': [1, 2, 7] * n_types})
-    
-    # Collect
-    methyl_data = methyl_data.collect()
-    dmr_data = dmr_data.collect()
+    fig, axes = plt.subplots(n_types * 2 + 1, 1, figsize=(20, 10 * n_types), sharex=False, layout="constrained",
+                             gridspec_kw={'height_ratios': [1] + [2, 7] * n_types})
 
     for i, methylation_type in enumerate(methylation_types):
-        ax_heatmap = axes[i*3]
-        ax_top = axes[i*3+1]
-        ax_bottom = axes[i*3+2]
+        ax_heatmap = axes[0] if i == 0 else None
+        ax_top = axes[1] if i == 0 else axes[i*2 + 1]
+        ax_bottom = axes[2] if i == 0 else axes[i*2 + 2]
 
-        # Merge DMR and methyl data
-        methyl_data = methyl_data.with_columns(
-            chrom=pl.col('name').str.split(by='|').list.get(0),
-            start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
-            stop=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
-        )
-        
-        composite_data = methyl_data.join(dmr_data, on='chrom')
-
-        composite_data = composite_data.filter(
-            (pl.col('start') >= pl.col('start_x')) & (pl.col('stop') <= pl.col('end')))
-
-        # Keep the dmr_data rows with top 10 score
-        composite_data = composite_data.unique(subset=["function", "gene_id", "sample"]).select(pl.all().top_k_by("score", 10).over("sample", mapping_strategy="explode"))
-
-        # Plot
         plot_gene_methylation_level(ax_top, ax_bottom, methyl_data, methylation_type, composite=True)
-        plot_heatmap(composite_data.to_pandas(), ax_heatmap, "KEGG_Module", fig=fig, composite=True)
-        annotate_heatmap_to_meth_level(fig, ax_bottom, ax_heatmap, composite_data, methylation_type)
+                    
+        if i == 0:
+            plot_heatmap(dmr_data.to_pandas(), ax_heatmap, source, fig=fig, composite=True)
+            annotate_heatmap_to_meth_level(fig, ax_bottom, ax_heatmap, composite_data, methylation_type)
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")

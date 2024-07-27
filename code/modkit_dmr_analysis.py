@@ -35,7 +35,8 @@ def run_dmr_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
     methyl_data['num_tests'] = methyl_data.groupby('comparison')['comparison'].transform('count')
     methyl_data['test_result'] = methyl_data.apply(lambda x: modkit_llr(x['score'], x['num_tests']), axis=1)
     methyl_data = methyl_data[methyl_data['test_result']]
-
+    methyl_data = methyl_data.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index().nlargest(10, "score", keep="all")
+    
     # Handle empty
     if methyl_data.empty:
         print(f"No stastistically significant DMRs found for {genome_name}")

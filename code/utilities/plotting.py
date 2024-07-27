@@ -82,7 +82,7 @@ def plot_all_sources_figure(df, genome_name, heatmap_type="gene", fig_savepath="
 
 
 def plot_heatmap(df, ax, source, fig=None, composite=False):
-    df = df.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index()
+    
     if composite:
         df = df.pivot(index='comparison', columns='function', values='score')
     else:
@@ -209,9 +209,11 @@ def annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data, met
 
     for i in range(composite_data.height):
         # Get the coordinates on the respective plots plot
-        xyMeth = (composite_data.item(i, 'gene_id'), ax_meth.get_ylim()[1])
-
-        x_heatmap = composite_data.get_column('function').to_list().index(composite_data.item(i, "function")) + 0.5
+        xyMeth = (composite_data.item(i,'gene_id'), ax_meth.get_ylim()[1])
+       
+        labels = [x.get_text() for x in ax_heatmap.get_xticklabels()]
+        x_label = truncate_label(composite_data.item(i, "function"), max_length=35, max_lines=2)
+        x_heatmap = labels.index(x_label) + 0.5
         y_heatmap = 1
 
         # Create the arrow
