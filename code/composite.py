@@ -56,13 +56,17 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
     # Group
     methyl_data = group_methyl_data_by_genes(methyl_data, pl.from_pandas(genes).lazy())
-    methyl_data = normalize_data_for_methylation_level(methyl_data, genes, genome_name, ("agg" in coverage))
-
+    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage))
+    
     # Create figure and subplots
     methylation_types = methyl_data.collect_schema().names()[1:4]
     n_types = len(methylation_types)
     fig, axes = plt.subplots(n_types * 3, 1, figsize=(20, 10 * n_types), sharex=False, layout="constrained",
                              gridspec_kw={'height_ratios': [1, 2, 7] * n_types})
+    
+    # Collect
+    methyl_data = methyl_data.collect()
+    dmr_data = dmr_data.collect()
 
     for i, methylation_type in enumerate(methylation_types):
         ax_heatmap = axes[i*3]
@@ -75,6 +79,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
             start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
             stop=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
         )
+        
         composite_data = methyl_data.join(dmr_data, on='chrom')
 
         composite_data = composite_data.filter(
@@ -82,10 +87,6 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
         # Keep the dmr_data rows with top 10 score
         composite_data = composite_data.unique(subset=["function", "gene_id", "sample"]).select(pl.all().top_k_by("score", 10).over("sample", mapping_strategy="explode"))
-
-        # Collect
-        methyl_data = methyl_data.collect()
-        composite_data = composite_data.collect()
 
         # Plot
         plot_gene_methylation_level(ax_top, ax_bottom, methyl_data, methylation_type, composite=True)
@@ -103,6 +104,6 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
 if __name__ == "__main__":
     print("Running DMR analysis at coverage 5 agg")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/methylation_data/methylation_5_agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/methylation_5_agg")
     for genome in os.listdir(data_dir):
         run_dmr_analysis(genome, "dmr_by_gene", "5_agg", data_dir, fig_savepath="../plots/plots_5_agg")

@@ -273,7 +273,7 @@ def group_methyl_data_by_genes(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.Lazy
     return result
 
 
-def normalize_data_for_methylation_level(df, genes, genome_name, aggregate=False):
+def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, aggregate=False) -> pl.LazyFrame:
     if aggregate:
         df = df.with_columns(pl.col('sample').replace(barcode_sample_map))
 

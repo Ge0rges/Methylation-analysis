@@ -103,16 +103,16 @@ def plot_heatmap(df, ax, source, fig=None, composite=False):
 
             # Set labels
             ax.set_xlabel("Gene function")
-            ax.set_xlabel("")
+            ax.set_ylabel("")
 
             # Truncate X-axis labels, move to top and rotate
-            x_labels = [truncate_label(lbl.get_text(), max_length=35, max_lines=4) for lbl in ax.get_xticklabels()]
+            x_labels = [truncate_label(lbl.get_text(), max_length=35, max_lines=2) for lbl in ax.get_xticklabels()]
             ax.xaxis.tick_top()
             ax.set_xticklabels(x_labels, rotation=0, ha='center')
 
             # Create offset transform by 5 points in x direction
             dx = 0 / 72.
-            dy = 40 / 72.
+            dy = 10 / 72.
             offset = matplotlib.transforms.ScaledTranslation(dx, dy, fig.dpi_scale_trans)
 
             # apply offset transform to all x ticklabels.
@@ -143,6 +143,8 @@ def plot_heatmap(df, ax, source, fig=None, composite=False):
 
     else:
         ax.set_title(f"No heatmap data for {source}", fontsize=20)
+        if composite:
+            ax.set_visible(False)
 
 
 def plot_gene_methylation_level_figure(df, genome_name, coverage, fig_savepath="plots"):
@@ -207,10 +209,10 @@ def annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data, met
 
     for i in range(composite_data.height):
         # Get the coordinates on the respective plots plot
-        xyMeth = (composite_data.item(i, 'gene_id'), ax_meth.get_ylim()[1])#composite_data.item(i, methylation_type))
+        xyMeth = (composite_data.item(i, 'gene_id'), ax_meth.get_ylim()[1])
 
         x_heatmap = composite_data.get_column('function').to_list().index(composite_data.item(i, "function")) + 0.5
-        y_heatmap = 0#composite_data.get_column('comparison').unique().to_list().index(composite_data.item(i, "comparison"))
+        y_heatmap = 1
 
         # Create the arrow
         arrow = patches.ConnectionPatch(xyMeth, (x_heatmap, y_heatmap),
