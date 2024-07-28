@@ -2,7 +2,7 @@ from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
 from utilities.data_loading_polars import *
-from utilities.utils import normalize_data_for_methylation_level, group_methyl_data_by_genes
+from utilities.utils import normalize_data_for_methylation_level, group_methyl_data_by_genes, add_functional_annotations, readable_methylation_name
 
 
 def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="plots"):
@@ -37,7 +37,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     dmr_data['num_tests'] = dmr_data.groupby('comparison')['comparison'].transform('count')
     dmr_data['test_result'] = dmr_data.apply(lambda x: modkit_llr(x['score'], x['num_tests']), axis=1)
     dmr_data = dmr_data[dmr_data['test_result']]
-    
+
     # Filter source and comparison
     source = "KEGG_Module"
     dmr_data = dmr_data[dmr_data["source"] == source]
@@ -62,24 +62,20 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     # Group
     methyl_data = group_methyl_data_by_genes(methyl_data, pl.from_pandas(genes).lazy())
     methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage))
-    
-    # Collect
-    methyl_data = methyl_data.collect()
-    
-    # Merge DMR and methyl data
+
+    # Collect and add functional annotations
     methyl_data = methyl_data.with_columns(
         chrom=pl.col('name').str.split(by='|').list.get(0),
         start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
-        stop=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
+        end=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
     )
-        
-    composite_data = methyl_data.join(dmr_data, on='chrom')
 
-    composite_data = composite_data.filter(
-        (pl.col('start') >= pl.col('start_x')) & (pl.col('stop') <= pl.col('end')))
+    methyl_data = pl.from_pandas(add_functional_annotations(methyl_data.collect().to_pandas(), data_dir, genome_name))
+
+    composite_data = methyl_data.join(dmr_data, on='function', how='inner')
 
     # Create figure and subplots
-    methylation_types = methyl_data.collect_schema().names()[1:4]
+    methylation_types = list(readable_methylation_name.keys())
     n_types = len(methylation_types)
     fig, axes = plt.subplots(n_types * 2 + 1, 1, figsize=(20, 10 * n_types), sharex=False, layout="constrained",
                              gridspec_kw={'height_ratios': [1] + [2, 7] * n_types})
@@ -90,10 +86,10 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
         ax_bottom = axes[2] if i == 0 else axes[i*2 + 2]
 
         plot_gene_methylation_level(ax_top, ax_bottom, methyl_data, methylation_type, composite=True)
-                    
+
         if i == 0:
             plot_heatmap(dmr_data.to_pandas(), ax_heatmap, source, fig=fig, composite=True)
-            annotate_heatmap_to_meth_level(fig, ax_bottom, ax_heatmap, composite_data, methylation_type)
+            annotate_heatmap_to_meth_level(fig, ax_top, ax_heatmap, composite_data, methylation_type)
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
