@@ -79,7 +79,7 @@ def plot_heatmap(df: pl.DataFrame, ax, source, fig=None, composite=False):
             ax.set_ylabel("")
 
             # Truncate X-axis labels, move to top and rotate
-            x_labels = [truncate_label(lbl.get_text(), max_length=35, max_lines=2) for lbl in ax.get_xticklabels()]
+            x_labels = [truncate_label(lbl.get_text(), max_length=30, max_lines=2) for lbl in ax.get_xticklabels()]
             ax.xaxis.tick_top()
             ax.set_xticklabels(x_labels, rotation=0, ha='center')
 
@@ -185,19 +185,23 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composi
 
 
 def annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data: pl.DataFrame):
+    # Apply truncate to composite table for search
+    composite_data = composite_data.with_columns(pl.col("function").map_elements(lambda x: truncate_label(x, max_length=30, max_lines=2), return_dtype=pl.String))
 
-    for i in range(composite_data.height):
-        # Get the coordinates on the respective plots plot
-        xyMeth = (composite_data.item(i, 'gene_id'), ax_meth.get_ylim()[1])
+    # Search each heatmap point
+    labels = [x.get_text() for x in ax_heatmap.get_xticklabels()]
 
-        labels = [x.get_text() for x in ax_heatmap.get_xticklabels()]
-        x_label = truncate_label(composite_data.item(i, "function"), max_length=35, max_lines=2)
-        x_heatmap = labels.index(x_label) + 0.5
-        y_heatmap = 1
+    for i, label in enumerate(labels):
+        # Find the label in dmr_data and aggregate gene_ids
+        label_data = composite_data.filter(pl.col('function').eq(label))
 
-        # Create the arrow
-        arrow = patches.ConnectionPatch(xyMeth, (x_heatmap, y_heatmap),
-                                        coordsA=ax_meth.transData, coordsB=ax_heatmap.transData,
-                                        axesA=ax_meth, axesB=ax_heatmap,
-                                        color='black', linewidth=1)
-        fig.add_artist(arrow)
+        # Draw connection for each gene_id
+        for gene_id in label_data.get_column('gene_id').unique().to_list():
+            xyMeth = (gene_id, ax_meth.get_ylim()[1])
+
+            # Create the arrow
+            arrow = patches.ConnectionPatch(xyMeth, (i + 0.5, 1),
+                                            coordsA=ax_meth.transData, coordsB=ax_heatmap.transData,
+                                            axesA=ax_meth, axesB=ax_heatmap,
+                                            color='black', linewidth=1)
+            fig.add_artist(arrow)

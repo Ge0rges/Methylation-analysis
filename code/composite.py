@@ -3,6 +3,7 @@ from _statistics import *
 from utilities.data_loading import *
 from utilities.utils import normalize_data_for_methylation_level, add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name
+from scipy.stats import rankdata
 
 
 def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="plots"):
@@ -64,15 +65,11 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
     # Annonate methyl data and normalize it
     methyl_data = add_gene_caller_id(methyl_data, genes, True)
-    methyl_data = add_functional_annotations_polars(methyl_data, data_dir, genome_name)
-    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).filter(pl.col("source").eq(source)).collect()
-
-    # Merge DMR data and composite data
-    composite_data = dmr_data.join(methyl_data, on='gene_callers_id', how='inner')
+    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).collect()
 
     # Add a gene_id column, which is just a map from gene_callers_id
-    ids = dict(zip(composite_data.get_column("gene_callers_id").to_list(), composite_data.get_column("gene_callers_id").rank("dense").to_list()))
-    composite_data = composite_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids))
+    all_ids = dmr_data.get_column("gene_callers_id").to_list() + methyl_data.get_column("gene_callers_id").to_list()
+    ids = dict(zip(all_ids, rankdata(all_ids, method='dense')))
     dmr_data = dmr_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=-1))
     methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=-1))
 
@@ -80,7 +77,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     methylation_types = list(readable_methylation_name.keys())
     n_types = len(methylation_types)
     fig, axes = plt.subplots(n_types + 1, 1, figsize=(20, 10 * n_types), sharex=False, layout="constrained",
-                             gridspec_kw={'height_ratios': [2] + [8] * n_types})
+                             gridspec_kw={'height_ratios': [1] + [9] * n_types})
 
     # Populate each subplot per methylation type
     for i, methylation_type in enumerate(methylation_types):
@@ -92,7 +89,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
         # Heatmap only on top
         if i == 0:
             plot_heatmap(dmr_data.unique(subset=["function", "score", "comparison"]), ax_heatmap, source, fig=fig, composite=True)
-            annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data)
+            annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, dmr_data)
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
