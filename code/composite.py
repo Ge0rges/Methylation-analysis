@@ -1,8 +1,8 @@
 from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
-from utilities.data_loading_polars import *
-from utilities.utils import normalize_data_for_methylation_level, group_methyl_data_by_genes, add_functional_annotations, readable_methylation_name
+from utilities.utils import normalize_data_for_methylation_level, add_gene_caller_id, \
+    add_functional_annotations_polars, readable_methylation_name
 
 
 def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="plots"):
@@ -20,76 +20,79 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     """
 
     # Load the data from the bed files
-    bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name, dmr_type), "*.bed"))
-    bed_files = [file for file in bed_files if not file.endswith('-bedgraph.bed')]
-    if len(bed_files) == 0:
-        print(f"No DMR bed files found for {genome_name}")
-        return
-
-    dmr_data = get_dmr_by_sample_annotated(data_dir, genome_name, bed_files)
-
-    # Handle empty
-    if dmr_data.empty:
+    dmr_data = get_dmrs_for_genome_polars(data_dir, genome_name, dmr_type)
+    if dmr_data is None:
         print(f"No DMRs found for {genome_name}")
         return
 
+    # Get genes and annotate the dmrs with the gene ID
+    genes = get_genes_polars(data_dir, genome_name)
+    dmr_data = add_gene_caller_id(dmr_data, genes, False)
+
     # Keep only statistically significant DMRs
-    dmr_data['num_tests'] = dmr_data.groupby('comparison')['comparison'].transform('count')
-    dmr_data['test_result'] = dmr_data.apply(lambda x: modkit_llr(x['score'], x['num_tests']), axis=1)
-    dmr_data = dmr_data[dmr_data['test_result']]
+    dmr_data = dmr_data.join(dmr_data.group_by('comparison').len().rename({"len": "num_tests"}), on="comparison")
+    dmr_data = dmr_data.with_columns(test_result=pl.struct(['score', 'num_tests']).map_elements(
+                                         lambda row: modkit_llr(row['score'], row['num_tests']), return_dtype=pl.Boolean))
 
-    # Filter source and comparison
+    # Annotate with function
+    dmr_data = add_functional_annotations_polars(dmr_data, data_dir, genome_name).collect()
+
+    # Filter for signiciant DMR with correct source and comparison, then keep top 10
     source = "KEGG_Module"
-    dmr_data = dmr_data[dmr_data["source"] == source]
-    dmr_data = dmr_data[dmr_data["comparison"].isin(["top_VS_bottom"])]
-
-    # Keep top 10
-    dmr_data = dmr_data.groupby(['function', 'comparison']).agg({'score': 'mean'}).reset_index().nlargest(10, "score", keep="all")
+    dmr_data = dmr_data.filter(pl.col("test_result") &
+                               pl.col("source").eq(source) &
+                               pl.col("comparison").is_in(["top_VS_bottom"]))
+    dmr_data = dmr_data.group_by(['function', 'comparison']).agg(pl.col('score').mean(), pl.col("gene_callers_id")).top_k(10, by="score")
+    dmr_data = dmr_data.explode("gene_callers_id")
 
     # Handle empty
-    if dmr_data.empty:
+    if dmr_data.is_empty():
         print(f"No stastistically significant DMRs found for {genome_name}")
         return
 
-        # Get methylation level data
+    # Get methylation level data
     methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False).collect()
-    genes = get_genes(data_dir, genome_name)[['contig', 'start', 'stop']].drop_duplicates()
-
-    # Filter samples
-    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).lazy()
-    dmr_data = pl.from_pandas(dmr_data)
-
-    # Group
-    methyl_data = group_methyl_data_by_genes(methyl_data, pl.from_pandas(genes).lazy())
-    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage))
-
-    # Collect and add functional annotations
     methyl_data = methyl_data.with_columns(
-        chrom=pl.col('name').str.split(by='|').list.get(0),
+        contig=pl.col('name').str.split(by='|').list.get(0),
+        strand=pl.col('name').str.split(by='|').list.get(1),
         start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
         end=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
     )
 
-    methyl_data = pl.from_pandas(add_functional_annotations(methyl_data.collect().to_pandas(), data_dir, genome_name))
+    # Filter samples
+    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).lazy()
 
-    composite_data = methyl_data.join(dmr_data, on='function', how='inner')
+    # Annonate methyl data and normalize it
+    methyl_data = add_gene_caller_id(methyl_data, genes, True)
+    methyl_data = add_functional_annotations_polars(methyl_data, data_dir, genome_name)
+    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).filter(pl.col("source").eq(source)).collect()
 
-    # Create figure and subplots
+    # Merge DMR data and composite data
+    composite_data = dmr_data.join(methyl_data, on='gene_callers_id', how='inner')
+
+    # Add a gene_id column, which is just a map from gene_callers_id
+    ids = dict(zip(composite_data.get_column("gene_callers_id").to_list(), composite_data.get_column("gene_callers_id").rank("dense").to_list()))
+    composite_data = composite_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids))
+    dmr_data = dmr_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=-1))
+    methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=-1))
+
+    # Create figure
     methylation_types = list(readable_methylation_name.keys())
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(n_types * 2 + 1, 1, figsize=(20, 10 * n_types), sharex=False, layout="constrained",
-                             gridspec_kw={'height_ratios': [1] + [2, 7] * n_types})
+    fig, axes = plt.subplots(n_types + 1, 1, figsize=(20, 10 * n_types), sharex=False, layout="constrained",
+                             gridspec_kw={'height_ratios': [2] + [8] * n_types})
 
+    # Populate each subplot per methylation type
     for i, methylation_type in enumerate(methylation_types):
         ax_heatmap = axes[0] if i == 0 else None
-        ax_top = axes[1] if i == 0 else axes[i*2 + 1]
-        ax_bottom = axes[2] if i == 0 else axes[i*2 + 2]
+        ax_meth = axes[i + 1]
 
-        plot_gene_methylation_level(ax_top, ax_bottom, methyl_data, methylation_type, composite=True)
+        plot_gene_methylation_level(None, ax_meth, methyl_data, methylation_type, composite=True)
 
+        # Heatmap only on top
         if i == 0:
-            plot_heatmap(dmr_data.to_pandas(), ax_heatmap, source, fig=fig, composite=True)
-            annotate_heatmap_to_meth_level(fig, ax_top, ax_heatmap, composite_data, methylation_type)
+            plot_heatmap(dmr_data.unique(subset=["function", "score", "comparison"]), ax_heatmap, source, fig=fig, composite=True)
+            annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data)
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")

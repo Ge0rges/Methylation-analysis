@@ -12,43 +12,17 @@ import matplotlib.patches as patches
 plt.style.use('ggplot')
 
 
-def plot_pairwise_results(results, genome):
-    # Create a list of sample combinations
-    sample_combinations = results.keys()
-    samples = list(set([sample for sample_pair in sample_combinations for sample in sample_pair]))
-
-    # Create an empty DataFrame
-    df = pd.DataFrame(columns=samples, index=samples)
-
-    # Fill in the DataFrame with the results
-    for sample1, sample2 in sample_combinations:
-        df.loc[sample1, sample2] = results[(sample1, sample2)]
-        df.loc[sample2, sample1] = results[(sample1, sample2)]
-
-    # Replace the boolean values with 1s and 0s
-    df = df.replace({np.nan: False}).astype(int)
-
-    # Sort the datframe by row names
-    df = df.sort_index(axis=0).sort_index(axis=1)
-
-    # Plotting the heatmap
-    sns.heatmap(df, annot=True, cmap='binary', cbar=False, linewidths=.5)
-    plt.title(f"Pairwise similarity of {genome}")
-    plt.tight_layout()
-    plt.show()
-
-
-def plot_all_sources_figure(df, genome_name, heatmap_type="gene", fig_savepath="plots", plot_function=None):
+def plot_all_sources_figure(df: pl.DataFrame, genome_name, heatmap_type="gene", fig_savepath="plots", plot_function=None):
     """
     Plot heatmaps in a figure where each subfigure corresponds to a genome_name, and each subplot within a subfigure corresponds to a source.
     In each heatmap, rows represent functions, columns represent samples, with cell values representing methylation measures.
 
     Parameters:
-    df (dict): Dictionary with genome_name names as keys and respective DataFrame as values.
+    merged_df (dict): Dictionary with genome_name names as keys and respective DataFrame as values.
     genomes (list): List of genome_name names.
     """
     # Create figure for each function
-    sources = df['source'].unique()
+    sources = df.get_column('source').unique()
     number_of_sources = len(sources)
 
     # Calculate the number of rows and columns for a square-like layout
@@ -69,7 +43,7 @@ def plot_all_sources_figure(df, genome_name, heatmap_type="gene", fig_savepath="
         ax = fig.add_subplot(num_rows, num_cols, index)
 
         # Filter data for the current source source and aggregate
-        source_data = df[df['source'] == source]
+        source_data = df.filter(pl.col('source') == source)
         plot_function(source_data, ax, source)
 
     # Save to file
@@ -81,12 +55,11 @@ def plot_all_sources_figure(df, genome_name, heatmap_type="gene", fig_savepath="
     plt.close(fig)
 
 
-def plot_heatmap(df, ax, source, fig=None, composite=False):
-
+def plot_heatmap(df: pl.DataFrame, ax, source, fig=None, composite=False):
     if composite:
-        df = df.pivot(index='comparison', columns='function', values='score')
+        df = df.to_pandas().pivot(columns="function", index="comparison", values="score")
     else:
-        df = df.pivot(index='function', columns='comparison', values='score')
+        df = df.to_pandas().pivot(columns="comparison", index="function", values="score")
 
     if not df.empty:
         # Create color palette
@@ -134,7 +107,7 @@ def plot_heatmap(df, ax, source, fig=None, composite=False):
             ax_height_in = ax.get_window_extent().height / plt.gcf().dpi
             num_lines = max(1, int(ax_height_in / num_y_labels * 2))  # Adjust the multiplier as necessary
 
-            y_labels = [truncate_label(lbl.get_text(), max_lines=num_lines) for lbl in ax.get_yticklabels()]
+            y_labels = [truncate_label(lbl.get_text(), max_length=70, max_lines=num_lines) for lbl in ax.get_yticklabels()]
             ax.set_yticklabels(y_labels, rotation=0, ha='right', fontsize=20)
 
             # Orientate the X-axis labels
@@ -147,7 +120,7 @@ def plot_heatmap(df, ax, source, fig=None, composite=False):
             ax.set_visible(False)
 
 
-def plot_gene_methylation_level_figure(df, genome_name, coverage, fig_savepath="plots"):
+def plot_gene_methylation_level_figure(df: pl.DataFrame, genome_name, coverage, fig_savepath="plots"):
     methylation_types = df.columns[1:4]
 
     # Create figure and subplots
@@ -167,49 +140,55 @@ def plot_gene_methylation_level_figure(df, genome_name, coverage, fig_savepath="
 
 
 def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composite=False):
-    sns_plot_top = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_top)
     sns_plot_bottom = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_bottom)
 
-    if not composite:
-        ax_top.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
+    if composite:
+        ax_bottom.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
+        sns_plot_bottom.legend().set_title("Sample")
 
-    ax_top.set(xlabel="", ylabel="")
+    else:
+        sns_plot_top = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_top)
+        ax_top.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
+        ax_top.set(xlabel="", ylabel="")
+        sns_plot_top.legend().set_title("Sample")
+        sns_plot_bottom.legend().remove()
+
+        sns.despine(ax=ax_top, bottom=True)
+        ax_top.set_xticks([])
+
+        # Diagonal lines for breakage of Y axis
+        d = .0025
+        kwargs = dict(transform=ax_top.transAxes, color='k', clip_on=False)
+        ax_top.plot((-d, +d), (-d, +d), **kwargs)
+        kwargs.update(transform=ax_bottom.transAxes)
+        ax_bottom.plot((-d, +d), (1 - d, 1 + d), **kwargs)
+
     ax_bottom.set(xlabel='Gene ID', ylabel=f"Normalized methylation fraction")
 
-    sns_plot_top.legend().set_title("Sample")
-    sns_plot_bottom.legend().remove()
 
     try:
-        ax_top.set_ylim(bottom=df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.99)).item())
         ax_bottom.set_ylim(df.select(pl.min(methylation_type)).item(),
                            df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.95)).item())
+        if not composite:
+            ax_top.set_ylim(bottom=df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.99)).item())
 
     except ValueError:
         return
 
-    sns.despine(ax=ax_top, bottom=True)
-    ax_top.set_xticks([])
-
-    # Diagonal lines for breakage of Y axis
-    d = .0025
-    kwargs = dict(transform=ax_top.transAxes, color='k', clip_on=False)
-    ax_top.plot((-d, +d), (-d, +d), **kwargs)
-    kwargs.update(transform=ax_bottom.transAxes)
-    ax_bottom.plot((-d, +d), (1 - d, 1 + d), **kwargs)
-
     # Sort legend
-    handles, labels = ax_top.get_legend_handles_labels()
+    legend_ax = ax_bottom if composite else ax_top
+    handles, labels = legend_ax.get_legend_handles_labels()
     desired_order = ['Sackhole Top (40 cm)', 'Sackhole Middle (70 cm)', 'Sackhole Bottom (160 cm)']
     sorted_handles_labels = sorted(zip(handles, labels), key=lambda x: desired_order.index(x[1]))
     handles, labels = zip(*sorted_handles_labels)
-    ax_top.legend(handles, labels)
+    legend_ax.legend(handles, labels)
 
 
-def annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data, methylation_type):
+def annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data: pl.DataFrame):
 
     for i in range(composite_data.height):
         # Get the coordinates on the respective plots plot
-        xyMeth = (composite_data.item(i,'gene_id'), ax_meth.get_ylim()[1])
+        xyMeth = (composite_data.item(i, 'gene_id'), ax_meth.get_ylim()[1])
 
         labels = [x.get_text() for x in ax_heatmap.get_xticklabels()]
         x_label = truncate_label(composite_data.item(i, "function"), max_length=35, max_lines=2)

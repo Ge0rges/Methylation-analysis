@@ -1,8 +1,5 @@
 import textwrap
-import numpy as np
-import pandas as pd
 import polars as pl
-from itertools import combinations
 import utilities.data_loading as dl
 
 
@@ -70,22 +67,7 @@ read_counts = {
 }
 
 
-def sum_counts(count_str) -> pd.Series:
-    """
-    Sum numeric counts from a string column in a DMR DataFrame.
-
-    Parameters:
-    count_str (pandas.Series): A pandas Series with string values containing numeric counts.
-
-    Returns:
-    pandas.Series: Sum of counts for each row.
-    """
-    # Extract numeric values from the string and convert them to numeric type
-    numbers = pd.to_numeric(count_str.str.extractall(r'(\d+)')[0])
-    return numbers.groupby(level=0).sum()
-
-
-def truncate_label(label, max_length=70, max_lines=4):
+def truncate_label(label, max_length, max_lines):
     """Truncate labels to a maximum length and line count, adding an ellipsis if truncated."""
 
     # Hide extra alternatives
@@ -105,128 +87,29 @@ def truncate_label(label, max_length=70, max_lines=4):
     return result
 
 
-def expand_pivot_merge_sample_strings(df, column_name) -> pd.DataFrame:
-    """
-    Expand the methylation string column into separate rows, pivot the table,
-    and merge it back with the original DataFrame.
-    """
-    # Check if dataframe has no data then return it
-    if df.empty:
-        return df
+def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame:
+    methyl_data = methyl_data.with_columns((pl.col('chrom') + '|' + pl.col('strand') + '|' + pl.col(
+        'inclusive start position').cast(pl.Utf8) + '|' + pl.col('exclusive end position').cast(pl.Utf8)).alias('name'))
 
-    # Split the string, explode into separate rows, and create a new DataFrame
-    exploded = df[column_name].str.split(',').explode()
-    temp_df = exploded.str.split(':', expand=True)
-    temp_df.columns = ['letter', 'value'] if len(temp_df.columns) == 2 else ['letter']
+    methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
 
-    # Handle rows where value is missing (no colon in the string)
-    temp_df['value'] = temp_df['value'].astype(float) if 'value' in temp_df else np.nan
-
-    # Pivot the table
-    pivot = temp_df.pivot_table(index=temp_df.index, columns='letter', values='value', aggfunc='first')
-
-    # Rename the columns
-    pivot.columns = [f'{column_name}_{col}' for col in pivot.columns]
-
-    # Merge the pivot table with the original DataFrame
-    return df.join(pivot)
-
-
-def select_best_annotation_row(group) -> pd.DataFrame:
-    """
-    Helper function to select the row with the lowest e-value per group, and least ambiguous annotation
-    indicating the best functional match.
-
-    :param group: A group of rows from the merged functional annotation DMR DataFrame.
-    """
-    # Add a temporary column to sort by the number of '!!!' splits in accession
-    group['accession_split_len'] = group['accession'].apply(lambda x: len(x.split('!!!')))
-    return group.sort_values(by=['e_value', 'accession_split_len']).iloc[0]
-
-
-def call_function_pairwise(df, function):
-    samples = df['sample'].unique()
-    sample_combinations = list(combinations(samples, 2))
-
-    results = {}
-    for i, (sample1, sample2) in enumerate(sample_combinations):
-
-        sample_pair = None
-        if type(df) == pl.DataFrame or type(df) == pl.LazyFrame:
-            sample_pair = df.filter(pl.col("sample").is_in([sample1, sample2]))
-
-        elif type(df) == pd.DataFrame:
-            sample_pair = df[df['sample'].isin([sample1, sample2])]
-
-        results[sample1, sample2] = function(sample_pair)
-        print(f"Done with {i+1}/{len(sample_combinations)}")
-
-    return results
-
-
-def reshape_pileup_to_matrix(methyl_data, genome_name) -> pd.DataFrame:
-    """
-    Reshape the methyl_data dataframe to a matrix where each row is a region and each column is a modification type
-
-    :param methyl_data: Dataframe of a bedfile where regions are single nucleotides as returned by get_pileup()
-    :type methyl_data: pandas.Dataframe
-    :return: A reshaped dataframe where each row is a region and each column is a modification type
-    :rtype: pandas.Dataframe
-    """
-    # Assert for each row that exclusive end position - inclusive start position == 1
-    assert all((methyl_data['exclusive end position'] - methyl_data[
-        'inclusive start position']) == 1), "Given regions larger than a single nucleotide"
-
-    # Merge columns chrom, inclusive start position, and exclusive end position into a single column called 'name' for easy comparison
-    methyl_data['name'] = methyl_data['chrom'] + '|' + methyl_data['strand'] + "|" + methyl_data[
-        'inclusive start position'].astype(str) + "|" + methyl_data['exclusive end position'].astype(str)
-
-    # Check no negative valuesin Ndiff and Nvalid_cov
-    assert all(methyl_data[methyl_data['Ndiff'] >= 0]) and all(methyl_data[methyl_data['Nvalid_cov'] >= 0]) and all(methyl_data[methyl_data['Ncanonical'] >= 0])
-
-    # Drop rows where Ndiff is larger than Nvalid_cov
-    methyl_data = methyl_data[methyl_data['Ndiff'] < methyl_data['Nvalid_cov']].copy()
-
-    # Make sure we are handling supported data
-    assert set(methyl_data['modified base code and motif'].unique()).issubset({'a', 'm', '21839'}), \
-        f"Unexpected values found: {set(methyl_data['modified base code and motif'].unique()) - {'a', 'm', '21839'} }"
-
-    # Handle different nucleotide types called by keeping group with largest Nvalid_cov
     mod_base_map = {"a": "A", "m": "C", "21839": "C"}
-    methyl_data['mod_group'] = methyl_data['modified base code and motif'].map(mod_base_map)
+    methyl_data = methyl_data.with_columns(
+        pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
 
-    # Assert that every name has the same total coverage
-    assert methyl_data.groupby('name')['Nvalid_cov'].nunique().all() == 1, "Nvalid_cov is not unique for each region"
+    grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov').alias('max_valid_cov'))
+    methyl_data = methyl_data.join(grouped, on=['name', 'mod_group'], how='inner').filter(
+        pl.col('Nvalid_cov') == pl.col('max_valid_cov'))
 
-    # Group by name and mod_group and keep the group with the largest Nvalid_cov
-    grouped = methyl_data.groupby(['name', 'mod_group'])
-    max_valid_cov = grouped['Nvalid_cov'].transform('max')
-    base_corrected_df = methyl_data[methyl_data['Nvalid_cov'] == max_valid_cov]
+    pivot_df = methyl_data.collect(streaming=True).pivot(index='name', columns='modified base code and motif',
+                                                         values='Nmod', aggregate_function='first').lazy()
 
-    assert base_corrected_df.groupby('name')['mod_group'].nunique().max() == 1, "There are multiple nucleotide types called for the same region"
+    pivot_df = pivot_df.join(methyl_data.select(['name', 'Ncanonical']), on='name', how='left').unique().fill_null(0)
 
-    # Create a new dataframe where there is a row per name, and a column per diffferent value in
-    # 'modified base code and motif' where the value of that column is the value in 'Nmod'
-    pivot_df = base_corrected_df.pivot_table(index='name', columns='modified base code and motif', values='Nmod',
-                                             fill_value=0)
-    pivot_df.reset_index(inplace=True)
-    pivot_df = pivot_df.merge(base_corrected_df[['name', 'Ncanonical']], on='name', how='left')
-    pivot_df.drop_duplicates(inplace=True)
-
-    # Ensure all values are positive
-    assert (pivot_df.iloc[:, 1:] >= 0).all().all(), "Not all methylation values are positive"
-
-    # Assert that every name in methyl_data appears at least once in pivot_df, and only once in pivot_df
-    assert set(methyl_data['name']) == set(pivot_df['name']), "Not all regions were conserved"
-    assert pivot_df['name'].nunique() == len(pivot_df['name']), "There are duplicate regions in pivot_df"
-
-    # Assert that for rows with the same name the sum of modifications in pivot_df is equal to Nvalid_cov in methyl_data
-    assert all(pivot_df.groupby('name').sum().sum(axis=1) == methyl_data.groupby('name')['Nvalid_cov'].first()), "Sum of modifications in pivot_df is not equal to Nvalid_cov in methyl_data"
-
-    return pivot_df
+    return pivot_df.select('name', '21839', 'a', 'm', 'Ncanonical')
 
 
-def group_methyl_data_by_genes(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
+def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> pl.LazyFrame:
     """
     Aggregate methylation data by genes.
 
@@ -240,37 +123,32 @@ def group_methyl_data_by_genes(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.Lazy
     :rtype: pd. Dataframe
     """
 
-    df = df.with_columns(
-        contig=pl.col('name').str.split(by='|').list.get(0),
-        start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
-        stop=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
-    )
-
-
     a = df.collect().select('contig').unique().get_column('contig').to_list()
     b = genes.collect().select('contig').unique().get_column('contig').to_list()
 
     assert all(g1 in b for g1 in a), "Not all contigs are in this genome_name."
     del a, b
 
-    # Create a unique identifier for each range in ranges dataframe
-    genes = genes.with_row_index('range_id')
+    # Merge merged_df with ranges based on conditions
+    og_columns = df.collect_schema().names()
+    df = df.join(genes, on='contig')
 
-    # Merge df with ranges based on conditions
-    df_merged = df.join(genes, on='contig')
-
-    # Filter rows where df start and end values are within range start and end.
+    # Filter rows where merged_df start and end values are within range start and end.
     # Gene range is inclusive of end, modkit bed is not.
-    df_filtered = df_merged.filter((pl.col('start') >= pl.col('start_right')) & (pl.col('stop') < pl.col('stop_right')))
+    df = df.filter((pl.col('start') >= pl.col('start_right')) & (pl.col('end') <= pl.col('stop')))
+
+    if strand_aware:
+        df = df.filter(pl.col('direction') == pl.col('strand'))
+    else:
+        print("WARNING: Not filtering by strand. This may result in multiple gene_callers_id for the same name. Picking the first gene_callers_id.")
+
+    # If there are still multiple gene_callers_id for the same name, pick the first one
+    df = df.unique(subset=og_columns, keep="first")
 
     # Clean
-    result = df_filtered.sort(by=['contig', 'start_right'])
-    result = result.with_columns(
-            pl.col("range_id").rank("dense").alias("gene_id") - 1
-    )
-    result = result.drop(['contig', 'start', 'start_right', 'stop', 'stop_right', 'range_id'])
+    df = df.drop(['start_right', 'stop'])
 
-    return result
+    return df
 
 
 def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, aggregate=False) -> pl.LazyFrame:
@@ -278,10 +156,11 @@ def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, aggregat
         df = df.with_columns(pl.col('sample').replace(barcode_sample_map))
 
     # Normalize to coverage
-    coverages = dl.get_coverage("../data/", genome_name, agg=aggregate).drop(columns="Genome").to_dict("records")[0]
+    coverages = dl.get_coverage("../data/", genome_name, agg=aggregate).drop("Genome").collect().to_dict(as_series=False)
     methylation_types = df.collect_schema().names()[1:4]
 
     for key, value in coverages.items():
+        coverages[key] = value[0]
         if value == 0 and key in df.select("sample").unique():
             print(f"Coverage for {key} is 0")
 
@@ -293,47 +172,35 @@ def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, aggregat
     return df
 
 
-def add_functional_annotations(dmrs, data_dir, genome_name):
+def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str, genome_name: str) -> pl.LazyFrame:
     """
     Add functional annotations to DMRs (Differentially Methylated Regions) by matching DMR positions with
     genomic annotations to find overlaps. Drops the "partial" column from the merged DataFrame.
     """
     # Load functional annotations for the specified genome_name from a data directory
-    functions = dl.get_coordinated_functions(data_dir, genome_name)
-
-    # Rename 'start' column to 'start_y' to avoid name clash and remove 'gene_callers_id' from function columns
-    func_cols = [col if col != "start" else "start_y" for col in functions.columns]
-    func_cols.remove("gene_callers_id")
+    functions = dl.get_coordinated_functions_polars(data_dir, genome_name)
 
     # Merge DMR data with functional annotations based on contig name
-    merged_df = pd.merge(dmrs, functions, how='left', left_on='chrom', right_on='contig')
+    merged_df = df.join(functions, on="gene_callers_id", how="left", )
 
-    # Define a condition for DMRs that actually overlap the annotated regions
-    condition = (merged_df['start_x'] >= merged_df['start_y']) & (merged_df['end'] <= merged_df['stop'])
-
-    # For rows not meeting the condition, clear out irrelevant function columns and set default values
-    merged_df.loc[~condition, func_cols] = pd.NA
-    merged_df.loc[~condition, "gene_callers_id"] = -1
-    merged_df.loc[~condition, "source"] = "Unannotated"
-    merged_df.loc[~condition, "function"] = "Unknown"
+    # Fill missing values in the merged DataFrame
+    merged_df = merged_df.with_columns(pl.col("function").fill_null("Unknown"), pl.col("source").fill_null("Unannotated"))
 
     # Remove duplicate entries from the merged DataFrame
-    merged_df.drop_duplicates(inplace=True)
+    merged_df = merged_df.unique()
 
-    # Convert the 'accession' column to string format for processing l
-    merged_df['accession'] = merged_df['accession'].astype(str)
-
-    # Apply the helper function on groups defined by unique columns, and remove the temporary column afterwards
+    # Keep best hit
     unique_cols = ['name', 'gene_callers_id', 'source']
-    merged_df = (merged_df.groupby(unique_cols, as_index=False)
-                 .apply(select_best_annotation_row, include_groups=False)
-                 .drop('accession_split_len', axis=1))
+    merged_df = merged_df.with_columns(accession_split_len=pl.col("accession").str.split(by="!!!").list.len())
+    merged_df = merged_df.select(pl.all().top_k_by(by=["e_value", "accession_split_len"], k=1, reverse=[True, True]).over(unique_cols, mapping_strategy="explode"))
+    merged_df = merged_df.drop("accession_split_len")
 
     # Ensure that all unique names from the DMRs are still present after merging and that there are no duplicate groups
-    assert set(merged_df["name"].unique()) == set(dmrs["name"].unique())
-    assert merged_df.shape[0] == merged_df.groupby(unique_cols).ngroups, "There are duplicate groups in the result."
+    merged_df = merged_df.collect()
+    df = df.collect()
+    assert set(merged_df.get_column("name").unique()) == set(df.get_column("name").unique())
+    assert merged_df.shape[0] == len([x for x in merged_df.group_by(unique_cols)]), "There are duplicate groups in the result."
 
     # Clean up by dropping columns that are no longer needed
-    merged_df.drop(columns=["contig", "start_y", "stop", "e_value"], inplace=True)
-
-    return merged_df
+    merged_df = merged_df.sort(by=['contig', 'start_right']).lazy()
+    return merged_df.drop("contig", "start_right", "stop", "e_value")

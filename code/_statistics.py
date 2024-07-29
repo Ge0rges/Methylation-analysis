@@ -91,19 +91,19 @@ def r_rao_score_test(df, p_value_threshold=0.05):
 
     # Define the R function for fitting the model and performing the Rao score test
     r_script = """
-    function(df) {
+    function(merged_df) {
         library(VGAM)
         library(data.table)
         
         # Convert data frame to data table for faster processing
-        df <- as.data.table(df)
+        merged_df <- as.data.table(merged_df)
         
         # Ensure 'sample' is a factor
-        df[, sample := as.factor(sample)]
+        merged_df[, sample := as.factor(sample)]
         
         # Fit the multinomial logit model in parallel
         print("Starting regression...")
-        fit <- vglm(cbind(`21839`, a, m, Ncanonical) ~ sample, family = multinomial, data = df, parallel = TRUE)
+        fit <- vglm(cbind(`21839`, a, m, Ncanonical) ~ sample, family = multinomial, data = merged_df, parallel = TRUE)
 
         # Extracting the score vector and p values
         # print("Getting score...")
@@ -142,10 +142,10 @@ def willis_dmr_test_r(combined_methyl_data):
     Y = combined_methyl_data.drop(columns=["name", "sample"]).to_numpy()
     X = pd.get_dummies(combined_methyl_data["sample"], dtype=int).to_numpy()
 
-    # Check X, Y and df have the same number of rows
+    # Check X, Y and merged_df have the same number of rows
     assert X.shape[0] == Y.shape[0] == combined_methyl_data.shape[
-        0], "X, Y and df have different number of rows"
-    
+        0], "X, Y and merged_df have different number of rows"
+
     # If there are any empty cols in Y remove them
     Y = Y[:, Y.any(0)]
 

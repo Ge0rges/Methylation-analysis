@@ -1,11 +1,11 @@
 import os
 import glob
-import pandas as pd
-import utilities.utils as utils
+import polars as pl
 from Bio import SeqIO
+import utilities.utils as utils
 
 
-def get_pileup(path) -> pd.DataFrame:
+def get_pileup_polars(path) -> pl.LazyFrame:
     """
     Read pileup data from a file.
 
@@ -14,15 +14,77 @@ def get_pileup(path) -> pd.DataFrame:
     :return: Dataframe of file data
     :rtype: pandas.DataFrame
     """
-    pileup = pd.read_csv(path, sep="\t", header=None, names=["chrom", "inclusive start position", "exclusive end position", "modified base code and motif", "score", "strand", "start position2", "end position2", "color", "Nvalid_cov", "fraction modified", "Nmod", "Ncanonical", "Nother_mod", "Ndelete", "Nfail", "Ndiff", "Nnocall"])
+    pileup = pl.scan_csv(path, separator="\t", has_header=False,
+                         new_columns=["chrom", "inclusive start position", "exclusive end position",
+                                      "modified base code and motif", "score", "strand", "start position2",
+                                      "end position2", "color", "Nvalid_cov", "fraction modified", "Nmod", "Ncanonical",
+                                      "Nother_mod", "Ndelete", "Nfail", "Ndiff", "Nnocall"])
 
     # Drop redundant columns
-    pileup.drop(columns=["score", "start position2", "end position2", "color"], inplace=True)
+    pileup = pileup.drop("score", "start position2", "end position2", "color")
 
     return pileup
 
 
-def get_dmrs(path) -> pd.DataFrame:
+def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations) -> pl.LazyFrame:
+    """
+    Load the methyl data from every sample into a matrix.
+
+    :param genome_name: Folder name of the genome_name.
+    :type genome_name: str
+    :param data_dir: Path to the data directory.
+    :type data_dir: str
+    :param common_locations: Exclude locations that are not common to all samples
+    :type common_locations: bool
+    :return: Dataframe of the combined methyl data.
+    :rtype: pd.DataFrame
+    """
+    # Load the methyl_dfs from the bed files
+    bed_files = [f for f in glob.glob(os.path.join(data_dir, genome_name, "*.bed")) if
+                 '-bedgraph' not in os.path.basename(f)]
+
+    if len(bed_files) == 0:
+        print(f"No pileup bed files found for {data_dir}/{genome_name}")
+        return pl.LazyFrame()
+
+    combined_methyl_data = pl.LazyFrame()
+    for i, bed_file in enumerate(bed_files):
+        methyl_data = get_pileup_polars(bed_file)
+        methyl_data = utils.reshape_pileup_to_matrix_polars(methyl_data)
+
+        # Add sample column
+        sample_name = os.path.basename(bed_file).split(".")[0]
+        methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
+
+        # Keep only common locations
+        if common_locations and i > 0:
+            combined_methyl_data = pl.join(combined_methyl_data, methyl_data, on="name", how="inner")
+        else:
+            combined_methyl_data = pl.concat([combined_methyl_data, methyl_data])
+
+    return combined_methyl_data
+
+
+def get_genes_polars(data_dir, genome_name, drop_extras=True) -> pl.LazyFrame:
+    """
+    Parameters:
+    data_dir (str): The path to the data directory.
+    genome_name (str): Genome name.
+
+    Returns:
+    pandas.DataFrame: DataFrame with gene functions.
+    """
+    gene_calls = pl.scan_csv(f"{data_dir}/{genome_name}/gene-calls.txt", separator="\t")
+    if drop_extras:
+        gene_calls = gene_calls.drop("source", "version", "partial", "call_type")
+
+    # Map direction to /-
+    gene_calls = gene_calls.with_columns(pl.col("direction").str.replace_many(["f", "r"],["+", "-"]))
+
+    return gene_calls
+
+
+def get_dmrs_from_file_polars(path) -> pl.LazyFrame:
     """
     Read DMRs (Differentially Methylated Regions) data from a file, replaces the fractions and count columns with
     individual columns for each methylation type. Adds a column called comparison to note the samples comapred.
@@ -33,58 +95,47 @@ def get_dmrs(path) -> pd.DataFrame:
     Returns:
     pandas.DataFrame: DataFrame with DMRs data.
     """
-    dmrs = pd.read_csv(path, sep="\t", header=None,
-                       names=['chrom', 'start', 'end', 'name', 'score', 'samplea_counts', 'samplea_total',
-                              'sampleb_counts', 'sampleb_total', 'samplea_fractions', 'sampleb_fractions', 'samplea_percent_modified', 'sampleb_percent_modified'])
-
-    # Convert columns to specified data types
-    dmrs = dmrs.astype({'start': 'int', 'end': 'int', 'score': 'float',
-                        'samplea_total': 'int', 'sampleb_total': 'int',
-                        'samplea_counts': 'str', 'sampleb_counts': 'str',
-                        'samplea_fractions': 'str', 'sampleb_fractions': 'str',
-                        'samplea_percent_modified': 'float', 'sampleb_percent_modified': 'float'})
-
-    # Seperate out the samplex_counts and_fractions columns
-    dmrs = utils.expand_pivot_merge_sample_strings(dmrs, 'samplea_counts')
-    dmrs = utils.expand_pivot_merge_sample_strings(dmrs, 'sampleb_counts')
-    dmrs = utils.expand_pivot_merge_sample_strings(dmrs, 'samplea_fractions')
-    dmrs = utils.expand_pivot_merge_sample_strings(dmrs, 'sampleb_fractions')
+    dmrs = pl.scan_csv(path, separator="\t", has_header=False,
+                       new_columns=['chrom', 'start', 'end', 'name', 'score', 'samplea_counts', 'samplea_total',
+                              'sampleb_counts', 'sampleb_total', 'samplea_fractions', 'sampleb_fractions',
+                              'samplea_percent_modified', 'sampleb_percent_modified'],
+                       schema_overrides={'start': int, 'end': int, 'score': float,
+                               'samplea_total': int, 'sampleb_total': int,
+                               'samplea_counts': str, 'sampleb_counts': str,
+                               'samplea_fractions': str, 'sampleb_fractions': str,
+                               'samplea_percent_modified': float, 'sampleb_percent_modified': float})
 
     # Remove the string columns
-    dmrs.drop(columns=['samplea_counts', 'sampleb_counts', 'samplea_fractions', 'sampleb_fractions'], inplace=True)
+    dmrs = dmrs.drop('samplea_counts', 'sampleb_counts', 'samplea_fractions', 'sampleb_fractions')
 
     # Add a column to note the comparison done in this DMR
     sample_a_name, sample_b_name = os.path.basename(path).replace('.bed', '').split('_')
     sample_a_name = utils.barcode_sample_map[sample_a_name]
     sample_b_name = utils.barcode_sample_map[sample_b_name]
-    dmrs["comparison"] = f"{sample_a_name}_VS_{sample_b_name}"
+    dmrs = dmrs.with_columns(comparison=pl.lit(f"{sample_a_name}_VS_{sample_b_name}"))
 
     return dmrs
 
 
-def get_dmr_by_sample_annotated(data_dir, genome_name, bed_files):
+def get_dmrs_for_genome_polars(data_dir, genome_name, dmr_type) -> pl.LazyFrame:
+    # Get bed files
+    bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name, dmr_type), "*.bed"))
+    bed_files = [file for file in bed_files if not file.endswith('-bedgraph.bed')]
+    if len(bed_files) == 0:
+        return None
+
     # Get all the methylation data from the bed files
     dmrs = []
     for bed_file in bed_files:
-        dmrs.append(get_dmrs(bed_file))
+        dmrs.append(get_dmrs_from_file_polars(bed_file))
 
-    # Concatenate the list of dmrs for this sample into a single dataframe
-    dmrs = pd.concat(dmrs, ignore_index=True)
+    # Concatenate the list of merged_df for this sample into a single dataframe
+    dmrs = pl.concat(dmrs).rename({"chrom": "contig"}).collect().lazy()
 
-    # Handle empty
-    if dmrs.empty:
-        return dmrs
-
-    # Add functional annotation
-    df = utils.add_functional_annotations(dmrs, data_dir, genome_name)
-
-    # Dropping all other columns except the ones in columns_to_keep
-    #df = df.drop(columns=["name", "gene_callers_id", "direction", "call_type", "rbs_spacer", "gc_cont",
-    df = df.drop(columns=["name", "gene_callers_id", "accession"])
-    return df
+    return dmrs
 
 
-def get_sample_metadata(data_dir) -> pd.DataFrame:
+def get_sample_metadata(data_dir) -> pl.DataFrame:
     """
     Load the sample metadata from an Excel file.
 
@@ -95,19 +146,22 @@ def get_sample_metadata(data_dir) -> pd.DataFrame:
     pd.DataFrame: A DataFrame containing the loaded sample metadata.
     """
     file_path = os.path.join(data_dir, "sample_metadata.xlsx")
-    metadata_df = pd.read_excel(file_path)
+    metadata_df = pl.read_excel(file_path)
     return metadata_df
 
 
-def get_coverage(data_dir, genome_name=None, agg=False) -> pd.DataFrame:
-    coverage = pd.read_csv(os.path.join(data_dir, "mag_eval/coverm.tsv"), sep="\t", header=0)
+def get_coverage(data_dir, genome_name=None, agg=False) -> pl.LazyFrame:
+    """
+    Load the coverage data from a file.
+    """
+    coverage = pl.scan_csv(os.path.join(data_dir, "mag_eval/coverm.tsv"), separator="\t")
 
     # Replace the coverage column names based on dictionnary mapping
-    coverage.columns = coverage.columns.str.replace(".fastq Mean", "")
+    coverage = coverage.rename(lambda x: x.replace(".fastq Mean", ""))
 
     # Get specific genome_name
     if genome_name is not None:
-        coverage = coverage[coverage['Genome'] == genome_name]
+        coverage = coverage.filter(pl.col("Genome") == genome_name)
 
     # Aggregate by sample groups
     if agg:
@@ -115,7 +169,7 @@ def get_coverage(data_dir, genome_name=None, agg=False) -> pd.DataFrame:
         sample_group_barcodes = {}
 
         for barcode, group in utils.barcode_sample_map.items():
-            if barcode not in coverage.columns:
+            if barcode not in coverage.collect_schema().names():
                 continue
 
             if group not in sample_group_barcodes.keys():
@@ -123,19 +177,16 @@ def get_coverage(data_dir, genome_name=None, agg=False) -> pd.DataFrame:
             else:
                 sample_group_barcodes[group].append(barcode)
 
-        # Create an empty DataFrame to store the mean coverage per sample group
-        sample_group_coverages_df = coverage[['Genome']].copy()
-
         # Calculate mean coverage for each sample group and add to the new DataFrame
         for group, barcodes in sample_group_barcodes.items():
-            sample_group_coverages_df[group] = coverage[barcodes].mean(axis=1)
+            coverage = coverage.with_columns(pl.concat_list(*barcodes).list.mean().alias(group))
 
-        return sample_group_coverages_df
+        return coverage.select(*list(sample_group_barcodes.keys()), "Genome")
 
     return coverage
 
 
-def get_coordinated_functions(data_dir, genome_name) -> pd.DataFrame:
+def get_coordinated_functions_polars(data_dir, genome_name) -> pl.LazyFrame:
     """
     Read gene caller and functions from seperate files then intersect.
 
@@ -147,36 +198,15 @@ def get_coordinated_functions(data_dir, genome_name) -> pd.DataFrame:
     pandas.DataFrame: DataFrame with gene functions.
     """
     # Load data
-    function_calls = pd.read_csv(f"{data_dir}/{genome_name}/function-calls.txt", sep="\t")
-    gene_calls = get_genes(data_dir, genome_name)
-
-    # Ensure efficient data types
-    function_calls['gene_callers_id'] = pd.to_numeric(function_calls['gene_callers_id'], downcast="integer")
+    function_calls = pl.scan_csv(f"{data_dir}/{genome_name}/function-calls.txt", separator="\t")
+    gene_calls = get_genes_polars(data_dir, genome_name)
 
     # Merge using efficient indexing
-    coordinated_functions = pd.merge(gene_calls, function_calls, on='gene_callers_id')
-    coordinated_functions['e_value'] = pd.to_numeric(coordinated_functions['e_value'], downcast="float")
+    coordinated_functions = gene_calls.join(function_calls, on='gene_callers_id')
 
-    assert gene_calls['gene_callers_id'].nunique() >= coordinated_functions['gene_callers_id'].nunique(), "Not all genes were conserved"
+    assert gene_calls.collect().select('gene_callers_id').n_unique() >= coordinated_functions.collect().select('gene_callers_id').n_unique(), "Not all genes were conserved"
 
     return coordinated_functions
-
-
-def get_genes(data_dir, genome_name, drop_extras=True) -> pd.DataFrame:
-    """
-    Parameters:
-    data_dir (str): The path to the data directory.
-    genome_name (str): Genome name.
-
-    Returns:
-    pandas.DataFrame: DataFrame with gene functions.
-    """
-    gene_calls = pd.read_csv(f"{data_dir}/{genome_name}/gene-calls.txt", sep="\t")
-    if drop_extras:
-        gene_calls.drop(columns=["source", "version", "direction", "partial", "call_type"], inplace=True)
-    gene_calls['gene_callers_id'] = pd.to_numeric(gene_calls['gene_callers_id'], downcast="integer")
-
-    return gene_calls
 
 
 def get_genomic_sequence(genome_name) -> dict:
@@ -195,83 +225,3 @@ def get_genomic_sequence(genome_name) -> dict:
         fasta_dict[record.id] = str(record.seq)
 
     return fasta_dict
-
-
-def load_combined_methyl_data_for_genome(genome_name, data_dir, common_locations) -> pd.DataFrame:
-    """
-    Load the methyl data from every sample into a matrix.
-
-    :param genome_name: Folder name of the genome_name.
-    :type genome_name: str
-    :param data_dir: Path to the data directory.
-    :type data_dir: str
-    :param common_locations: Exclude locations that are not common to all samples
-    :type common_locations: bool
-    :return: Dataframe of the combined methyl data.
-    :rtype: pd.DataFrame
-    """
-    # Check to see if CSV file exists for this genome_name
-    try:
-        combined_methyl_data = pd.read_csv(f"{data_dir}/{genome_name}/combined_methyl_data.csv")
-
-    except NotADirectoryError:
-        return pd.DataFrame()
-
-    except FileNotFoundError:
-        # Load the methyl_dfs from the bed files
-        bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name), "*.bed"))
-        bed_files = [file for file in bed_files if not file.endswith('-bedgraph.bed')]
-
-        if len(bed_files) == 0:
-            print(f"No pileup bed files found for {data_dir}/{genome_name}")
-            return pd.DataFrame()
-
-        methyl_dfs = []
-        for i, bed_file in enumerate(bed_files):
-            methyl_data = get_pileup(bed_file)
-            methyl_data = utils.reshape_pileup_to_matrix(methyl_data, genome_name)
-            methyl_data["sample"] = os.path.basename(bed_file).split(".")[0]
-
-            methyl_dfs.append(methyl_data)
-            print(f"Reshaped {i+1}/{len(bed_files)} bed files")
-
-
-        # Build matrix for statistical testing
-        combined_methyl_data = pd.concat(methyl_dfs, ignore_index=True)
-
-        # Save this dataframe
-        combined_methyl_data.to_csv(f"{data_dir}/{genome_name}/combined_methyl_data.csv", index=False)
-
-    # Keep in each dataframes only the names that are common to all dataframes
-    name_sets = []
-    if common_locations:
-        # Get the index of common names
-        common_index = None
-        for i, (sample, group) in enumerate(combined_methyl_data.groupby("sample")):
-            group.set_index("name", inplace=True)
-
-            if i == 0:
-                common_index = group.index
-            else:
-                common_index = common_index.intersection(group.index)
-
-        # Keep only the common indices and set name back to a column
-        combined_methyl_data = combined_methyl_data.set_index("name").loc[common_index].reset_index(names="name")
-
-        # Check that every dataframe has the same names
-        name_sets = [group['name'] for sample, group in combined_methyl_data.groupby("sample")]
-        assert all([np.array_equal(name_set, name_sets[0]) for name_set in
-                    name_sets]), "Not all methyl methyl_dfs have the same regions"
-
-        assert len(combined_methyl_data["name"]) == len(name_sets[0]) * combined_methyl_data["sample"].nunique()
-        assert combined_methyl_data["name"].nunique() == len(name_sets[0])
-
-
-    # Check that first column is name and last is sample
-    assert combined_methyl_data.columns[0] == "name" and combined_methyl_data.columns[-1] == "sample", "Columns are not in the expected order"
-
-    # Set all columns but the first to be integer types
-    for col in combined_methyl_data.columns[1:-1]:
-        combined_methyl_data[col] = pd.to_numeric(combined_methyl_data[col], downcast="integer")
-
-    return combined_methyl_data

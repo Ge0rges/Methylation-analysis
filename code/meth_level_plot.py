@@ -1,6 +1,6 @@
 from utilities.plotting import *
 from utilities.data_loading import *
-from utilities.data_loading_polars import load_combined_methyl_data_for_genome_polars
+from utilities.data_loading import load_combined_methyl_data_for_genome_polars
 from utilities.utils import group_and_normalize_data_for_methylation_level
 
 

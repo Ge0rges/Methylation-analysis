@@ -2,7 +2,7 @@ import os
 import polars as pl
 from _statistics import *
 from utilities.utils import barcode_sample_map
-from utilities.data_loading_polars import load_combined_methyl_data_for_genome_polars
+from utilities.data_loading import load_combined_methyl_data_for_genome_polars
 
 
 def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
