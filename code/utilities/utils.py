@@ -166,9 +166,6 @@ def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, aggregat
 
     df = df.with_columns(pl.col(methylation_types) / pl.col('sample').replace_strict(coverages))
 
-    # Rename samples
-    df = df.with_columns(pl.col('sample').replace(readable_sample_name))
-
     return df
 
 

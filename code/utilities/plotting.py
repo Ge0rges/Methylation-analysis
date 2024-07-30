@@ -184,6 +184,31 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composi
     legend_ax.legend(handles, labels)
 
 
+def plot_mean_gene_methylation_level(ax, df):
+    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="sample", ax=ax)
+
+    ax.set_title(f"Mean methylation level", fontsize=20)
+    plot.legend().set_title("Sample")
+
+    ax.set(xlabel='Gene ID', ylabel=f"Coverage normalized mean methylation fraction")
+
+    # Sort legend
+    handles, labels = ax.get_legend_handles_labels()
+    desired_order = ['Sackhole Top (40 cm)', 'Sackhole Middle (70 cm)', 'Sackhole Bottom (160 cm)']
+    sorted_handles_labels = sorted(zip(handles, labels), key=lambda x: desired_order.index(x[1]))
+    handles, labels = zip(*sorted_handles_labels)
+    ax.legend(handles, labels)
+
+
+def plot_gene_methylation_level_diff(ax, df):
+    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="methylation_type", ax=ax)
+
+    ax.set_title(f"Mean methylation difference by type for Top – Bottom", fontsize=20)
+    plot.legend().set_title("Sample")
+
+    ax.set(xlabel='Gene ID', ylabel=f"Coverage normalized mean methylation fraction difference")
+
+
 def annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data: pl.DataFrame):
     # Apply truncate to composite table for search
     composite_data = composite_data.with_columns(pl.col("function").map_elements(lambda x: truncate_label(x, max_length=25, max_lines=3), return_dtype=pl.String))

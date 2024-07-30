@@ -2,7 +2,7 @@ from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
 from utilities.utils import normalize_data_for_methylation_level, add_gene_caller_id, \
-    add_functional_annotations_polars, readable_methylation_name
+    add_functional_annotations_polars, readable_methylation_name, readable_sample_name
 from scipy.stats import rankdata
 
 
@@ -76,24 +76,27 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     # Create figure
     methylation_types = list(readable_methylation_name.keys())
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(n_types + 1, 1, figsize=(20, 10 * n_types), sharex=False, layout="constrained",
-                             gridspec_kw={'height_ratios': [1] + [9] * n_types})
+    fig, axes = plt.subplots(2, 1, figsize=(20, 10 * n_types), sharex=False, layout="constrained")#,
+                             #gridspec_kw={'height_ratios': [1] + [9] * n_types})
 
-    # Populate each subplot per methylation type
-    for i, methylation_type in enumerate(methylation_types):
-        ax_heatmap = axes[0] if i == 0 else None
-        ax_meth = axes[i + 1]
+    # Mean together all the different methylation types
+    mean_data = methyl_data.with_columns(methylation_level=pl.concat_list(methylation_types).list.mean()).select('gene_id', 'sample', 'methylation_level')
+    top = pl.col(*methylation_types).filter(pl.col('sample').eq('top'))
+    bot = pl.col(*methylation_types).filter(pl.col('sample').eq('bottom'))
+    diff_data = methyl_data.group_by('gene_id').agg(top.mean() - bot.mean())
+    diff_data = diff_data.melt(id_vars="gene_id", value_vars=methylation_types, variable_name="methylation_type", value_name="methylation_level")
 
-        plot_gene_methylation_level(None, ax_meth, methyl_data, methylation_type, composite=True)
+    # Rename samples
+    mean_data = mean_data.with_columns(pl.col('sample').replace(readable_sample_name))
+    diff_data = diff_data.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
 
-        # Heatmap only on top
-        if i == 0:
-            plot_heatmap(dmr_data.unique(subset=["function", "score", "comparison"]), ax_heatmap, source, fig=fig, composite=True)
-            annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, dmr_data)
+    # Populate subplots
+    plot_mean_gene_methylation_level(axes[0], mean_data)
+    plot_gene_methylation_level_diff(axes[1], diff_data)
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
-    fig.suptitle(f"Mean gene methylation and difference score by type for {cleaned_genome_name}", fontsize=26)
+    fig.suptitle(f"Mean gene methylation overview for {cleaned_genome_name}", fontsize=26)
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite.svg", format='svg')
 
     print(f"Done plotting composite for {genome_name}")
