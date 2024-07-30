@@ -11,19 +11,20 @@ import requests_cache
 from retry_requests import retry
 from math import ceil
 
+
 def fetch_atmospheric_temperature(longitude, latitude, date):
     """
-        Fetches the mean daily atmospheric temperature for a given location and date.
-        This uses the Open-Meteo API to fetch the data from an ERA5 reanalysis model.
+    Fetches the mean daily atmospheric temperature for a given location and date.
+    This uses the Open-Meteo API to fetch the data from an ERA5 reanalysis model.
 
-        Parameters:
-        - longitude (float): The longitude of the location.
-        - latitude (float): The latitude of the location.
-        - date (str): The date for which to fetch the temperature in GMT+0, in YYYY-MM-DD format.
+    Parameters:
+    - longitude (float): The longitude of the location.
+    - latitude (float): The latitude of the location.
+    - date (str): The date for which to fetch the temperature in GMT+0, in YYYY-MM-DD format.
 
-        Returns:
-        - numpy.ndarray: An array containing the mean daily atmospheric temperature.
-        """
+    Returns:
+    - numpy.ndarray: An array containing the mean daily atmospheric temperature.
+    """
     # Define the Open-Meteo API endpoint and parameters for the request. Defaults to GMT+0
     # The order of variables in hourly or daily is important to assign them correctly below
     url = "https://archive-api.open-meteo.com/v1/archive"
@@ -82,6 +83,7 @@ def make_request(feature):
     record['atmospheric_temperature'] = fetch_atmospheric_temperature(longitude, latitude, date)
 
     return record
+
 
 def load_or_fetch_data(json_path, data_csv_path):
     """
