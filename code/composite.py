@@ -76,7 +76,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     # Create figure
     methylation_types = list(readable_methylation_name.keys())
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(2, 1, figsize=(20, 10 * n_types), sharex=False, layout="constrained")#,
+    fig, axes = plt.subplots(2, 1, figsize=(20, 7 * n_types), sharex=False, layout="constrained")#,
                              #gridspec_kw={'height_ratios': [1] + [9] * n_types})
 
     # Mean together all the different methylation types
@@ -105,6 +105,6 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
 if __name__ == "__main__":
     print("Running DMR analysis at coverage 5 agg")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/methylation_5_agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/methylation_data/methylation_5_agg")
     for genome in os.listdir(data_dir):
         run_dmr_analysis(genome, "dmr_by_gene", "5_agg", data_dir, fig_savepath="../plots/plots_5_agg")

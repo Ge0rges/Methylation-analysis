@@ -140,14 +140,14 @@ def plot_gene_methylation_level_figure(df: pl.DataFrame, genome_name, coverage, 
 
 
 def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composite=False):
-    sns_plot_bottom = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_bottom)
+    sns_plot_bottom = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_bottom, palette=sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True))
 
     if composite:
         ax_bottom.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
         sns_plot_bottom.legend().set_title("Sample")
 
     else:
-        sns_plot_top = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_top)
+        sns_plot_top = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_top, palette=sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True))
         ax_top.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
         ax_top.set(xlabel="", ylabel="")
         sns_plot_top.legend().set_title("Sample")
@@ -185,12 +185,14 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composi
 
 
 def plot_mean_gene_methylation_level(ax, df):
-    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="sample", ax=ax)
+    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="sample", ax=ax, palette=sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True))
 
     ax.set_title(f"Mean methylation level", fontsize=20)
     plot.legend().set_title("Sample")
 
     ax.set(xlabel='Gene ID', ylabel=f"Coverage normalized mean methylation fraction")
+
+    ax.set_ylim(df.select(pl.min("methylation_level")).item(), df.select(pl.col("methylation_level").quantile(0.95)).item())
 
     # Sort legend
     handles, labels = ax.get_legend_handles_labels()
@@ -201,12 +203,14 @@ def plot_mean_gene_methylation_level(ax, df):
 
 
 def plot_gene_methylation_level_diff(ax, df):
-    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="methylation_type", ax=ax)
+    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="methylation_type", ax=ax, palette=sns.color_palette("colorblind"))
 
     ax.set_title(f"Mean methylation difference by type for Top – Bottom", fontsize=20)
     plot.legend().set_title("Sample")
 
     ax.set(xlabel='Gene ID', ylabel=f"Coverage normalized mean methylation fraction difference")
+
+    ax.set_ylim(df.select(pl.min("methylation_level")).item(), df.select(pl.col("methylation_level").quantile(0.95)).item())
 
 
 def annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data: pl.DataFrame):
