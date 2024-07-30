@@ -78,13 +78,13 @@ def get_genes_polars(data_dir, genome_name, drop_extras=True) -> pl.LazyFrame:
     if drop_extras:
         gene_calls = gene_calls.drop("source", "version", "partial", "call_type")
 
-    # Map direction to /-
+    # Map direction to +/-
     gene_calls = gene_calls.with_columns(pl.col("direction").str.replace_many(["f", "r"],["+", "-"]))
 
     return gene_calls
 
 
-def get_dmrs_from_file_polars(path) -> pl.LazyFrame:
+def get_dmrs_from_file_polars(path) -> (pl.LazyFrame, bool):
     """
     Read DMRs (Differentially Methylated Regions) data from a file, replaces the fractions and count columns with
     individual columns for each methylation type. Adds a column called comparison to note the samples comapred.
@@ -95,15 +95,19 @@ def get_dmrs_from_file_polars(path) -> pl.LazyFrame:
     Returns:
     pandas.DataFrame: DataFrame with DMRs data.
     """
-    dmrs = pl.scan_csv(path, separator="\t", has_header=False,
-                       new_columns=['chrom', 'start', 'end', 'name', 'score', 'samplea_counts', 'samplea_total',
+    try:
+        dmrs = pl.scan_csv(path, separator="\t", has_header=False,
+                        new_columns=['chrom', 'start', 'end', 'name', 'score', 'samplea_counts', 'samplea_total',
                               'sampleb_counts', 'sampleb_total', 'samplea_fractions', 'sampleb_fractions',
                               'samplea_percent_modified', 'sampleb_percent_modified'],
-                       schema_overrides={'start': int, 'end': int, 'score': float,
+                        schema_overrides={'start': int, 'end': int, 'score': float,
                                'samplea_total': int, 'sampleb_total': int,
                                'samplea_counts': str, 'sampleb_counts': str,
                                'samplea_fractions': str, 'sampleb_fractions': str,
                                'samplea_percent_modified': float, 'sampleb_percent_modified': float})
+    
+    except pl.exceptions.NoDataError:
+        return pl.LazyFrame(), True
 
     # Remove the string columns
     dmrs = dmrs.drop('samplea_counts', 'sampleb_counts', 'samplea_fractions', 'sampleb_fractions')
@@ -114,7 +118,7 @@ def get_dmrs_from_file_polars(path) -> pl.LazyFrame:
     sample_b_name = utils.barcode_sample_map[sample_b_name]
     dmrs = dmrs.with_columns(comparison=pl.lit(f"{sample_a_name}_VS_{sample_b_name}"))
 
-    return dmrs
+    return dmrs, False
 
 
 def get_dmrs_for_genome_polars(data_dir, genome_name, dmr_type) -> pl.LazyFrame:
@@ -127,7 +131,9 @@ def get_dmrs_for_genome_polars(data_dir, genome_name, dmr_type) -> pl.LazyFrame:
     # Get all the methylation data from the bed files
     dmrs = []
     for bed_file in bed_files:
-        dmrs.append(get_dmrs_from_file_polars(bed_file))
+        dmr, empty = get_dmrs_from_file_polars(bed_file)
+        if not empty:
+            dmrs.append(dmr)
 
     # Concatenate the list of merged_df for this sample into a single dataframe
     dmrs = pl.concat(dmrs).rename({"chrom": "contig"}).collect().lazy()

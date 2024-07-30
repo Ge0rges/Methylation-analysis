@@ -93,7 +93,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
-    fig.suptitle(f"Mean gene methylation and DMR score by type for {cleaned_genome_name}", fontsize=26)
+    fig.suptitle(f"Mean gene methylation and difference score by type for {cleaned_genome_name}", fontsize=26)
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite.svg", format='svg')
 
     print(f"Done plotting composite for {genome_name}")
