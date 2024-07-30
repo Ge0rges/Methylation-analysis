@@ -84,7 +84,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     top = pl.col(*methylation_types).filter(pl.col('sample').eq('top'))
     bot = pl.col(*methylation_types).filter(pl.col('sample').eq('bottom'))
     diff_data = methyl_data.group_by('gene_id').agg(top.mean() - bot.mean())
-    diff_data = diff_data.melt(id_vars="gene_id", value_vars=methylation_types, variable_name="methylation_type", value_name="methylation_level")
+    diff_data = diff_data.unpivot(index="gene_id", on=methylation_types, variable_name="methylation_type", value_name="methylation_level")
 
     # Rename samples
     mean_data = mean_data.with_columns(pl.col('sample').replace(readable_sample_name))
