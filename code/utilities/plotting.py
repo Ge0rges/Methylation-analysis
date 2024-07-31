@@ -189,8 +189,8 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composi
 
 
 def plot_mean_gene_methylation_level(ax, df):
-    plot = sns.lineplot(data=df, x="gene_id", y="total_methylation", hue="sample", ax=ax,
-                        palette=["#235284", "#6abce2", "#3982b8"])
+    plot = sns.lineplot(data=df, x="gene_id", y="total_methylation", hue="sample", style="sample", ax=ax,
+                        palette=["#3982b8", "#6abce2", "#235284"], alpha=0.5)
     ax.set_title(f"Mean methylation level by brine horizon", fontsize=18)
     plot.legend().set_title("Sample")
 
@@ -248,9 +248,10 @@ def annotate_heatmap_arrow_to_meth_level(fig, ax_meth, ax_heatmap, composite_dat
 def annotate_dmr_table_to_meth_level(annotate_ax, table_ax, dmr_data, show_table, function_source):
     # Adding annotations for each gene_id
     texts = []
-    functions = dmr_data.get_column("function").unique().to_list()
-    for i, function in enumerate(functions):
-        genes = dmr_data.filter(pl.col('function').eq(function)).get_column('gene_id').to_list()
+    table_data = dmr_data.select('function', "score").unique().sort(by="score", descending=True).to_numpy()
+
+    for i, row in enumerate(table_data):
+        genes = dmr_data.filter(pl.col('function').eq(row[0])).get_column('gene_id').to_list()
         for gene in genes:
             max_y = -np.inf
             for line in annotate_ax.lines:
@@ -273,14 +274,13 @@ def annotate_dmr_table_to_meth_level(annotate_ax, table_ax, dmr_data, show_table
 
     # Creating a table to show function and score
     if show_table:
-        table_data = dmr_data.select('function', "score").unique().sort(by="score", descending=True).to_numpy()
         for i in table_data:
             i[0] = truncate_label(i[0], max_length=50, max_lines=2)
             i[1] = f"{i[1]:.1f}"
 
         table = table_ax.table(cellText=table_data,
                                colLabels=[function_source.replace("_", " "), 'Modkit difference score'],
-                               rowLabels=[str(i + 1) for i in range(len(functions))],
+                               rowLabels=[str(i + 1) for i in range(len(table_data))],
                                loc='center',
                                cellLoc='center',
                                colColours=["lightblue"] * 2)
