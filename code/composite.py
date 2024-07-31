@@ -8,16 +8,7 @@ from scipy.stats import rankdata
 
 def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="plots"):
     """
-    Run the DMR analysis for a specific genome_name, DMR type, and source.
-
-    :param genome_name: Folder name of the genome_name.
-    :type genome_name: str
-    :param dmr_type: Either dmr_by_gene or dmr_by_position, which is also the folder name
-    :type dmr_type: str
-    :param source: Either KEGG or COG for the functional annotation source.
-    :type source: str
-    :return: Returns the methyl_data dataframe and saves a PDF of the plot.
-    :rtype: pandas.DataFrame
+    Run the DMR analysis for a specific genome_name, DMR type, and function_source.
     """
 
     # Load the data from the bed files
@@ -38,10 +29,10 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     # Annotate with function
     dmr_data = add_functional_annotations_polars(dmr_data, data_dir, genome_name).collect()
 
-    # Filter for signiciant DMR with correct source and comparison, then keep top 10
-    source = "KEGG_Module"
+    # Filter for signiciant DMR with correct function_source and comparison, then keep top 10
+    function_source = "KEGG_Module"
     dmr_data = dmr_data.filter(pl.col("test_result") &
-                               pl.col("source").eq(source) &
+                               pl.col("source").eq(function_source) &
                                pl.col("comparison").is_in(["top_VS_bottom"]))
     dmr_data = dmr_data.group_by(['function', 'comparison']).agg(pl.col('score').mean(), pl.col("gene_callers_id")).top_k(10, by="score")
     dmr_data = dmr_data.explode("gene_callers_id")
@@ -52,7 +43,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
-    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False).collect().select("name", "sample", *methylation_types)
+    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False).head(10000).collect().select("name", "sample", *methylation_types)
     methyl_data = methyl_data.with_columns(
         contig=pl.col('name').str.split(by='|').list.get(0),
         strand=pl.col('name').str.split(by='|').list.get(1),
@@ -62,13 +53,13 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
     # Filter samples
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).lazy()
-    
+
     # Create the total methylation column
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
 
     # Annonate methyl data and normalize it
     methyl_data = add_gene_caller_id(methyl_data, genes, True)
-    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, methylation_types, ("agg" in coverage)).collect()
+    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, methylation_types + ["total_methylation"], ("agg" in coverage)).collect()
 
     # Add a gene_id column, which is just a map from gene_callers_id
     all_ids = dmr_data.get_column("gene_callers_id").to_list() + methyl_data.get_column("gene_callers_id").to_list()
@@ -78,7 +69,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
     # Create figure
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(3, 1, figsize=(10, 5 * n_types), sharex=False, layout="constrained")
+    fig, axes = plt.subplots(3, 2, figsize=(20, 5 * n_types), sharex=False, layout="constrained", gridspec_kw={'width_ratios': [5] + [5]})
 
     # Mean together all the different methylation types
     mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation')
@@ -96,10 +87,17 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     top_middle = top_middle.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
 
     # Populate subplots
-    plot_mean_gene_methylation_level(axes[0], mean_data)
-    annotate_dmr_table_to_meth_level(axes[0], dmr_data)
-    plot_gene_methylation_level_diff(axes[1], top_middle, "Top – Middle")
-    plot_gene_methylation_level_diff(axes[2], top_bottom, "Top – Bottom")
+    plot_mean_gene_methylation_level(axes[0][0], mean_data)
+    plot_gene_methylation_level_diff(axes[1][0], top_middle, "Top – Middle")
+    plot_gene_methylation_level_diff(axes[2][0], top_bottom, "Top – Bottom")
+
+    annotate_dmr_table_to_meth_level(axes[0][0], axes[0][1], dmr_data, True, function_source)
+    annotate_dmr_table_to_meth_level(axes[1][0], None, dmr_data, False, function_source)
+    annotate_dmr_table_to_meth_level(axes[2][0], None, dmr_data, False, function_source)
+
+    axes[0][1].axis("off")
+    axes[1][1].axis("off")
+    axes[2][1].axis("off")
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")

@@ -1,18 +1,18 @@
 import math
 import matplotlib
 import numpy as np
-import pandas as pd
 import polars as pl
 import seaborn as sns
 from utilities.utils import *
 import matplotlib.pyplot as plt
+from adjustText import adjust_text
 import matplotlib.patches as patches
-
 
 plt.style.use('ggplot')
 
 
-def plot_all_sources_figure(df: pl.DataFrame, genome_name, heatmap_type="gene", fig_savepath="plots", plot_function=None):
+def plot_all_sources_figure(df: pl.DataFrame, genome_name, heatmap_type="gene", fig_savepath="plots",
+                            plot_function=None):
     """
     Plot heatmaps in a figure where each subfigure corresponds to a genome_name, and each subplot within a subfigure corresponds to a source.
     In each heatmap, rows represent functions, columns represent samples, with cell values representing methylation measures.
@@ -107,7 +107,8 @@ def plot_heatmap(df: pl.DataFrame, ax, source, fig=None, composite=False):
             ax_height_in = ax.get_window_extent().height / plt.gcf().dpi
             num_lines = max(1, int(ax_height_in / num_y_labels * 2))  # Adjust the multiplier as necessary
 
-            y_labels = [truncate_label(lbl.get_text(), max_length=70, max_lines=num_lines) for lbl in ax.get_yticklabels()]
+            y_labels = [truncate_label(lbl.get_text(), max_length=70, max_lines=num_lines) for lbl in
+                        ax.get_yticklabels()]
             ax.set_yticklabels(y_labels, rotation=0, ha='right', fontsize=20)
 
             # Orientate the X-axis labels
@@ -125,11 +126,11 @@ def plot_gene_methylation_level_figure(df: pl.DataFrame, genome_name, coverage, 
 
     # Create figure and subplots
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(n_types*2, 1, figsize=(20, 5 * n_types), sharex=True, layout="constrained")
+    fig, axes = plt.subplots(n_types * 2, 1, figsize=(20, 5 * n_types), sharex=True, layout="constrained")
 
     for i, methylation_type in enumerate(methylation_types):
-        ax_top = axes[i*2]
-        ax_bottom = axes[i*2+1]
+        ax_top = axes[i * 2]
+        ax_bottom = axes[i * 2 + 1]
 
         plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type)
 
@@ -140,14 +141,16 @@ def plot_gene_methylation_level_figure(df: pl.DataFrame, genome_name, coverage, 
 
 
 def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composite=False):
-    sns_plot_bottom = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_bottom, palette=sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True))
+    sns_plot_bottom = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_bottom,
+                                   palette=sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True))
 
     if composite:
         ax_bottom.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
         sns_plot_bottom.legend().set_title("Sample")
 
     else:
-        sns_plot_top = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_top, palette=sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True))
+        sns_plot_top = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_top,
+                                    palette=sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True))
         ax_top.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
         ax_top.set(xlabel="", ylabel="")
         sns_plot_top.legend().set_title("Sample")
@@ -165,12 +168,13 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composi
 
     ax_bottom.set(xlabel='Gene ID', ylabel=f"Coverage normalized mean methylation fraction")
 
-
     try:
         ax_bottom.set_ylim(df.select(pl.min(methylation_type)).item(),
-                           df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.95)).item())
+                           df.filter(pl.col(methylation_type) > 0).select(
+                               pl.col(methylation_type).quantile(0.95)).item())
         if not composite:
-            ax_top.set_ylim(bottom=df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.99)).item())
+            ax_top.set_ylim(
+                bottom=df.filter(pl.col(methylation_type) > 0).select(pl.col(methylation_type).quantile(0.99)).item())
 
     except ValueError:
         return
@@ -185,8 +189,9 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composi
 
 
 def plot_mean_gene_methylation_level(ax, df):
-    plot = sns.lineplot(data=df, x="gene_id", y="total_methylation", hue="sample", ax=ax, palette=["#235284", "#6abce2","#3982b8"])
-    ax.set_title(f"Mean methylation level by brine horizon", fontsize=20)
+    plot = sns.lineplot(data=df, x="gene_id", y="total_methylation", hue="sample", ax=ax,
+                        palette=["#235284", "#6abce2", "#3982b8"])
+    ax.set_title(f"Mean methylation level by brine horizon", fontsize=18)
     plot.legend().set_title("Sample")
 
     ax.set(xlabel='Gene ID', ylabel=f"Normalized methylation fraction")
@@ -202,9 +207,12 @@ def plot_mean_gene_methylation_level(ax, df):
 
 
 def plot_gene_methylation_level_diff(ax, df, diff_string):
-    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="methylation_type", style="methylation_type", ax=ax, palette=sns.color_palette("colorblind", n_colors=df.get_column("methylation_type").n_unique()), alpha=0.5)
+    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="methylation_type", style="methylation_type",
+                        ax=ax,
+                        palette=sns.color_palette("colorblind", n_colors=df.get_column("methylation_type").n_unique()),
+                        alpha=0.5)
 
-    ax.set_title(f"Mean methylation difference by methylation type: {diff_string}", fontsize=20)
+    ax.set_title(f"Mean methylation difference by methylation type: {diff_string}", fontsize=18)
     plot.legend().set_title("Methylation type")
 
     ax.set(xlabel='Gene ID', ylabel=f"Normalized methylation fraction")
@@ -214,7 +222,9 @@ def plot_gene_methylation_level_diff(ax, df, diff_string):
 
 def annotate_heatmap_arrow_to_meth_level(fig, ax_meth, ax_heatmap, composite_data: pl.DataFrame):
     # Apply truncate to composite table for search
-    composite_data = composite_data.with_columns(pl.col("function").map_elements(lambda x: truncate_label(x, max_length=25, max_lines=3), return_dtype=pl.String))
+    composite_data = composite_data.with_columns(
+        pl.col("function").map_elements(lambda x: truncate_label(x, max_length=25, max_lines=3),
+                                        return_dtype=pl.String))
 
     # Search each heatmap point
     labels = [x.get_text() for x in ax_heatmap.get_xticklabels()]
@@ -235,41 +245,47 @@ def annotate_heatmap_arrow_to_meth_level(fig, ax_meth, ax_heatmap, composite_dat
             fig.add_artist(arrow)
 
 
-def annotate_dmr_table_to_meth_level(ax, dmr_data):
+def annotate_dmr_table_to_meth_level(annotate_ax, table_ax, dmr_data, show_table, function_source):
     # Adding annotations for each gene_id
-    genes = dmr_data.get_column("gene_id").to_list()
-    for i, gene in enumerate(genes):
-        max_y = -np.inf
-        for line in ax.lines:
-            x_data = line.get_xdata()
-            y_data = line.get_ydata()
-            
-            if len(x_data) == 0:
-                continue
+    texts = []
+    functions = dmr_data.get_column("function").unique().to_list()
+    for i, function in enumerate(functions):
+        genes = dmr_data.filter(pl.col('function').eq(function)).get_column('gene_id').to_list()
+        for gene in genes:
+            max_y = -np.inf
+            for line in annotate_ax.lines:
+                x_data = line.get_xdata()
+                y_data = line.get_ydata()
 
-            # Find the closest index to the desired x value
-            idx = (np.abs(x_data - gene)).argmin()
+                if len(x_data) == 0:
+                    continue
 
-            # Update max_y if the current y value is greater
-            max_y = max(max_y, y_data[idx])
+                # Find the closest index to the desired x value
+                idx = (np.abs(x_data - gene)).argmin()
 
-        ax.annotate(str(i + 1), (gene, max_y), textcoords="offset points", xytext=(0, 10),
-                    ha='center', fontsize=12, color='black')
+                # Update max_y if the current y value is greater
+                max_y = max(max_y, y_data[idx])
+
+            texts.append(annotate_ax.text(gene, max_y, str(i + 1), fontsize=12, color='red'))
+
+    # Add texts
+    _, _ = adjust_text(texts, arrowprops=dict(arrowstyle="-", color='r'), ax=annotate_ax, min_arrow_len=0)
 
     # Creating a table to show function and score
-    table_data = dmr_data.select('function', "score").to_numpy()
-    for i in table_data:
-        i[0] = truncate_label(i[0], max_length=35, max_lines=3)
+    if show_table:
+        table_data = dmr_data.select('function', "score").unique().sort(by="score", descending=True).to_numpy()
+        for i in table_data:
+            i[0] = truncate_label(i[0], max_length=50, max_lines=2)
+            i[1] = f"{i[1]:.1f}"
 
-    table = matplotlib.table.table(ax=ax,
-                  cellText=table_data,
-                  colLabels=['Function', 'Score'],
-                  rowLabels=[str(i + 1) for i in range(len(genes))],
-                  loc='upper left',
-                  cellLoc='center',
-                  colColours=["lightblue"] * 2,
-                  rowColours=["black"] * len(genes),
-                  colWidths= [0.1]*3)
+        table = table_ax.table(cellText=table_data,
+                               colLabels=[function_source.replace("_", " "), 'Modkit difference score'],
+                               rowLabels=[str(i + 1) for i in range(len(functions))],
+                               loc='center',
+                               cellLoc='center',
+                               colColours=["lightblue"] * 2)
 
-
-    ax.add_table(table)
+        table.auto_set_column_width([0, 1, 2])
+        table.auto_set_font_size(False)
+        table.set_fontsize(12)
+        table.scale(2,  2.3)

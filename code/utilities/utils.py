@@ -162,14 +162,15 @@ def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, methylat
         coverages[key] = value[0]
         if value == 0 and key in df.select("sample").unique():
             print(f"Coverage for {key} is 0")
-    
+
+    df = df.collect()
     if "total_methylation" in methylation_types:
         methylation_types.remove("total_methylation")
-        df = df.with_columns(pl.col(methylation_types) / (pl.col('sample').replace_strict(coverages).mul(len(methylation_types))))
+        df = df.with_columns(pl.col("total_methylation") / (pl.col('sample').replace_strict(coverages).mul(len(methylation_types))))
 
     df = df.with_columns(pl.col(methylation_types) / pl.col('sample').replace_strict(coverages))
 
-    return df
+    return df.lazy()
 
 
 def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str, genome_name: str) -> pl.LazyFrame:
