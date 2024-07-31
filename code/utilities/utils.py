@@ -182,7 +182,7 @@ def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str, genome_na
     functions = dl.get_coordinated_functions_polars(data_dir, genome_name)
 
     # Merge DMR data with functional annotations based on contig name
-    merged_df = df.join(functions, on="gene_callers_id", how="left", )
+    merged_df = df.join(functions, on="gene_callers_id", how="left")
 
     # Fill missing values in the merged DataFrame
     merged_df = merged_df.with_columns(pl.col("function").fill_null("Unknown"), pl.col("source").fill_null("Unannotated"))
@@ -190,17 +190,10 @@ def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str, genome_na
     # Remove duplicate entries from the merged DataFrame
     merged_df = merged_df.unique()
 
-    # Keep best hit
-    unique_cols = ['name', 'gene_callers_id', 'source']
-    merged_df = merged_df.with_columns(accession_split_len=pl.col("accession").str.split(by="!!!").list.len())
-    merged_df = merged_df.select(pl.all().top_k_by(by=["e_value", "accession_split_len"], k=1, reverse=[True, True]).over(unique_cols, mapping_strategy="explode"))
-    merged_df = merged_df.drop("accession_split_len")
-
-    # Ensure that all unique names from the DMRs are still present after merging and that there are no duplicate groups
+    # Ensure that all unique names from the DMRs are still present after merging
     merged_df = merged_df.collect()
     df = df.collect()
     assert set(merged_df.get_column("name").unique()) == set(df.get_column("name").unique())
-    assert merged_df.shape[0] == len([x for x in merged_df.group_by(unique_cols)]), "There are duplicate groups in the result."
 
     # Clean up by dropping columns that are no longer needed
     merged_df = merged_df.sort(by=['contig', 'start_right']).lazy()

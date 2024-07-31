@@ -112,4 +112,7 @@ if __name__ == "__main__":
     print("Running DMR analysis at coverage 5 agg")
     data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/methylation_5_agg")
     for genome in os.listdir(data_dir):
+        if genome == ".DS_Store":
+            continue
+
         run_dmr_analysis(genome, "dmr_by_gene", "5_agg", data_dir, fig_savepath="../plots/plots_5_agg")
