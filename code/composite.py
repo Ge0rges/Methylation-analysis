@@ -49,7 +49,6 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     # Handle empty
     if dmr_data.is_empty():
         print(f"No stastistically significant DMRs found for {genome_name}")
-        return
 
     # Get methylation level data
     methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False).collect()
@@ -76,23 +75,28 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     # Create figure
     methylation_types = list(readable_methylation_name.keys())
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(2, 1, figsize=(20, 7 * n_types), sharex=False, layout="constrained")#,
+    fig, axes = plt.subplots(3, 1, figsize=(10, 5 * n_types), sharex=False, layout="constrained")#,
                              #gridspec_kw={'height_ratios': [1] + [9] * n_types})
 
     # Mean together all the different methylation types
     mean_data = methyl_data.with_columns(methylation_level=pl.concat_list(methylation_types).list.mean()).select('gene_id', 'sample', 'methylation_level')
     top = pl.col(*methylation_types).filter(pl.col('sample').eq('top'))
     bot = pl.col(*methylation_types).filter(pl.col('sample').eq('bottom'))
-    diff_data = methyl_data.group_by('gene_id').agg(top.mean() - bot.mean())
-    diff_data = diff_data.unpivot(index="gene_id", on=methylation_types, variable_name="methylation_type", value_name="methylation_level")
+    middle = pl.col(*methylation_types).filter(pl.col('sample').eq('middle'))
+    top_bottom = methyl_data.group_by('gene_id').agg(top.mean() - bot.mean())
+    top_bottom = top_bottom.unpivot(index="gene_id", on=methylation_types, variable_name="methylation_type", value_name="methylation_level")
+    top_middle = methyl_data.group_by('gene_id').agg(top.mean() - middle.mean())
+    top_middle = top_middle.unpivot(index="gene_id", on=methylation_types, variable_name="methylation_type", value_name="methylation_level")
 
     # Rename samples
     mean_data = mean_data.with_columns(pl.col('sample').replace(readable_sample_name))
-    diff_data = diff_data.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
+    top_bottom = top_bottom.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
+    top_middle = top_middle.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
 
     # Populate subplots
     plot_mean_gene_methylation_level(axes[0], mean_data)
-    plot_gene_methylation_level_diff(axes[1], diff_data)
+    plot_gene_methylation_level_diff(axes[1], top_bottom, "Top - Bottom")
+    plot_gene_methylation_level_diff(axes[2], top_middle, "Top - Middle")
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
@@ -105,6 +109,6 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
 if __name__ == "__main__":
     print("Running DMR analysis at coverage 5 agg")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/methylation_data/methylation_5_agg")
+    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../methylation_data/methylation_5_agg")
     for genome in os.listdir(data_dir):
         run_dmr_analysis(genome, "dmr_by_gene", "5_agg", data_dir, fig_savepath="../plots/plots_5_agg")

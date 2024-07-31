@@ -185,14 +185,14 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composi
 
 
 def plot_mean_gene_methylation_level(ax, df):
-    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="sample", ax=ax, palette=sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True))
+    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="sample", ax=ax, palette=sns.color_palette("ch:s=.25,rot=-.25"))
 
     ax.set_title(f"Mean methylation level", fontsize=20)
     plot.legend().set_title("Sample")
 
     ax.set(xlabel='Gene ID', ylabel=f"Coverage normalized mean methylation fraction")
 
-    ax.set_ylim(df.select(pl.min("methylation_level")).item(), df.select(pl.col("methylation_level").quantile(0.95)).item())
+    ax.set_ylim(0, 1)
 
     # Sort legend
     handles, labels = ax.get_legend_handles_labels()
@@ -202,15 +202,15 @@ def plot_mean_gene_methylation_level(ax, df):
     ax.legend(handles, labels)
 
 
-def plot_gene_methylation_level_diff(ax, df):
+def plot_gene_methylation_level_diff(ax, df, diff_string):
     plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="methylation_type", ax=ax, palette=sns.color_palette("colorblind"))
 
-    ax.set_title(f"Mean methylation difference by type for Top – Bottom", fontsize=20)
-    plot.legend().set_title("Sample")
+    ax.set_title(f"Mean methylation difference by type for {diff_string}", fontsize=20)
+    plot.legend().set_title("Methylation type")
 
     ax.set(xlabel='Gene ID', ylabel=f"Coverage normalized mean methylation fraction difference")
 
-    ax.set_ylim(df.select(pl.min("methylation_level")).item(), df.select(pl.col("methylation_level").quantile(0.95)).item())
+    ax.set_ylim(-1, 1)
 
 
 def annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data: pl.DataFrame):
