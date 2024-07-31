@@ -185,9 +185,9 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composi
 
 
 def plot_mean_gene_methylation_level(ax, df):
-    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="sample", ax=ax, palette=sns.color_palette("ch:s=.25,rot=-.25"))
+    plot = sns.lineplot(data=df, x="gene_id", y="total_methylation", hue="sample", ax=ax, palette=sns.color_palette("ch:s=.25,rot=-.25,reverse=1,light=0.6,dark=0.8", n_colors=df.get_column("sample").n_unique()))
 
-    ax.set_title(f"Mean methylation level", fontsize=20)
+    ax.set_title(f"Mean methylation level by brine horizon", fontsize=20)
     plot.legend().set_title("Sample")
 
     ax.set(xlabel='Gene ID', ylabel=f"Coverage normalized mean methylation fraction")
@@ -203,17 +203,17 @@ def plot_mean_gene_methylation_level(ax, df):
 
 
 def plot_gene_methylation_level_diff(ax, df, diff_string):
-    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="methylation_type", ax=ax, palette=sns.color_palette("colorblind"))
+    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="methylation_type", style="methylation_type", ax=ax, palette=sns.color_palette("colorblind"), alpha=0.8)
 
-    ax.set_title(f"Mean methylation difference by type for {diff_string}", fontsize=20)
+    ax.set_title(f"Mean methylation difference by methylation type: {diff_string}", fontsize=20)
     plot.legend().set_title("Methylation type")
 
-    ax.set(xlabel='Gene ID', ylabel=f"Coverage normalized mean methylation fraction difference")
+    ax.set(xlabel='Gene ID', ylabel=f"Normalized methylation fraction")
 
     ax.set_ylim(-1, 1)
 
 
-def annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data: pl.DataFrame):
+def annotate_heatmap_arrow_to_meth_level(fig, ax_meth, ax_heatmap, composite_data: pl.DataFrame):
     # Apply truncate to composite table for search
     composite_data = composite_data.with_columns(pl.col("function").map_elements(lambda x: truncate_label(x, max_length=25, max_lines=3), return_dtype=pl.String))
 
@@ -234,3 +234,36 @@ def annotate_heatmap_to_meth_level(fig, ax_meth, ax_heatmap, composite_data: pl.
                                             axesA=ax_meth, axesB=ax_heatmap,
                                             color='black', linewidth=1)
             fig.add_artist(arrow)
+
+
+def annotate_dmr_table_to_meth_level(ax, dmr_data):
+    # Adding annotations for each gene_id
+    genes = dmr_data.get_column("gene_id").to_list()
+    for i, gene in enumerate(genes):
+        max_y = -np.inf
+        for line in ax.lines:
+            x_data = line.get_xdata()
+            y_data = line.get_ydata()
+
+            # Find the closest index to the desired x value
+            idx = (np.abs(x_data - gene)).argmin()
+
+            # Update max_y if the current y value is greater
+            max_y = max(max_y, y_data[idx])
+
+        ax.annotate(str(i + 1), (gene, max_y), textcoords="offset points", xytext=(0, 10),
+                    ha='center', fontsize=12, color='black')
+
+    # Creating a table to show function and score
+    table_data = dmr_data.select('function', "score").to_numpy()
+    table = matplotlib.table.table(ax=ax,
+                  cellText=table_data,
+                  colLabels=['Function', 'Score'],
+                  rowLabels=[str(i + 1) for i in range(len(genes))],
+                  loc='top',
+                  cellLoc='center',
+                  colColours=["palegreen"] * 2,
+                  rowColours=["lightblue"] * len(genes))
+
+
+    ax.add_table(table)

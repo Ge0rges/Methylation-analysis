@@ -151,13 +151,12 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> p
     return df
 
 
-def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, aggregate=False) -> pl.LazyFrame:
+def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, methylation_types, aggregate=False) -> pl.LazyFrame:
     if aggregate:
         df = df.with_columns(pl.col('sample').replace(barcode_sample_map))
 
     # Normalize to coverage
     coverages = dl.get_coverage("../data/", genome_name, agg=aggregate).drop("Genome").collect().to_dict(as_series=False)
-    methylation_types = df.collect_schema().names()[1:4]
 
     for key, value in coverages.items():
         coverages[key] = value[0]

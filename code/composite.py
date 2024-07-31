@@ -51,7 +51,8 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
         print(f"No stastistically significant DMRs found for {genome_name}")
 
     # Get methylation level data
-    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False).collect()
+    methylation_types = list(readable_methylation_name.keys())
+    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False).collect().select("name", "sample", *methylation_types)
     methyl_data = methyl_data.with_columns(
         contig=pl.col('name').str.split(by='|').list.get(0),
         strand=pl.col('name').str.split(by='|').list.get(1),
@@ -62,9 +63,12 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     # Filter samples
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).lazy()
 
+    # Create the total methylation column
+    methyl_data = methyl_data.with_columns("total_methylation", pl.col(methylation_types).sum())
+
     # Annonate methyl data and normalize it
     methyl_data = add_gene_caller_id(methyl_data, genes, True)
-    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).collect()
+    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, methylation_types, ("agg" in coverage)).collect()
 
     # Add a gene_id column, which is just a map from gene_callers_id
     all_ids = dmr_data.get_column("gene_callers_id").to_list() + methyl_data.get_column("gene_callers_id").to_list()
@@ -73,13 +77,12 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=-1))
 
     # Create figure
-    methylation_types = list(readable_methylation_name.keys())
     n_types = len(methylation_types)
     fig, axes = plt.subplots(3, 1, figsize=(10, 5 * n_types), sharex=False, layout="constrained")#,
                              #gridspec_kw={'height_ratios': [1] + [9] * n_types})
 
     # Mean together all the different methylation types
-    mean_data = methyl_data.with_columns(methylation_level=pl.concat_list(methylation_types).list.mean()).select('gene_id', 'sample', 'methylation_level')
+    mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation')
     top = pl.col(*methylation_types).filter(pl.col('sample').eq('top'))
     bot = pl.col(*methylation_types).filter(pl.col('sample').eq('bottom'))
     middle = pl.col(*methylation_types).filter(pl.col('sample').eq('middle'))
@@ -95,8 +98,9 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
     # Populate subplots
     plot_mean_gene_methylation_level(axes[0], mean_data)
-    plot_gene_methylation_level_diff(axes[1], top_bottom, "Top - Bottom")
-    plot_gene_methylation_level_diff(axes[2], top_middle, "Top - Middle")
+    annotate_dmr_table_to_meth_level(axes[0], dmr_data)
+    plot_gene_methylation_level_diff(axes[1], top_middle, "Top – Middle brine")
+    plot_gene_methylation_level_diff(axes[2], top_bottom, "Top – Bottom brine")
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
