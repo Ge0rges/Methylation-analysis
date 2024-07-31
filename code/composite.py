@@ -5,7 +5,6 @@ from utilities.utils import normalize_data_for_methylation_level, add_gene_calle
     add_functional_annotations_polars, readable_methylation_name, readable_sample_name
 from scipy.stats import rankdata
 
-
 def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="plots"):
     """
     Run the DMR analysis for a specific genome_name, DMR type, and function_source.
@@ -50,7 +49,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
         start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
         end=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
     )
-
+    
     # Filter samples
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).lazy()
 
@@ -90,10 +89,11 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     plot_mean_gene_methylation_level(axes[0][0], mean_data)
     plot_gene_methylation_level_diff(axes[1][0], top_middle, "Top – Middle")
     plot_gene_methylation_level_diff(axes[2][0], top_bottom, "Top – Bottom")
-
-    annotate_dmr_table_to_meth_level(axes[0][0], axes[0][1], dmr_data, True, function_source)
-    annotate_dmr_table_to_meth_level(axes[1][0], None, dmr_data, False, function_source)
-    annotate_dmr_table_to_meth_level(axes[2][0], None, dmr_data, False, function_source)
+    
+    if not dmr_data.is_empty():
+        annotate_dmr_table_to_meth_level(axes[0][0], axes[0][1], dmr_data, True, function_source)
+        annotate_dmr_table_to_meth_level(axes[1][0], None, dmr_data, False, function_source)
+        annotate_dmr_table_to_meth_level(axes[2][0], None, dmr_data, False, function_source)
 
     axes[0][1].axis("off")
     axes[1][1].axis("off")
