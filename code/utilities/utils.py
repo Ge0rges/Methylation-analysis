@@ -162,6 +162,10 @@ def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, methylat
         coverages[key] = value[0]
         if value == 0 and key in df.select("sample").unique():
             print(f"Coverage for {key} is 0")
+    
+    if "total_methylation" in methylation_types:
+        methylation_types.remove("total_methylation")
+        df = df.with_columns(pl.col(methylation_types) / (pl.col('sample').replace_strict(coverages).mul(len(methylation_types))))
 
     df = df.with_columns(pl.col(methylation_types) / pl.col('sample').replace_strict(coverages))
 

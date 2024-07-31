@@ -185,12 +185,11 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composi
 
 
 def plot_mean_gene_methylation_level(ax, df):
-    plot = sns.lineplot(data=df, x="gene_id", y="total_methylation", hue="sample", ax=ax, palette=sns.color_palette("ch:s=.25,rot=-.25,reverse=1,light=0.6,dark=0.8", n_colors=df.get_column("sample").n_unique()))
-
+    plot = sns.lineplot(data=df, x="gene_id", y="total_methylation", hue="sample", ax=ax, palette=["#235284", "#6abce2","#3982b8"])
     ax.set_title(f"Mean methylation level by brine horizon", fontsize=20)
     plot.legend().set_title("Sample")
 
-    ax.set(xlabel='Gene ID', ylabel=f"Coverage normalized mean methylation fraction")
+    ax.set(xlabel='Gene ID', ylabel=f"Normalized methylation fraction")
 
     ax.set_ylim(0, 1)
 
@@ -203,7 +202,7 @@ def plot_mean_gene_methylation_level(ax, df):
 
 
 def plot_gene_methylation_level_diff(ax, df, diff_string):
-    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="methylation_type", style="methylation_type", ax=ax, palette=sns.color_palette("colorblind"), alpha=0.8)
+    plot = sns.lineplot(data=df, x="gene_id", y="methylation_level", hue="methylation_type", style="methylation_type", ax=ax, palette=sns.color_palette("colorblind", n_colors=df.get_column("methylation_type").n_unique()), alpha=0.5)
 
     ax.set_title(f"Mean methylation difference by methylation type: {diff_string}", fontsize=20)
     plot.legend().set_title("Methylation type")
@@ -244,6 +243,9 @@ def annotate_dmr_table_to_meth_level(ax, dmr_data):
         for line in ax.lines:
             x_data = line.get_xdata()
             y_data = line.get_ydata()
+            
+            if len(x_data) == 0:
+                continue
 
             # Find the closest index to the desired x value
             idx = (np.abs(x_data - gene)).argmin()
@@ -256,14 +258,18 @@ def annotate_dmr_table_to_meth_level(ax, dmr_data):
 
     # Creating a table to show function and score
     table_data = dmr_data.select('function', "score").to_numpy()
+    for i in table_data:
+        i[0] = truncate_label(i[0], max_length=35, max_lines=3)
+
     table = matplotlib.table.table(ax=ax,
                   cellText=table_data,
                   colLabels=['Function', 'Score'],
                   rowLabels=[str(i + 1) for i in range(len(genes))],
-                  loc='top',
+                  loc='upper left',
                   cellLoc='center',
-                  colColours=["palegreen"] * 2,
-                  rowColours=["lightblue"] * len(genes))
+                  colColours=["lightblue"] * 2,
+                  rowColours=["black"] * len(genes),
+                  colWidths= [0.1]*3)
 
 
     ax.add_table(table)
