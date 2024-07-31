@@ -270,7 +270,7 @@ def annotate_dmr_table_to_meth_level(annotate_ax, table_ax, dmr_data, show_table
             texts.append(annotate_ax.text(gene, max_y, str(i + 1), fontsize=12, color='red'))
 
     # Add texts
-    _, _ = adjust_text(texts, arrowprops=dict(arrowstyle="-", color='r'), ax=annotate_ax, min_arrow_len=0)
+    adjust_text(texts, arrowprops=dict(arrowstyle="-", color='r'), ax=annotate_ax, min_arrow_len=0)
 
     # Creating a table to show function and score
     if show_table:
