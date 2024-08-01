@@ -49,7 +49,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
         start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
         end=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
     )
-    
+
     # Filter samples
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).lazy()
 
@@ -58,7 +58,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
     # Annonate methyl data and normalize it
     methyl_data = add_gene_caller_id(methyl_data, genes, True)
-    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, methylation_types + ["total_methylation"], ("agg" in coverage)).collect()
+    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).collect(streaming=True)
 
     # Add a gene_id column, which is just a map from gene_callers_id
     all_ids = dmr_data.get_column("gene_callers_id").to_list() + methyl_data.get_column("gene_callers_id").to_list()
@@ -89,7 +89,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     plot_mean_gene_methylation_level(axes[0][0], mean_data)
     plot_gene_methylation_level_diff(axes[1][0], top_middle, "Top – Middle")
     plot_gene_methylation_level_diff(axes[2][0], top_bottom, "Top – Bottom")
-    
+
     if not dmr_data.is_empty():
         annotate_dmr_table_to_meth_level(axes[0][0], axes[0][1], dmr_data, True, function_source)
         annotate_dmr_table_to_meth_level(axes[1][0], None, dmr_data, False, function_source)

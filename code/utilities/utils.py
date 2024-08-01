@@ -151,7 +151,7 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> p
     return df
 
 
-def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, methylation_types, aggregate=False) -> pl.LazyFrame:
+def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, aggregate=False) -> pl.LazyFrame:
     if aggregate:
         df = df.with_columns(pl.col('sample').replace(barcode_sample_map))
 
@@ -163,14 +163,13 @@ def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, methylat
         if value == 0 and key in df.select("sample").unique():
             print(f"Coverage for {key} is 0")
 
-    df = df.collect()
-    if "total_methylation" in methylation_types:
-        methylation_types.remove("total_methylation")
+    methylation_types = list(readable_methylation_name.keys())
+    if "total_methylation" in df.collect_schema().names():
         df = df.with_columns(pl.col("total_methylation") / (pl.col('sample').replace_strict(coverages).mul(len(methylation_types))))
 
     df = df.with_columns(pl.col(methylation_types) / pl.col('sample').replace_strict(coverages))
 
-    return df.lazy()
+    return df
 
 
 def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str, genome_name: str) -> pl.LazyFrame:
