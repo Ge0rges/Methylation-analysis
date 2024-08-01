@@ -129,6 +129,9 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> p
     assert all(g1 in b for g1 in a), "Not all contigs are in this genome_name."
     del a, b
 
+    # Get rid of any contigs not in df to limit join size
+    genes = genes.filter(pl.col("contig").is_in(df.select("contig").unique().collect().get_column("contig").to_list()))
+
     # Merge merged_df with ranges based on conditions
     og_columns = df.collect_schema().names()
     df = df.join(genes, on='contig')
