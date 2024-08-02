@@ -24,10 +24,11 @@ def run_analysis(genome_name, dmr_type, data_dir, fig_savepath="plots"):
 
     # Keep two samples and try to run the logistic regression
     combined_methyl_data = combined_methyl_data.with_columns(pl.col("sample").replace(barcode_sample_map, default=pl.first()))
-    combined_methyl_data = combined_methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+    sample_filter = ["top", "bottom"]
+    combined_methyl_data = combined_methyl_data.filter(pl.col("sample").is_in(["top", "bottom"]))
 
     # Run the Willis DMR test on each group of same "name" rows
-    groups = combined_methyl_data.filter(pl.len().over("name") == 9).group_by(["name"])
+    groups = combined_methyl_data.filter(pl.len().over("name") == len(sample_filter)*3).group_by(["name"])
     for name, group in groups:
         result = willis_dmr_test_r(group)
         print(result)

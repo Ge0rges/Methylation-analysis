@@ -134,7 +134,6 @@ def r_rao_score_test(df, p_value_threshold=0.05):
 
 
 def willis_dmr_test_r(combined_methyl_data):
-    import rpy2.robjects as robjects
     from rpy2.robjects import numpy2ri
     from rpy2.robjects import default_converter
     from rpy2.robjects.packages import importr
@@ -146,9 +145,6 @@ def willis_dmr_test_r(combined_methyl_data):
     assert X.shape[0] == Y.shape[0] == combined_methyl_data.shape[
         0], "X, Y and merged_df have different number of rows"
 
-    # If there are any empty cols in Y remove them
-    Y = Y[:, Y.any(0)]
-
     print(X)
     print(Y)
     # Call R function
@@ -156,7 +152,7 @@ def willis_dmr_test_r(combined_methyl_data):
     numpy2ri.activate()
     np_cv_rules = default_converter + numpy2ri.converter
     with np_cv_rules.context():
-        result = raobust.multinom_test(X, Y, strong=True, j=False, penalty=False)
+        result = raobust.multinom_test(X, Y, strong=True, j=False, penalty=False, pseudo_inv=True)
     return result
 
 
