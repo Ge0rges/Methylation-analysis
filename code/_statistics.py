@@ -137,16 +137,14 @@ def willis_dmr_test_r(combined_methyl_data):
     from rpy2.robjects import numpy2ri
     from rpy2.robjects import default_converter
     from rpy2.robjects.packages import importr
-
-    Y = combined_methyl_data.drop(columns=["name", "sample"]).to_numpy()
+    
+    Y = combined_methyl_data.drop("name", "sample").to_numpy()
     X = pd.get_dummies(combined_methyl_data["sample"], dtype=int).to_numpy()
 
     # Check X, Y and merged_df have the same number of rows
     assert X.shape[0] == Y.shape[0] == combined_methyl_data.shape[
         0], "X, Y and merged_df have different number of rows"
-
-    print(X)
-    print(Y)
+    
     # Call R function
     raobust = importr('raoBust')
     numpy2ri.activate()
