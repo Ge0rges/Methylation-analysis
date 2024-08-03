@@ -1,160 +1,77 @@
-import math
 import numpy as np
+import polars as pl
 import pandas as pd
 import scipy.stats as stats
 from scipy.optimize import minimize
-import statsmodels.api as sm
+from collections import OrderedDict
+from rpy2.robjects import numpy2ri
+from rpy2.robjects import default_converter
+from rpy2.robjects.packages import importr
 
-def logistic_regression_pvalue(df, p_value_threshold=0.05):
+
+def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | bool = False, p_threshold: float = 0.05) -> pl.DataFrame:
     """
-    Multinomial Logistic Regression for Methylation Types Analysis
-
-    :param df:
-    :type df:
-    :return:
-    :rtype:
-    """
-    # Convert strings to codes
-    df.iloc[:, 0] = df['name'].astype('category').cat.codes
-    df.iloc[:, -1] = df['sample'].astype('category').cat.codes
-
-    df['sample'] = df['sample'].astype(int)
-    df['name'] = df['name'].astype(int)
-
-    # assert that all rows have at least 1 methylation of any type
-    assert all(df.iloc[:, 1:-1].sum(axis=1) > 0), "All rows must have at least 1 methylation of any type"
-    assert df["sample"].nunique() == 2, "Only pairwise comparisons supported"
-
-    # Convert each count to own row as in https://stackoverflow.com/questions/78584847/convert-count-row-to-one-hot-encoding-efficiently/78584909
-    num_cols = df.columns[1:-1]
-    a = df[num_cols].to_numpy()
-    idx = np.repeat(np.arange(a.shape[0]), a.sum(1))
-    cols = np.repeat(np.tile(np.arange(a.shape[1]), a.shape[0]), a.flat)
-    b = np.zeros((len(idx), len(num_cols)), dtype=int)
-    b[np.arange(len(idx)), cols] = 1
-
-    df = df.iloc[idx]
-    df.loc[:, num_cols] = b
-
-    del a
-    del b
-    del cols
-    del idx
-
-    # Make each sample a column
-    df = pd.get_dummies(df, columns=['sample'], prefix='sample', dtype=int)
-
-    # Get features
-    X = pd.concat([df['name'], df['sample_0'], df['sample_1']], axis=1)
-    X_restricted = pd.concat([df['name'], df['sample_0']], axis=1)
-    y = df.iloc[:, 1:-2]
-
-    del df
-
-    # Add constant for intercept
-    X = sm.add_constant(X)
-    X_restricted = sm.add_constant(X_restricted)
-
-    # Fit the logistic regression models
-    model = sm.MNLogit(y, X).fit()
-    restricted_model = sm.MNLogit(y, X_restricted).fit()
-
-    # Get the rao score
-    params_r = np.concatenate((restricted_model.params.to_numpy(), np.zeros((1, X.shape[1]-1))), axis=0).ravel("f")
-    score_test_result = model.score_test(params_constrained=params_r, k_constraints=X.shape[1]-1)
-
-    # Make the restriction matrix
-    num_classes = y.shape[1] - 1
-    num_params_per_class = X.shape[1]
-
-    R = np.zeros((num_classes, num_classes*num_params_per_class))
-    for i in range(num_classes):
-        R[i, i * num_params_per_class + 3] = 1
-
-    wald_test = model.wald_test(R)
-
-    print(f"Difference between p_values {score_test_result[1] - wald_test.pvalue}")
-    assert wald_test.pvalue < score_test_result[1]
-
-    return score_test_result[1] < p_value_threshold
-
-
-def r_rao_score_test(df, p_value_threshold=0.05):
-    import rpy2.robjects as robjects
-    from rpy2.robjects import pandas2ri
-
-    # Ensure the 'sample' column is treated as a categorical variable
-    df.loc[:, 'sample'] = df['sample'].astype('category').cat.codes
-    df.loc[:, 'name'] = df['name'].astype('category').cat.codes
-
-    df = df.astype(int)
-
-    # Define the R function for fitting the model and performing the Rao score test
-    r_script = """
-    function(merged_df) {
-        library(VGAM)
-        library(data.table)
-        
-        # Convert data frame to data table for faster processing
-        merged_df <- as.data.table(merged_df)
-        
-        # Ensure 'sample' is a factor
-        merged_df[, sample := as.factor(sample)]
-        
-        # Fit the multinomial logit model in parallel
-        print("Starting regression...")
-        fit <- vglm(cbind(`21839`, a, m, Ncanonical) ~ sample, family = multinomial, data = merged_df, parallel = TRUE)
-
-        # Extracting the score vector and p values
-        # print("Getting score...")
-        # score_vector <- score.stat(fit)
-        print("Getting p values...")
-        p_values <- summary(fit, score0 = TRUE)@coef3[, "Pr(>|z|)"]
-        print("Done")
-        
-        # Print p-values
-        return(p_values)
-    }
+    Get the Rao score for each gene in the dataframe and keep only those that are statistically significant
+    :param df: The methylation data with gene_callers_id
+    :type df: pl.DataFrame
+    :param samples: Samples is a list of sample strings to filter the df by first.
+    :type samples: list[str]
+    :param baseline: If baseline is false, do a string test, otherwise do a weak test with baseline as the index value of the baseline sample in samples to test agaisnt.
+    :type baseline: str | bool
+    :param p_threshold: The p-value threshold to use for the test.
+    :type p_threshold: float
+    :return: The dataframe with the Rao score added as a column.
+    :rtype: pl.DataFrame
     """
 
-    # Convert the pandas DataFrame to R DataFrame
-    with (robjects.default_converter + pandas2ri.converter).context():
-        r_combined_df = robjects.conversion.get_conversion().py2rpy(df)
+    assert len(samples) > 1, "Cannot run rao score on 1 sample"
+    assert "gene_callers_id" in df.columns, "gene_callers_id column not found in the dataframe"
 
-        # Create the R function
-        r_function = robjects.r(r_script)
+    # Run the Willis raoBust test on each gene rows
+    score_dict = {}
+    groups = df.filter(pl.col("sample").is_in(samples)).group_by("gene_callers_id")
+    for name, group in groups:
+        if group.get_column("sample").n_unique() == len(samples):  # We don't want there to be fewer than the samples specified
+            result = _willis_dmr_test_r(group.drop("gene_callers_id"), strong=(type(baseline) is bool), j=baseline)
+            if result["p"] < p_threshold:
+                score_dict[group.get_column("gene_callers_id").head(1)] = result["score_col"]
 
-        # Call the R function with the combined DataFrame
-        result = r_function(r_combined_df)
+    # Add the score and comparison to the df
+    comp_str = samples.join("_vs_") if type(baseline) is bool else f"{samples[baseline]}_vs_{samples.join('_')}"
+    df_t = df.with_columns(pl.col("gene_callers_id").replace_strict(score_dict, default=np.NAN).alias("score_col"),
+                         pl.lit(comp_str).alias("comparison"))
+    df = df_t.vstack(df) if "score" in df.columns else df_t
 
-        # Extract results
-        p_value = result
-
-    return all(p_value < p_value_threshold)
+    return df
 
 
-def willis_dmr_test_r(combined_methyl_data):
-    from rpy2.robjects import numpy2ri
-    from rpy2.robjects import default_converter
-    from rpy2.robjects.packages import importr
-    
-    Y = combined_methyl_data.drop("name", "sample").to_numpy()
-    X = pd.get_dummies(combined_methyl_data["sample"], dtype=int).to_numpy()
+def _willis_dmr_test_r(df: pl.DataFrame, strong: bool = True, j: str | bool = False) -> OrderedDict:
+    """
+    Run the raoBust multinomail test.
 
-    # Check X, Y and merged_df have the same number of rows
-    assert X.shape[0] == Y.shape[0] == combined_methyl_data.shape[
-        0], "X, Y and merged_df have different number of rows"
-    
+    :param df: The dataframe with the methylation data with the columns: name, sample, and methylation types.
+    :type df: pl.DataFrame
+    :return: The result dictionnarty from R.
+    :rtype: OrderedDict
+    """
+    Y = df.drop("name", "sample").to_numpy()
+    X_dummies = pd.get_dummies(df["sample"], dtype=int)
+    X = X_dummies.to_numpy()
+
+    # Find the column for j
+    if type(j) is str:
+        j = X_dummies.columns.get_loc(j)
+
     # Call R function
     raobust = importr('raoBust')
     numpy2ri.activate()
     np_cv_rules = default_converter + numpy2ri.converter
     with np_cv_rules.context():
-        result = raobust.multinom_test(X, Y, strong=True, j=False, penalty=False, pseudo_inv=True)
-    return result
+        result = raobust.multinom_test(X, Y, strong=strong, j=j, penalty=False, pseudo_inv=True)
+    return OrderedDict(result)
 
 
-def willis_dmr_test(combined_methyl_data):
+def _willis_dmr_test(combined_methyl_data):
     """
     Conduct a differential methylation hypothesis test.
 
@@ -167,7 +84,7 @@ def willis_dmr_test(combined_methyl_data):
     """
 
     Y = combined_methyl_data.drop(columns=["name", "sample"])
-    X = pd.get_dummies(combined_methyl_data["sample"], dtype=int)
+    X = pl.get_dummies(combined_methyl_data["sample"], dtype=int)
 
     X, Y = np.array(X, dtype=float).T, np.array(Y, dtype=float)
 
@@ -237,7 +154,7 @@ def willis_dmr_test(combined_methyl_data):
                 Ni = np.sum(Y[i])
                 X_prime = np.hstack([1, X.T[i]]).T
                 submatrix += (Y[i, j] - Ni * P_ij(theta_hat, i, j)) * (
-                            Y[i, k] - Ni * P_ij(theta_hat, i, k)) * X_prime.T @ X_prime
+                        Y[i, k] - Ni * P_ij(theta_hat, i, k)) * X_prime.T @ X_prime
 
             row_start = j * (p + 1)
             row_end = (j + 1) * (p + 1)
@@ -324,54 +241,3 @@ def modkit_llr(modkit_score, num_tests, p_value_threshold=0.05):
     raw_p_value = stats.chi2.sf(test_statistic, 2)
     corrected_p_value = min(raw_p_value * num_tests, 1.0)
     return corrected_p_value < p_value_threshold
-
-
-def pearson_chi_squared(df, p_value_threshold=0.05):
-    # Perform a Pearson's Chi-squared test
-    # https://online.stat.psu.edu/stat504/book/export/html/720
-    # https://en.wikipedia.org/wiki/Pearson%27s_chi-squared_test
-    df = df.drop(["sample"])
-
-    return stats.chi2_contingency(df.collect()).pvalue < p_value_threshold
-
-
-def fisher_exact_test(df, p_value_threshold=0.05):
-    # Perform a Fischer's exact test
-    # https://en.wikipedia.org/wiki/Fisher%27s_exact_test
-    # https://github.com/scipy/scipy/issues/7099
-    def untab(table):
-        r, c = table.shape
-        x = []
-        y = []
-        for i in range(r):
-            for j in range(c):
-                x += ([i] * table[i, j])
-                y += ([j] * table[i, j])
-        return np.asarray(x), np.asarray(y)
-
-    def statistic(x, y):
-        table = stats.contingency.crosstab(x, y)[1]
-        return stats.contingency.chi2_contingency(table).statistic
-
-    # Check that the data is in the correct format
-    assert df['name'].nunique == 1, "Fischer exact test is designed for one gene in many samples"
-
-    df.loc[:, 'name'] = df['name'].astype('category').cat.codes
-
-    observed = np.asarray(df.drop(columns="sample"))
-
-    rowsums, colsums = stats.contingency.margins(observed)
-    rng = np.random.default_rng(2395834589245)
-    X = stats.random_table(rowsums.ravel(), colsums.ravel(), seed=rng)
-
-    n_mc_samples = 9999
-    null_distribution = []
-    for i in range(n_mc_samples):
-        table = X.rvs()
-        null_distribution.append(statistic(table))
-    null_distribution = np.asarray(null_distribution)
-
-    n_extreme = np.sum(null_distribution >= statistic(observed))
-    pvalue = (n_extreme + 1) / (n_mc_samples + 1)
-
-    return pvalue < p_value_threshold
