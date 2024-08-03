@@ -116,7 +116,7 @@ def get_dmrs_from_file_polars(path) -> (pl.LazyFrame, bool):
     sample_a_name, sample_b_name = os.path.basename(path).replace('.bed', '').split('_')
     sample_a_name = utils.barcode_sample_map[sample_a_name]
     sample_b_name = utils.barcode_sample_map[sample_b_name]
-    dmrs = dmrs.with_columns(comparison=pl.lit(f"{sample_a_name}_VS_{sample_b_name}"))
+    dmrs = dmrs.with_columns(comparison=pl.lit(f"{sample_a_name}_vs_{sample_b_name}"))
 
     return dmrs, False
 
