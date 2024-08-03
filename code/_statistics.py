@@ -2,12 +2,13 @@ import numpy as np
 import polars as pl
 import pandas as pd
 import scipy.stats as stats
+import polars.selectors as cs
 from scipy.optimize import minimize
 from collections import OrderedDict
 from rpy2.robjects import numpy2ri
 from rpy2.robjects import default_converter
 from rpy2.robjects.packages import importr
-
+from utilities.utils import readable_methylation_name
 
 def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | bool = False, p_threshold: float = 0.05) -> pl.DataFrame:
     """
@@ -27,18 +28,20 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
     assert len(samples) > 1, "Cannot run rao score on 1 sample"
     assert "gene_callers_id" in df.columns, "gene_callers_id column not found in the dataframe"
 
+
     # Run the Willis raoBust test on each gene rows
     score_dict = {}
     groups = df.filter(pl.col("sample").is_in(samples)).group_by("gene_callers_id")
     for name, group in groups:
+        group = group.select("sample", "gene_callers_id", *list(readable_methylation_name.keys())).filter(pl.all_horizontal(cs.float().is_not_nan()))
         if group.get_column("sample").n_unique() == len(samples):  # We don't want there to be fewer than the samples specified
             result = _willis_dmr_test_r(group.drop("gene_callers_id"), strong=(type(baseline) is bool), j=baseline)
             if result["p"] < p_threshold:
-                score_dict[group.get_column("gene_callers_id").head(1)] = result["score_col"]
+                score_dict[group.get_column("gene_callers_id").item(0)] = result["test_stat"][0]
 
     # Add the score and comparison to the df
-    comp_str = samples.join("_vs_") if type(baseline) is bool else f"{samples[baseline]}_vs_{samples.join('_')}"
-    df_t = df.with_columns(pl.col("gene_callers_id").replace_strict(score_dict, default=np.NAN).alias("score_col"),
+    comp_str = "_vs_".join(samples) if type(baseline) is bool else f"{baseline}_vs_{'_'.join(samples)}"
+    df_t = df.with_columns(pl.col("gene_callers_id").replace_strict(score_dict, default=np.NAN).alias("rao_score"),
                          pl.lit(comp_str).alias("comparison"))
     df = df_t.vstack(df) if "score" in df.columns else df_t
 
@@ -54,7 +57,7 @@ def _willis_dmr_test_r(df: pl.DataFrame, strong: bool = True, j: str | bool = Fa
     :return: The result dictionnarty from R.
     :rtype: OrderedDict
     """
-    Y = df.drop("name", "sample").to_numpy()
+    Y = df.drop("sample").to_numpy()
     X_dummies = pd.get_dummies(df["sample"], dtype=int)
     X = X_dummies.to_numpy()
 

@@ -249,6 +249,9 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df, fun
     # Adding annotations for each gene_id
     texts = []
     table_data = df.filter(pl.col("comparison").eq(comparison)).select('function', score_col).unique().sort(by=score_col, descending=True).to_numpy()
+    
+    if len(table_data) == 0:
+        return
 
     for i, row in enumerate(table_data):
         genes = df.filter(pl.col('function').eq(row[0])).get_column('gene_id').to_list()
@@ -289,4 +292,6 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df, fun
         table.auto_set_font_size(False)
         table.set_fontsize(12)
         table.scale(2,  2.3)
-        table_ax.set_title(f"Top {len(table_data)} differentially methylated {function_source.replace('_', ' ')} functions between {comparison}", fontsize=20)
+        
+        comp_str = comparison.replace("_vs_", " and ").replace("_", ", ")
+        table_ax.set_title(f"Top {len(table_data)} differentially methylated {function_source.replace('_', ' ')} \n functions between {comp_str}", fontsize=20)

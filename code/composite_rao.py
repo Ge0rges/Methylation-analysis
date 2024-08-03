@@ -97,4 +97,4 @@ if __name__ == "__main__":
         if genome == ".DS_Store":
             continue
 
-        run_dmr_analysis(genome, "5_agg", data_dir, fig_savepath="../plots/plots_5_agg")
+        run_dmr_analysis(genome, "5_agg", data_dir, fig_savepath="../plots/plots_5")
