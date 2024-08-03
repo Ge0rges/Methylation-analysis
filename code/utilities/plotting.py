@@ -230,7 +230,7 @@ def annotate_heatmap_arrow_to_meth_level(fig, ax_meth, ax_heatmap, composite_dat
     labels = [x.get_text() for x in ax_heatmap.get_xticklabels()]
 
     for i, label in enumerate(labels):
-        # Find the label in dmr_data and aggregate gene_ids
+        # Find the label in df and aggregate gene_ids
         label_data = composite_data.filter(pl.col('function').eq(label))
 
         # Draw connection for each gene_id
@@ -245,13 +245,13 @@ def annotate_heatmap_arrow_to_meth_level(fig, ax_meth, ax_heatmap, composite_dat
             fig.add_artist(arrow)
 
 
-def annotate_dmr_table_to_meth_level(annotate_ax, table_ax, dmr_data, show_table, function_source):
+def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df, function_source, score_col: str, comparison: str):
     # Adding annotations for each gene_id
     texts = []
-    table_data = dmr_data.select('function', "score").unique().sort(by="score", descending=True).to_numpy()
+    table_data = df.filter(pl.col("comparison").eq(comparison)).select('function', score_col).unique().sort(by=score_col, descending=True).to_numpy()
 
     for i, row in enumerate(table_data):
-        genes = dmr_data.filter(pl.col('function').eq(row[0])).get_column('gene_id').to_list()
+        genes = df.filter(pl.col('function').eq(row[0])).get_column('gene_id').to_list()
         for gene in genes:
             max_y = -np.inf
             for line in annotate_ax.lines:
@@ -273,13 +273,13 @@ def annotate_dmr_table_to_meth_level(annotate_ax, table_ax, dmr_data, show_table
     adjust_text(texts, arrowprops=dict(arrowstyle="-", color='r'), ax=annotate_ax, min_arrow_len=0)
 
     # Creating a table to show function and score
-    if show_table:
+    if table_ax is not None:
         for i in table_data:
             i[0] = truncate_label(i[0], max_length=50, max_lines=2)
             i[1] = f"{i[1]:.1f}"
 
         table = table_ax.table(cellText=table_data,
-                               colLabels=[function_source.replace("_", " "), 'Modkit difference score'],
+                               colLabels=[function_source.replace("_", " "), f"{'Rao' if score_col else 'Modkit'} score"],
                                rowLabels=[str(i + 1) for i in range(len(table_data))],
                                loc='center',
                                cellLoc='center',
@@ -289,3 +289,4 @@ def annotate_dmr_table_to_meth_level(annotate_ax, table_ax, dmr_data, show_table
         table.auto_set_font_size(False)
         table.set_fontsize(12)
         table.scale(2,  2.3)
+        table_ax.set_title(f"Top {len(table_data)} differentially methylated {function_source.replace('_', ' ')} functions between {comparison}", fontsize=20)

@@ -5,6 +5,7 @@ from utilities.utils import normalize_data_for_methylation_level, add_gene_calle
     add_functional_annotations_polars, readable_methylation_name, readable_sample_name
 from scipy.stats import rankdata
 
+
 def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="plots"):
     """
     Run the DMR analysis for a specific genome_name, DMR type, and function_source.
@@ -32,7 +33,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     function_source = "KEGG_Module"
     dmr_data = dmr_data.filter(pl.col("test_result") &
                                pl.col("source").eq(function_source) &
-                               pl.col("comparison").is_in(["top_VS_bottom"]))
+                               pl.col("comparison").is_in(["top_VS_bottom", "top_VS_middle"]))
     dmr_data = dmr_data.group_by(['function', 'comparison']).agg(pl.col('score').mean(), pl.col("gene_callers_id")).top_k(10, by="score")
     dmr_data = dmr_data.explode("gene_callers_id")
 
@@ -91,9 +92,8 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     plot_gene_methylation_level_diff(axes[2][0], top_bottom, "Top – Bottom")
 
     if not dmr_data.is_empty():
-        annotate_dmr_table_to_meth_level(axes[0][0], axes[0][1], dmr_data, True, function_source)
-        annotate_dmr_table_to_meth_level(axes[1][0], None, dmr_data, False, function_source)
-        annotate_dmr_table_to_meth_level(axes[2][0], None, dmr_data, False, function_source)
+        annotate_meth_level_with_score_function_table(axes[1][0], axes[1][1], dmr_data, function_source, score_col="score", comparison="top_VS_middle")
+        annotate_meth_level_with_score_function_table(axes[2][0], axes[2][1], dmr_data, function_source, score_col="score", comparison="top_VS_bottom")
 
     axes[0][1].axis("off")
     axes[1][1].axis("off")
@@ -102,7 +102,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
     fig.suptitle(f"Mean gene methylation overview for {cleaned_genome_name}", fontsize=26)
-    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite.svg", format='svg')
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite_modkit.svg", format='svg')
 
     print(f"Done plotting composite for {genome_name}")
     return
