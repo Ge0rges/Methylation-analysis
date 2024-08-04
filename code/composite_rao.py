@@ -1,5 +1,3 @@
-import numpy as np
-
 from utilities.plotting import *
 from _statistics import add_rao_score_by_gene
 from utilities.data_loading import *
@@ -18,7 +16,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
-    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations=False).collect().select("name", "sample", *methylation_types)
+    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir).select("name", "sample", *methylation_types)
     methyl_data = methyl_data.with_columns(
         contig=pl.col('name').str.split(by='|').list.get(0),
         strand=pl.col('name').str.split(by='|').list.get(1),
@@ -28,7 +26,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Filter samples
     methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
-    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).lazy()
+    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Create the total methylation column
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))

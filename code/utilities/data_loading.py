@@ -26,7 +26,7 @@ def get_pileup_polars(path) -> pl.LazyFrame:
     return pileup
 
 
-def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_locations) -> pl.LazyFrame:
+def load_combined_methyl_data_for_genome_polars(genome_name, data_dir) -> pl.LazyFrame:
     """
     Load the methyl data from every sample into a matrix.
 
@@ -45,9 +45,9 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_lo
 
     if len(bed_files) == 0:
         print(f"No pileup bed files found for {data_dir}/{genome_name}")
-        return pl.LazyFrame()
+        return None
 
-    combined_methyl_data = pl.LazyFrame()
+    dfs = []
     for i, bed_file in enumerate(bed_files):
         methyl_data = get_pileup_polars(bed_file)
         methyl_data = utils.reshape_pileup_to_matrix_polars(methyl_data)
@@ -56,13 +56,10 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, common_lo
         sample_name = os.path.basename(bed_file).split(".")[0]
         methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
 
-        # Keep only common locations
-        if common_locations and i > 0:
-            combined_methyl_data = pl.join(combined_methyl_data, methyl_data, on="name", how="inner")
-        else:
-            combined_methyl_data = pl.concat([combined_methyl_data, methyl_data])
+        dfs.append(methyl_data)
 
-    return combined_methyl_data
+    # Concat everything together
+    return pl.concat(dfs)
 
 
 def get_genes_polars(data_dir, genome_name, drop_extras=True) -> pl.LazyFrame:
@@ -105,7 +102,7 @@ def get_dmrs_from_file_polars(path) -> (pl.LazyFrame, bool):
                                'samplea_counts': str, 'sampleb_counts': str,
                                'samplea_fractions': str, 'sampleb_fractions': str,
                                'samplea_percent_modified': float, 'sampleb_percent_modified': float})
-    
+
     except pl.exceptions.NoDataError:
         return pl.LazyFrame(), True
 
