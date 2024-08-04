@@ -220,41 +220,17 @@ def plot_gene_methylation_level_diff(ax, df, diff_string):
     ax.set_ylim(-1, 1)
 
 
-def annotate_heatmap_arrow_to_meth_level(fig, ax_meth, ax_heatmap, composite_data: pl.DataFrame):
-    # Apply truncate to composite table for search
-    composite_data = composite_data.with_columns(
-        pl.col("function").map_elements(lambda x: truncate_label(x, max_length=25, max_lines=3),
-                                        return_dtype=pl.String))
-
-    # Search each heatmap point
-    labels = [x.get_text() for x in ax_heatmap.get_xticklabels()]
-
-    for i, label in enumerate(labels):
-        # Find the label in df and aggregate gene_ids
-        label_data = composite_data.filter(pl.col('function').eq(label))
-
-        # Draw connection for each gene_id
-        for gene_id in label_data.get_column('gene_id').unique().to_list():
-            xyMeth = (gene_id, ax_meth.get_ylim()[1])
-
-            # Create the arrow
-            arrow = patches.ConnectionPatch(xyMeth, (i + 0.5, 1),
-                                            coordsA=ax_meth.transData, coordsB=ax_heatmap.transData,
-                                            axesA=ax_meth, axesB=ax_heatmap,
-                                            color='black', linewidth=1)
-            fig.add_artist(arrow)
-
-
-def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df, function_source, score_col: str, comparison: str):
+def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.DataFrame, function_source: str, score_col: str, comparison: str):
     # Adding annotations for each gene_id
     texts = []
-    table_data = df.filter(pl.col("comparison").eq(comparison)).select('function', score_col).unique().sort(by=score_col, descending=True).to_numpy()
+    df = df.filter(pl.col("comparison").eq(comparison) & pl.col(score_col).is_not_nan()).select("function", score_col, "gene_id")
+    table_data = df.select('function', score_col).unique().sort(by=score_col, descending=True).head(10).to_numpy()
     
     if len(table_data) == 0:
         return
 
     for i, row in enumerate(table_data):
-        genes = df.filter(pl.col('function').eq(row[0])).get_column('gene_id').to_list()
+        genes = df.filter(pl.col('function').eq(row[0])).get_column("gene_id").unique().to_list()
         for gene in genes:
             max_y = -np.inf
             for line in annotate_ax.lines:
@@ -294,4 +270,4 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df, fun
         table.scale(2,  2.3)
         
         comp_str = comparison.replace("_vs_", " and ").replace("_", ", ")
-        table_ax.set_title(f"Top {len(table_data)} differentially methylated {function_source.replace('_', ' ')} \n functions between {comp_str}", fontsize=20)
+        table_ax.set_title(f"Top {len(table_data)} differentially methylated {function_source.replace('_', ' ')} \n functions between {comp_str}", fontsize=18)

@@ -27,8 +27,7 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
 
     assert len(samples) > 1, "Cannot run rao score on 1 sample"
     assert "gene_callers_id" in df.columns, "gene_callers_id column not found in the dataframe"
-
-
+    
     # Run the Willis raoBust test on each gene rows
     score_dict = {}
     groups = df.filter(pl.col("sample").is_in(samples)).group_by("gene_callers_id")
@@ -36,14 +35,19 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
         group = group.select("sample", "gene_callers_id", *list(readable_methylation_name.keys())).filter(pl.all_horizontal(cs.float().is_not_nan()))
         if group.get_column("sample").n_unique() == len(samples):  # We don't want there to be fewer than the samples specified
             result = _willis_dmr_test_r(group.drop("gene_callers_id"), strong=(type(baseline) is bool), j=baseline)
-            if result["p"] < p_threshold:
+            if result is not None and result["p"] < p_threshold:
                 score_dict[group.get_column("gene_callers_id").item(0)] = result["test_stat"][0]
 
+    # Make the comparison string
+    comp_str = "_vs_".join(samples) 
+    if type(baseline) is not bool:
+        samples.remove(baseline)
+        comp_str = f"{baseline}_vs_{'_'.join(samples)}"
+
     # Add the score and comparison to the df
-    comp_str = "_vs_".join(samples) if type(baseline) is bool else f"{baseline}_vs_{'_'.join(samples)}"
     df_t = df.with_columns(pl.col("gene_callers_id").replace_strict(score_dict, default=np.NAN).alias("rao_score"),
                          pl.lit(comp_str).alias("comparison"))
-    df = df_t.vstack(df) if "score" in df.columns else df_t
+    df = df_t.vstack(df) if "rao_score" in df.columns else df_t
 
     return df
 
@@ -70,7 +74,11 @@ def _willis_dmr_test_r(df: pl.DataFrame, strong: bool = True, j: str | bool = Fa
     numpy2ri.activate()
     np_cv_rules = default_converter + numpy2ri.converter
     with np_cv_rules.context():
-        result = raobust.multinom_test(X, Y, strong=strong, j=j, penalty=False, pseudo_inv=True)
+        try:
+            result = raobust.multinom_test(X, Y, strong=strong, j=j, penalty=False, pseudo_inv=True)
+        except:
+            return None
+
     return OrderedDict(result)
 
 
