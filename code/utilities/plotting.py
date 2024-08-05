@@ -122,7 +122,7 @@ def plot_heatmap(df: pl.DataFrame, ax, source, fig=None, composite=False):
 
 
 def plot_gene_methylation_level_figure(df: pl.DataFrame, genome_name, coverage, fig_savepath="plots"):
-    methylation_types = df.columns[1:4]
+    methylation_types = list(readable_methylation_name.keys())
 
     # Create figure and subplots
     n_types = len(methylation_types)

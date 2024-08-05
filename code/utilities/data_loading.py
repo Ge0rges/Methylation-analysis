@@ -155,7 +155,7 @@ def get_sample_metadata(data_dir) -> pl.DataFrame:
 
 def get_coverage(data_dir, genome_name=None, agg=False) -> pl.LazyFrame:
     """
-    Load the coverage data from a file.
+    Load the coverage data from a file. If aggregate, returns the mean coverage for the group.
     """
     coverage = pl.scan_csv(os.path.join(data_dir, "mag_eval/coverm.tsv"), separator="\t")
 
