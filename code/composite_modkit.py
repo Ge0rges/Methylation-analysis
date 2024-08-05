@@ -52,9 +52,10 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     )
 
     # Filter samples
-    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).collect().lazy()
 
     # Create the total methylation column
+    methyl_data = methyl_data.with_columns(pl.col(*methylation_types).floordiv(3))
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
 
     # Annonate methyl data and normalize it
