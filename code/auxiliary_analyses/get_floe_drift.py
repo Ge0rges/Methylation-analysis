@@ -205,7 +205,7 @@ def plot_drift_track(results_df, variables_to_plot, names, cmaps, legend_labels,
     plt.tight_layout()
 
     # Save the figure
-    plt.savefig(save_path, format="scg")
+    plt.savefig(save_path, format="svg", transparent=True)
 
 
 if __name__ == "__main__":

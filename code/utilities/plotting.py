@@ -223,9 +223,10 @@ def plot_gene_methylation_level_diff(ax, df, diff_string):
 def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.DataFrame, function_source: str, score_col: str, comparison: str):
     # Adding annotations for each gene_id
     texts = []
-    df = df.filter(pl.col("comparison").eq(comparison) & pl.col(score_col).is_not_nan()).select("function", score_col, "gene_id")
+    df = df.filter(pl.col("comparison").eq(comparison) & pl.col(score_col).is_not_nan() & pl.col("source").eq(function_source))
+    df = df.select("function", score_col, "gene_id")
     table_data = df.select('function', score_col).unique().sort(by=score_col, descending=True).head(10).to_numpy()
-    
+
     if len(table_data) == 0:
         return
 
@@ -268,6 +269,6 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.
         table.auto_set_font_size(False)
         table.set_fontsize(12)
         table.scale(2,  2.3)
-        
+
         comp_str = comparison.replace("_vs_", " and ").replace("_", ", ")
         table_ax.set_title(f"Top {len(table_data)} differentially methylated {function_source.replace('_', ' ')} \n functions between {comp_str}", fontsize=18)

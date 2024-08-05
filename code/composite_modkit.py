@@ -52,10 +52,11 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     )
 
     # Filter samples
-    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).collect().lazy()
+    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Create the total methylation column
-    methyl_data = methyl_data.with_columns(pl.col(*methylation_types).floordiv(3))
+    if "agg" in coverage:
+        methyl_data = methyl_data.with_columns(pl.col(*methylation_types).floordiv(3))
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
 
     # Annonate methyl data and normalize it
@@ -103,7 +104,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
     fig.suptitle(f"Mean gene methylation overview for {cleaned_genome_name}", fontsize=26)
-    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite_modkit.svg", format='svg')
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite_modkit.svg", format='svg', transparent=True)
 
     print(f"Done plotting composite for {genome_name}")
     return

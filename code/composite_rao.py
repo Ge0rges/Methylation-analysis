@@ -29,12 +29,14 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Create the total methylation column
+    if "agg" in coverage:
+        methyl_data = methyl_data.with_columns(pl.col(*methylation_types).floordiv(3))
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
 
     # Annotate methyl data with gene caller id, function and normalize methylation level
     methyl_data = add_gene_caller_id(methyl_data, genes, True)
     function_source = "KEGG_Module"
-    methyl_data = add_functional_annotations_polars(methyl_data, data_dir, genome_name).filter(pl.col("source").eq(function_source))
+    methyl_data = add_functional_annotations_polars(methyl_data, data_dir, genome_name)
     methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).collect(streaming=True)
 
     # Add rao score
@@ -82,7 +84,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
     fig.suptitle(f"Mean gene methylation overview for {cleaned_genome_name}", fontsize=26)
-    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite_rao.svg", format='svg')
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite_rao.svg", format='svg', transparent=True)
 
     print(f"Done plotting composite for {genome_name}")
     return

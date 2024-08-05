@@ -10,6 +10,7 @@ from rpy2.robjects import default_converter
 from rpy2.robjects.packages import importr
 from utilities.utils import readable_methylation_name
 
+
 def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | bool = False, p_threshold: float = 0.05) -> pl.DataFrame:
     """
     Get the Rao score for each gene in the dataframe and keep only those that are statistically significant
@@ -27,19 +28,19 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
 
     assert len(samples) > 1, "Cannot run rao score on 1 sample"
     assert "gene_callers_id" in df.columns, "gene_callers_id column not found in the dataframe"
-    
+
     # Run the Willis raoBust test on each gene rows
     score_dict = {}
-    groups = df.filter(pl.col("sample").is_in(samples)).group_by("gene_callers_id")
+    groups = df.filter(pl.col("sample").is_in(samples)).select("sample", "gene_callers_id", *list(readable_methylation_name.keys())).unique().group_by("gene_callers_id")
     for name, group in groups:
-        group = group.select("sample", "gene_callers_id", *list(readable_methylation_name.keys())).filter(pl.all_horizontal(cs.float().is_not_nan()))
+        group = group.filter(pl.all_horizontal(cs.float().is_not_nan()))
         if group.get_column("sample").n_unique() == len(samples):  # We don't want there to be fewer than the samples specified
             result = _willis_dmr_test_r(group.drop("gene_callers_id"), strong=(type(baseline) is bool), j=baseline)
             if result is not None and result["p"] < p_threshold:
                 score_dict[group.get_column("gene_callers_id").item(0)] = result["test_stat"][0]
 
     # Make the comparison string
-    comp_str = "_vs_".join(samples) 
+    comp_str = "_vs_".join(samples)
     if type(baseline) is not bool:
         samples.remove(baseline)
         comp_str = f"{baseline}_vs_{'_'.join(samples)}"
