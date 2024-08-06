@@ -2,7 +2,7 @@ from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
 from utilities.utils import normalize_data_for_methylation_level, add_gene_caller_id, \
-    add_functional_annotations_polars, readable_methylation_name, readable_sample_name
+    add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map
 from scipy.stats import rankdata
 
 
@@ -33,8 +33,8 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     function_source = "KEGG_Module"
     dmr_data = dmr_data.filter(pl.col("test_result") &
                                pl.col("source").eq(function_source) &
-                               pl.col("comparison").is_in(["top_VS_bottom", "top_VS_middle"]))
-    dmr_data = dmr_data.group_by(['function', 'comparison']).agg(pl.col('score').mean(), pl.col("gene_callers_id")).top_k(10, by="score")
+                               pl.col("comparison").is_in(["top_vs_bottom", "top_vs_middle"]))
+    dmr_data = dmr_data.group_by(['function', 'source', 'comparison']).agg(pl.col('score').mean(), pl.col("gene_callers_id")).top_k(10, by="score")
     dmr_data = dmr_data.explode("gene_callers_id")
 
     # Handle empty
@@ -60,7 +60,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
         methyl_data = methyl_data.with_columns(pl.col(*methylation_types).floordiv(3))
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
     methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).drop("norm_sample")
-    
+
     # Add gene caller id
     methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
 
@@ -94,9 +94,8 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     plot_gene_methylation_level_diff(axes[1][0], top_middle, "Top – Middle")
     plot_gene_methylation_level_diff(axes[2][0], top_bottom, "Top – Bottom")
 
-    if not dmr_data.is_empty():
-        annotate_meth_level_with_score_function_table(axes[1][0], axes[1][1], dmr_data, function_source, score_col="score", comparison="top_VS_middle")
-        annotate_meth_level_with_score_function_table(axes[2][0], axes[2][1], dmr_data, function_source, score_col="score", comparison="top_VS_bottom")
+    annotate_meth_level_with_score_function_table(axes[1][0], axes[1][1], dmr_data, function_source, score_col="score", comparison="top_vs_middle")
+    annotate_meth_level_with_score_function_table(axes[2][0], axes[2][1], dmr_data, function_source, score_col="score", comparison="top_vs_bottom")
 
     axes[0][1].axis("off")
     axes[1][1].axis("off")
