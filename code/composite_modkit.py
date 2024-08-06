@@ -52,16 +52,17 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     )
 
     # Filter samples
-    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+    methyl_data = methyl_data.with_columns(pl.col("sample").alias("norm_sample"), pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
+    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).collect().lazy()
 
-    # Create the total methylation column
+    # Create the total methylation column and normalize
     if "agg" in coverage:
         methyl_data = methyl_data.with_columns(pl.col(*methylation_types).floordiv(3))
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
-
-    # Annonate methyl data and normalize it
-    methyl_data = add_gene_caller_id(methyl_data, genes, True)
-    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).collect(streaming=True)
+    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).drop("norm_sample")
+    
+    # Add gene caller id
+    methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
 
     # Add a gene_id column, which is just a map from gene_callers_id
     all_ids = dmr_data.get_column("gene_callers_id").to_list() + methyl_data.get_column("gene_callers_id").to_list()
@@ -111,8 +112,8 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
 
 if __name__ == "__main__":
-    print("Running DMR analysis at coverage 5 agg")
-    coverage = "5_agg"
+    coverage = "5"
+    print(f"Running DMR analysis at coverage {coverage}")
     data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
     for genome in os.listdir(data_dir):
         if genome == ".DS_Store":

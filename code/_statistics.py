@@ -9,7 +9,7 @@ from rpy2.robjects import numpy2ri
 from rpy2.robjects import default_converter
 from rpy2.robjects.packages import importr
 from utilities.utils import readable_methylation_name
-
+import multiprocess as mp
 
 def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | bool = False, p_threshold: float = 0.05) -> pl.DataFrame:
     """
@@ -32,12 +32,18 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
     # Run the Willis raoBust test on each gene rows
     score_dict = {}
     groups = df.filter(pl.col("sample").is_in(samples)).select("sample", "gene_callers_id", *list(readable_methylation_name.keys())).unique().group_by("gene_callers_id")
-    for name, group in groups:
+    
+    def process_group(group_tuple):
+        name, group = group_tuple
         group = group.filter(pl.all_horizontal(cs.float().is_not_nan()))
         if group.get_column("sample").n_unique() == len(samples):  # We don't want there to be fewer than the samples specified
             result = _willis_dmr_test_r(group.drop("gene_callers_id"), strong=(type(baseline) is bool), j=baseline)
             if result is not None and result["p"] < p_threshold:
+                print("Good rao score")
                 score_dict[group.get_column("gene_callers_id").item(0)] = result["test_stat"][0]
+    
+    with mp.get_context("spawn").Pool(20) as p:
+        p.map(process_group, groups)
 
     # Make the comparison string
     comp_str = "_vs_".join(samples)
@@ -76,11 +82,19 @@ def _willis_dmr_test_r(df: pl.DataFrame, strong: bool = True, j: str | bool = Fa
     np_cv_rules = default_converter + numpy2ri.converter
     with np_cv_rules.context():
         try:
-            result = raobust.multinom_test(X, Y, strong=strong, j=j, penalty=False, pseudo_inv=True)
+            return OrderedDict(raobust.multinom_test(X, Y, strong=strong, j=j, penalty=False, pseudo_inv=True))
         except:
-            return None
-
-    return OrderedDict(result)
+            try:
+                print("willis called multinom_test after error")
+                return OrderedDict(raobust.multinom_test(X, Y, strong=strong, j=j, penalty=True, pseudo_inv=True))
+            except:
+                print(X)
+                print(Y)
+                print(strong)
+                print(j)
+                return None
+    
+    return None
 
 
 def _willis_dmr_test(combined_methyl_data):
