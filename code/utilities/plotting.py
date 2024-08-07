@@ -231,7 +231,7 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.
         return
 
     for i, row in enumerate(table_data):
-        genes = df.filter(pl.col('function').eq(row[0]) & pl.col(score_col).eq(row[1])).get_column("gene_id").to_list()
+        genes = df.filter(pl.col('function').eq(row[0]) & pl.col(score_col).eq(row[1])).get_column("gene_id").unique().to_list()
         for gene in genes:
             max_y = -np.inf
             for line in annotate_ax.lines:

@@ -31,9 +31,9 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     methyl_data = add_gene_caller_id(methyl_data, genes, True).collect()
 
     # Add rao score - Doing this first prevents row duplication issues
-    methyl_data = add_rao_score_by_gene(methyl_data, ["top", "bottom"], baseline=False)
+    methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle", "bottom"], baseline="middle")
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle"], baseline=False)
-    methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle", "bottom"], baseline="middle").lazy()
+    methyl_data = add_rao_score_by_gene(methyl_data, ["top", "bottom"], baseline=False).lazy()
     
     # Create the total methylation column and normalize values
     if "agg" in coverage:
