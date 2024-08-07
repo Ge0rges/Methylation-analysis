@@ -111,11 +111,11 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
 
 if __name__ == "__main__":
-    coverage = "5"
-    print(f"Running DMR analysis at coverage {coverage}")
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
-    for genome in os.listdir(data_dir):
-        if genome == ".DS_Store":
-            continue
+    for coverage in ["5", "5_agg"]:
+        print(f"Running DMR analysis at coverage {coverage}")
+        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
+        for genome in os.listdir(data_dir):
+            if genome == ".DS_Store":
+                continue
 
-        run_dmr_analysis(genome, "dmr_by_gene", coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")
+            run_dmr_analysis(genome, "dmr_by_gene", coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")

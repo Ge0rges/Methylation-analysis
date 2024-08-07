@@ -40,10 +40,14 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
             result = _willis_dmr_test_r(group.drop("gene_callers_id"), strong=(type(baseline) is bool), j=baseline)
             if result is not None and result["p"] < p_threshold:
                 print("Good rao score")
-                score_dict[group.get_column("gene_callers_id").item(0)] = result["test_stat"][0]
+                return (group.get_column("gene_callers_id").item(0), result["test_stat"][0])
+        return None
     
     with mp.get_context("spawn").Pool(20) as p:
-        p.map(process_group, groups)
+        for result in p.map(process_group, groups):
+            if result is not None:
+                score_dict[result[0]] = result[1]
+    print(f"Got score dict {score_dict}")
 
     # Make the comparison string
     comp_str = "_vs_".join(samples)
