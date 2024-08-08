@@ -31,23 +31,25 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
 
     # Run the Willis raoBust test on each gene rows
     score_dict = {}
-    groups = df.filter(pl.col("sample").is_in(samples)).select("sample", "gene_callers_id", *list(readable_methylation_name.keys())).unique().group_by("gene_callers_id")
+    significance_dict = {}
+    groups = df.filter(pl.col("sample").is_in(samples)).select("sample", "gene_callers_id", *list(readable_methylation_name.keys())).group_by("gene_callers_id")
     
     def process_group(group_tuple):
         name, group = group_tuple
         group = group.filter(pl.all_horizontal(cs.float().is_not_nan()))
         if group.get_column("sample").n_unique() == len(samples):  # We don't want there to be fewer than the samples specified
             result = _willis_dmr_test_r(group.drop("gene_callers_id"), strong=(type(baseline) is bool), j=baseline)
-            if result is not None and result["p"] < p_threshold:
-                print("Good rao score")
-                return (group.get_column("gene_callers_id").item(0), result["test_stat"][0])
+            if result is None:
+                return None
+            else:
+                return (group.get_column("gene_callers_id").item(0), result["test_stat"][0], result["p"][0] < p_threshold)
         return None
     
     with mp.get_context("spawn").Pool(20) as p:
         for result in p.map(process_group, groups):
             if result is not None:
                 score_dict[result[0]] = result[1]
-    print(f"Got score dict {score_dict}")
+                significance_dict [result[0]] = result[2]
 
     # Make the comparison string
     comp_str = "_vs_".join(samples)
@@ -56,8 +58,9 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
         comp_str = f"{baseline}_vs_{'_'.join(samples)}"
 
     # Add the score and comparison to the df
-    df_t = df.with_columns(pl.col("gene_callers_id").replace_strict(score_dict, default=np.NAN).alias("rao_score"),
-                         pl.lit(comp_str).alias("comparison"))
+    df_t = df.with_columns(pl.col("gene_callers_id").replace_strict(significance_dict, default=np.NAN).alias("test_result"),
+                           pl.col("gene_callers_id").replace_strict(score_dict, default=np.NAN).alias("rao_score"),
+                           pl.lit(comp_str).alias("comparison"))
     df = df_t.vstack(df) if "rao_score" in df.columns else df_t
 
     return df

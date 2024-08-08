@@ -220,12 +220,26 @@ def plot_gene_methylation_level_diff(ax, df, diff_string):
     ax.set_ylim(-0.5, 0.5)
 
 
-def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.DataFrame, function_source: str, score_col: str, comparison: str):
+def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.DataFrame, function_source: str, score_col: str, comparison: str, show_significance=True):
+    # If it's None, pick the best function
+    if function_source is None:
+        filtered_df = df.select("test_result", "source").filter(pl.col("test_result") == True)
+        grouped_counts = filtered_df.group_by("source").count()
+        func_source_df = grouped_counts.top_k(1, by="count").select("source")
+        if func_source_df.height > 0:
+            function_source = func_source_df.item()
+        else:
+            function_source = ""
+
     # Adding annotations for each gene_id
     texts = []
     df = df.filter(pl.col("comparison").eq(comparison) & pl.col(score_col).is_not_nan() & pl.col("source").eq(function_source))
-    df = df.select("function", score_col, "gene_id")
-    table_data = df.select('function', score_col).unique().sort(by=score_col, descending=True).head(10).to_numpy()
+    df = df.select("function", score_col, "gene_id", "test_result")
+    table_data = df.select('function', score_col, "test_result")
+    if not show_significance:
+        table_data = df.select('function', score_col)
+    
+    table_data = table_data.unique().top_k(10, by=score_col).to_numpy()
 
     if len(table_data) == 0:
         return
@@ -246,8 +260,9 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.
 
                 # Update max_y if the current y value is greater
                 max_y = max(max_y, y_data[idx])
-
-            texts.append(annotate_ax.text(gene, max_y, str(i + 1), fontsize=12, color='red'))
+            
+            label = str(i+1) + "*" if show_significance and row[2] else str(i+1)
+            texts.append(annotate_ax.text(gene, max_y, label, fontsize=12, color='red'))
 
     # Add texts
     adjust_text(texts, arrowprops=dict(arrowstyle="-", color='r'), ax=annotate_ax, min_arrow_len=0)
@@ -258,12 +273,14 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.
             i[0] = truncate_label(i[0], max_length=50, max_lines=2)
             i[1] = f"{i[1]:.1f}"
 
+        colLabels = [function_source.replace("_", " "), f"{'Rao' if score_col else 'Modkit'} score"]
+        colLabels = colLabels + ["Significant?"] if show_significance else colLabels
         table = table_ax.table(cellText=table_data,
-                               colLabels=[function_source.replace("_", " "), f"{'Rao' if score_col else 'Modkit'} score"],
+                               colLabels=colLabels,
                                rowLabels=[str(i + 1) for i in range(len(table_data))],
                                loc='center',
                                cellLoc='center',
-                               colColours=["lightblue"] * 2)
+                               colColours=["lightblue"] * len(colLabels))
 
         table.auto_set_column_width([0, 1, 2])
         table.auto_set_font_size(False)

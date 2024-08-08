@@ -73,8 +73,8 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     plot_gene_methylation_level_diff(axes[2][0], top_bottom, "Top – Bottom")
     
     # Add functional annotation
-    function_source = "KEGG_Module"
     methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir, genome_name).collect()
+    function_source = None 
     
     # Plot functional annotations
     annotate_meth_level_with_score_function_table(axes[0][0], axes[0][1], methyl_data, function_source, "rao_score", "middle_vs_top_bottom")
