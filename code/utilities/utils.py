@@ -66,6 +66,41 @@ read_counts = {
     "barcode14": 96793,
 }
 
+col34h_readable_sample_name = {"barcode01": "S2-1",
+                        "barcode02": "S2-2",
+                        "barcode03": "S2-3",
+                        "barcode04": "Control",
+                        "barcode05": "S3-1",
+                        "barcode06": "S3-2",
+                        "barcode07": "S3-3",
+                        "barcode08": "S4-1",
+                        "barcode09": "S4-2",
+                        "barcode10": "S4-3",
+                        "barcode11": "IC3-1 (30 cm)",
+                        "barcode12": "IC3-2 (160 cm)",
+                        "barcode13": "IC3-3 (205 cm)",
+                        "barcode14": "IC3-4 (70 cm)",
+}
+
+col34h_barcode_sample_map = {"barcode01": "top",
+                      "barcode02": "middle",
+                      "barcode03": "bottom",
+                      "barcode04": "control",
+                      "barcode05": "top",
+                      "barcode06": "middle",
+                      "barcode07": "bottom",
+                      "barcode08": "top",
+                      "barcode09": "middle",
+                      "barcode10": "bottom",
+                      "barcode11": "core-40",
+                      "barcode12": "core-160",
+                      "barcode13": "core-205",
+                      "barcode14": "core-70",
+                      "top": "top",
+                      "middle": "middle",
+                      "bottom": "bottom"
+}
+
 
 def truncate_label(label, max_length, max_lines):
     """Truncate labels to a maximum length and line count, adding an ellipsis if truncated."""
