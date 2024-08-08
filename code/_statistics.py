@@ -32,7 +32,7 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
     # Run the Willis raoBust test on each gene rows
     score_dict = {}
     significance_dict = {}
-    groups = df.filter(pl.col("sample").is_in(samples)).select("sample", "gene_callers_id", *list(readable_methylation_name.keys())).group_by("gene_callers_id")
+    groups = df.filter(pl.col("sample").is_in(samples)).select("sample", "gene_callers_id", "Ncanonical", *list(readable_methylation_name.keys())).group_by("gene_callers_id")
 
     def process_group(group_tuple):
         name, group = group_tuple
@@ -49,7 +49,7 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
         for result in p.map(process_group, groups):
             if result is not None:
                 score_dict[result[0]] = result[1]
-                significance_dict [result[0]] = result[2]
+                significance_dict[result[0]] = result[2]
 
     # Make the comparison string
     comp_str = "_vs_".join(samples)
@@ -58,7 +58,7 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
         comp_str = f"{baseline}_vs_{'_'.join(samples)}"
 
     # Add the score and comparison to the df
-    df_t = df.with_columns(pl.col("gene_callers_id").replace_strict(significance_dict, default=np.NAN).alias("test_result"),
+    df_t = df.with_columns(pl.col("gene_callers_id").replace_strict(significance_dict, default=np.NAN, return_dtype=pl.Boolean).alias("test_result"),
                            pl.col("gene_callers_id").replace_strict(score_dict, default=np.NAN).alias("rao_score"),
                            pl.lit(comp_str).alias("comparison"))
     df = df_t.vstack(df) if "rao_score" in df.columns else df_t
@@ -86,7 +86,7 @@ def add_rao_score_by_sample(df: pl.DataFrame, samples: list[str], baseline: str 
 
     # Run the Willis raoBust test on each gene rows
     comp_df = (df.filter(pl.col("sample").is_in(samples))
-               .select("sample", *list(readable_methylation_name.keys()))
+               .select("sample", "Ncanonical", *list(readable_methylation_name.keys()))
                .filter(pl.all_horizontal(cs.float().is_not_nan())))
 
     if comp_df.get_column("sample").n_unique() == len(samples):  # We don't want there to be fewer than the samples specified

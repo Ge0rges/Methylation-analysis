@@ -272,6 +272,8 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.
         for i in table_data:
             i[0] = truncate_label(i[0], max_length=50, max_lines=2)
             i[1] = f"{i[1]:.1f}"
+            if show_significance:
+                i[2] = str(i[2])
 
         colLabels = [function_source.replace("_", " "), f"{'Rao' if score_col else 'Modkit'} score"]
         colLabels = colLabels + ["Significant?"] if show_significance else colLabels

@@ -15,7 +15,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
-    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir).select("name", "sample", *methylation_types)
+    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir).select("name", "sample", *methylation_types, "Ncanonical")
     methyl_data = methyl_data.with_columns(
         contig=pl.col('name').str.split(by='|').list.get(0),
         strand=pl.col('name').str.split(by='|').list.get(1),
@@ -74,7 +74,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     
     # Add functional annotation
     methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir, genome_name).collect()
-    function_source = None 
+    function_source = "KEGG_Module" 
     
     # Plot functional annotations
     annotate_meth_level_with_score_function_table(axes[0][0], axes[0][1], methyl_data, function_source, "rao_score", "middle_vs_top_bottom")
