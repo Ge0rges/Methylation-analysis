@@ -10,6 +10,8 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     Run the DMR analysis for a specific genome_name, DMR type, and function_source.
     """
 
+    print(f"Starting to generate  composite for {genome_name}")
+
     # Get the genes
     genes = get_genes_polars(data_dir, genome_name)
 
@@ -28,8 +30,8 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
     
     # Add the gene_caller_id
-    methyl_data = add_gene_caller_id(methyl_data, genes, True).collect()
-
+    methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
+    
     # Add rao score - Doing this first prevents row duplication issues
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle", "bottom"], baseline="middle")
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle"], baseline=False)

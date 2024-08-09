@@ -220,7 +220,7 @@ def plot_gene_methylation_level_diff(ax, df, diff_string):
     ax.set_ylim(-0.5, 0.5)
 
 
-def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.DataFrame, function_source: str, score_col: str, comparison: str, show_significance=True):
+def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.DataFrame, function_source: str, score_col: str, comparison: str):
     # If it's None, pick the best function
     if function_source is None:
         filtered_df = df.select("test_result", "source").filter(pl.col("test_result") == True)
@@ -235,6 +235,9 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.
     texts = []
     df = df.filter(pl.col("comparison").eq(comparison) & pl.col(score_col).is_not_nan() & pl.col("source").eq(function_source))
     df = df.select("function", score_col, "gene_id", "test_result")
+    
+    # Show significance if there is a not significant value or all are not significant
+    show_significance = (df.filter(pl.col("test_result")  == False).height > 0)
     table_data = df.select('function', score_col, "test_result")
     if not show_significance:
         table_data = df.select('function', score_col)
