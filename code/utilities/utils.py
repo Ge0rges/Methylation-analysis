@@ -67,24 +67,24 @@ read_counts = {
 }
 
 col34h_barcode_sample_map = {
-        'barcode01': 'CTL_1',
-        'barcode02': 'CTL_2',
-        'barcode03': 'CTL_3',
-        'barcode04': 'LN2_1',
-        'barcode05': 'LN2_2',
-        'barcode06': 'LN2_3',
-        'barcode07': 'FREEZER_1',
-        'barcode08': 'FREEZER_2',
-        'barcode09': 'FREEZER_3',
-        'barcode10': 'RNA_Later_1',
-        'barcode11': 'RNA_Later_2',
-        'barcode12': 'RNA_Later_3',
-        'barcode13': 'CTL_Pellet_1',
-        'barcode14': 'CTL_Pellet_2',
-        'barcode15': 'CTL_Pellet_3',
-        'barcode16': 'RNA_Pellet_1',
-        'barcode17': 'RNA_Pellet_2',
-        'barcode18': 'RNA_Pellet_3'
+        'barcode01': 'CTL',
+        'barcode02': 'CTL',
+        'barcode03': 'CTL',
+        'barcode04': 'LN2',
+        'barcode05': 'LN2',
+        'barcode06': 'LN2',
+        'barcode07': 'FREEZER',
+        'barcode08': 'FREEZER',
+        'barcode09': 'FREEZER',
+        'barcode10': 'RNA_Later',
+        'barcode11': 'RNA_Later',
+        'barcode12': 'RNA_Later',
+        'barcode13': 'CTL_Pellet',
+        'barcode14': 'CTL_Pellet',
+        'barcode15': 'CTL_Pellet',
+        'barcode16': 'RNA_Pellet',
+        'barcode17': 'RNA_Pellet',
+        'barcode18': 'RNA_Pellet'
 }
 
 
