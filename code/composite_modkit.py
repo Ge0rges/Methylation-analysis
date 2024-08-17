@@ -34,7 +34,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     dmr_data = dmr_data.filter(pl.col("test_result") &
                                pl.col("source").eq(function_source) &
                                pl.col("comparison").is_in(["top_vs_bottom", "top_vs_middle"]))
-    dmr_data = dmr_data.group_by(['function', 'source', 'comparison']).agg(pl.col('score').mean(), pl.col("gene_callers_id")).top_k(10, by="score")
+    dmr_data = dmr_data.group_by(['function', 'source', 'comparison']).agg(pl.col('score').mean(), pl.col("gene_callers_id"), pl.col("test_result").first()).top_k(10, by="score")
     dmr_data = dmr_data.explode("gene_callers_id")
 
     # Handle empty
@@ -111,7 +111,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
 
 if __name__ == "__main__":
-    for coverage in ["5", "5_agg"]:
+    for coverage in ["5_agg", "5"]:
         print(f"Running DMR analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
         for genome in os.listdir(data_dir):

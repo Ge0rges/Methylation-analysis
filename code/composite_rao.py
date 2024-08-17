@@ -2,7 +2,7 @@ from utilities.plotting import *
 from _statistics import add_rao_score_by_gene
 from utilities.data_loading import *
 from utilities.utils import normalize_data_for_methylation_level, add_gene_caller_id, \
-    add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map
+    add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map, normalize_data_by_pileup
 from scipy.stats import rankdata
 
 def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
@@ -26,11 +26,14 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     )
 
     # Filter samples
-    methyl_data = methyl_data.with_columns(pl.col("sample").alias("norm_sample"), pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
+    #methyl_data = methyl_data.with_columns(pl.col("sample").alias("norm_sample"), pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
+    methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
     
     # Add the gene_caller_id
     methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
+
+    methyl_data = normalize_data_by_pileup(methyl_data)
     
     # Add rao score - Doing this first prevents row duplication issues
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle", "bottom"], baseline="middle")
@@ -38,10 +41,8 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "bottom"], baseline=False).lazy()
     
     # Create the total methylation column and normalize values
-    if "agg" in coverage:
-        methyl_data = methyl_data.with_columns(pl.col(*methylation_types).floordiv(3)) # Because it is an aggregate of 3 replicates
-    methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
-    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).drop("norm_sample").collect(streaming=True)
+    methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
+    #methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).drop("norm_sample").collect(streaming=True)
 
     # Add a gene_id column, which is just a map from gene_callers_id
     all_ids = methyl_data.get_column("gene_callers_id").to_list()

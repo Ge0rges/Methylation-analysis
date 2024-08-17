@@ -1,10 +1,11 @@
 from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
-from utilities.utils import normalize_data_for_methylation_level, add_gene_caller_id, col34h_barcode_sample_map
+from utilities.utils import normalize_data_for_methylation_level, add_gene_caller_id, col34h_barcode_sample_map, normalize_data_by_pileup
 from itertools import combinations
 from scipy.stats import rankdata
 import multiprocess as mp
+import pandas as pd
 
 
 def run_34h_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
@@ -26,38 +27,40 @@ def run_34h_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     )
 
     # Rename samples and make total methylation column
+    methyl_data = normalize_data_by_pileup(methyl_data)
     methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(col34h_barcode_sample_map, default=pl.first()),
                                            pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect()
 
     # Calculate rao score between each group in parallel
-    rows = []
     samples = methyl_data.get_column("sample").unique().to_list()
     
     def process_sample_pair(sample_tuple):
         sampleA, sampleB = sample_tuple
         _, significant, comp_str = add_rao_score_by_sample(methyl_data, [sampleA, sampleB], baseline=False)
-        row = [sampleA] + [None]*len(samples)
-        row[samples.index(sampleB) + 1] = significant
-        return row
-            
+        return sampleA, sampleB, significant
+    
+    comp_df = pd.DataFrame(index=samples, columns=samples)
+
     with mp.get_context("spawn").Pool(15) as p:
         for result in p.map(process_sample_pair, combinations(samples, 2)):
-            rows.append(result)
-    comp_df = pl.DataFrame(rows, schema=["comparison"]+samples, orient="row")
+            sampleA, sampleB, significant = result
+            comp_df.loc[sampleA, sampleB] = significant
+            comp_df.loc[sampleB, sampleA] = significant
+    print(comp_df)
 
     # Create figure
     fig, axes = plt.subplots(1, 1, figsize=(20, 5), sharex=False, layout="constrained")
 
     # Mean together all the different methylation types
-    #genes = get_genes_polars(data_dir, genome_name)
-    #methyl_data = add_gene_caller_id(methyl_data.lazy(), genes, True).collect(streaming=True)
-    #all_ids = methyl_data.get_column("gene_callers_id").to_list()
-    #ids = dict(zip(all_ids, rankdata(all_ids, method='dense')))
-    #methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=np.NAN))
-    #mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation')
-    
-    #plot_mean_gene_methylation_level(axes[0], mean_data)
-    sns.heatmap(comp_df, ax=axes, cbar=False)
+    genes = get_genes_polars(data_dir, genome_name)
+    methyl_data = add_gene_caller_id(methyl_data.lazy(), genes, True).collect(streaming=True)
+    all_ids = methyl_data.get_column("gene_callers_id").to_list()
+    ids = dict(zip(all_ids, rankdata(all_ids, method='dense')))
+    methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=np.NAN))
+    mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation')
+
+    sns.lineplot(mean_data, x="gene_id", y="total_methylation", hue="sample")
+    #sns.heatmap(comp_df, ax=axes, cbar=False)
 
     # Save the figure
     fig.suptitle(f"Comparison of different preervation treatment of 34H", fontsize=26)

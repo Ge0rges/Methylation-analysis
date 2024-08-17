@@ -102,7 +102,7 @@ def add_rao_score_by_sample(df: pl.DataFrame, samples: list[str], baseline: str 
                 comp_str = f"{baseline}_vs_{'_'.join(samples)}"
 
             return rao_score, test_result, comp_str
-
+    
     return None
 
 

@@ -237,7 +237,7 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.
     df = df.select("function", score_col, "gene_id", "test_result")
     
     # Show significance if there is a not significant value or all are not significant
-    show_significance = (df.filter(pl.col("test_result")  == False).height > 0)
+    show_significance = (df.unique().top_k(10, by=score_col).filter(pl.col("test_result")  == False).height > 0)
     table_data = df.select('function', score_col, "test_result")
     if not show_significance:
         table_data = df.select('function', score_col)

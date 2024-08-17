@@ -143,36 +143,46 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> p
     :return: The aggregated methylation data.
     :rtype: pd. Dataframe
     """
+    
+    df = df.collect(streaming=True)
+    genes = genes.collect()
 
-    a = df.collect().select('contig').unique().get_column('contig').to_list()
-    b = genes.collect().select('contig').unique().get_column('contig').to_list()
+    assert all(g in genes.select('contig').unique().get_column('contig').to_list() for g in df.select('contig').unique().get_column('contig').to_list()), "Not all contigs are in this genome_name."
+    
+    result_df = pl.DataFrame()
+    sliced_chunks = 0
+    chunk_size = 500000
+    while (sliced_chunks-1)*chunk_size < df.height:
+        print(f"Doing {sliced_chunks} which is {sliced_chunks*chunk_size} with df height {df.height}")
+        temp_df = df.slice(sliced_chunks*chunk_size, chunk_size)
+        sliced_chunks += 1
 
-    assert all(g1 in b for g1 in a), "Not all contigs are in this genome_name."
-    del a, b
+        # Get rid of any contigs not in df to limit join size
+        genes = genes.filter(pl.col("contig").is_in(temp_df.get_column("contig").unique().to_list()))
 
-    # Get rid of any contigs not in df to limit join size
-    genes = genes.filter(pl.col("contig").is_in(df.select("contig").unique().collect().get_column("contig").to_list()))
+        # Merge merged_df with ranges based on conditions
+        og_columns = temp_df.columns
+        temp_df = temp_df.join(genes, on='contig')
 
-    # Merge merged_df with ranges based on conditions
-    og_columns = df.collect_schema().names()
-    df = df.join(genes, on='contig')
+        # Filter rows where merged_df start and end values are within range start and end.
+        # Gene range is inclusive of end, modkit bed is not.
+        temp_df = temp_df.filter((pl.col('start') >= pl.col('start_right')) & (pl.col('end') <= pl.col('stop')))
 
-    # Filter rows where merged_df start and end values are within range start and end.
-    # Gene range is inclusive of end, modkit bed is not.
-    df = df.filter((pl.col('start') >= pl.col('start_right')) & (pl.col('end') <= pl.col('stop')))
+        if strand_aware:
+            temp_df = temp_df.filter(pl.col('direction') == pl.col('strand'))
+        else:
+            print("WARNING: Not filtering by strand. This may result in multiple gene_callers_id for the same name. Picking the first gene_callers_id.")
 
-    if strand_aware:
-        df = df.filter(pl.col('direction') == pl.col('strand'))
-    else:
-        print("WARNING: Not filtering by strand. This may result in multiple gene_callers_id for the same name. Picking the first gene_callers_id.")
+        # If there are still multiple gene_callers_id for the same name, pick the first one
+        temp_df = temp_df.unique(subset=og_columns, keep="first")
 
-    # If there are still multiple gene_callers_id for the same name, pick the first one
-    df = df.unique(subset=og_columns, keep="first")
+        # Clean
+        temp_df = temp_df.drop(['start_right', 'stop'])
 
-    # Clean
-    df = df.drop(['start_right', 'stop'])
-
-    return df
+        # Stack
+        result_df = result_df.vstack(temp_df)
+    
+    return result_df.lazy()
 
 
 def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, aggregate=False) -> pl.LazyFrame:
@@ -189,6 +199,13 @@ def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, aggregat
         df = df.with_columns(pl.col("total_methylation") / (pl.col('norm_sample').replace_strict(coverages).mul(len(methylation_types))))
 
     df = df.with_columns(pl.col(methylation_types) / pl.col('norm_sample').replace_strict(coverages))
+
+    return df
+
+
+def normalize_data_by_pileup(df: pl.LazyFrame) -> pl.LazyFrame:
+    methylation_types = list(readable_methylation_name.keys()) + ["Ncanonical"]
+    df = df.with_columns(pl.col(methylation_types) /  pl.concat_list(methylation_types).list.sum())
 
     return df
 
