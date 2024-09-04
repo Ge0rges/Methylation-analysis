@@ -143,12 +143,12 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> p
     :return: The aggregated methylation data.
     :rtype: pd. Dataframe
     """
-    
+
     df = df.collect(streaming=True)
     genes = genes.collect()
 
     assert all(g in genes.select('contig').unique().get_column('contig').to_list() for g in df.select('contig').unique().get_column('contig').to_list()), "Not all contigs are in this genome_name."
-    
+
     result_df = pl.DataFrame()
     sliced_chunks = 0
     chunk_size = 500000
@@ -168,6 +168,11 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> p
         # Gene range is inclusive of end, modkit bed is not.
         temp_df = temp_df.filter((pl.col('start') >= pl.col('start_right')) & (pl.col('end') <= pl.col('stop')))
 
+        # # Mark exons
+        # for col in og_columns:
+        #     exons = (df.filter(((pl.col('start') >= pl.col('start_right')) & (pl.col('end') <= pl.col('stop'))).not_())
+        #              .unique(subset=og_columns, keep="first").with_columns(pl.col(og_columns).not_().lit(None)))
+
         if strand_aware:
             temp_df = temp_df.filter(pl.col('direction') == pl.col('strand'))
         else:
@@ -181,7 +186,7 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> p
 
         # Stack
         result_df = result_df.vstack(temp_df)
-    
+
     return result_df.lazy()
 
 
