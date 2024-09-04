@@ -415,7 +415,7 @@ def start_grid_search(dataset):
             )
 
             # run jobs
-            executor = ProcessPoolExecutor()
+            executor = ProcessPoolExecutor(max_workers=20)
             fit_models = executor.map(fit_save_model, *job_params)
 
             # iterate through models in order

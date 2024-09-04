@@ -29,18 +29,17 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     #methyl_data = methyl_data.with_columns(pl.col("sample").alias("norm_sample"), pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
     methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
-    
+
     # Add the gene_caller_id
     methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
 
-    methyl_data = normalize_data_by_pileup(methyl_data)
-    
     # Add rao score - Doing this first prevents row duplication issues
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle", "bottom"], baseline="middle")
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle"], baseline=False)
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "bottom"], baseline=False).lazy()
-    
+
     # Create the total methylation column and normalize values
+    methyl_data = normalize_data_by_pileup(methyl_data)
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
     #methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).drop("norm_sample").collect(streaming=True)
 
@@ -55,11 +54,11 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Mean together all the different methylation types
     mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation')
-    
+
     top = pl.col(*methylation_types).filter(pl.col('sample').eq('top'))
     middle = pl.col(*methylation_types).filter(pl.col('sample').eq('middle'))
     bot = pl.col(*methylation_types).filter(pl.col('sample').eq('bottom'))
-    
+
     top_bottom = methyl_data.group_by('gene_id').agg(top.mean() - bot.mean())
     top_middle = methyl_data.group_by('gene_id').agg(top.mean() - middle.mean())
     top_bottom = top_bottom.unpivot(index="gene_id", on=methylation_types, variable_name="methylation_type", value_name="methylation_level")
@@ -74,11 +73,11 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     plot_mean_gene_methylation_level(axes[0][0], mean_data)
     plot_gene_methylation_level_diff(axes[1][0], top_middle, "Top – Middle")
     plot_gene_methylation_level_diff(axes[2][0], top_bottom, "Top – Bottom")
-    
+
     # Add functional annotation
     methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir, genome_name).collect()
-    function_source = "KEGG_Module" 
-    
+    function_source = "KEGG_Module"
+
     # Plot functional annotations
     annotate_meth_level_with_score_function_table(axes[0][0], axes[0][1], methyl_data, function_source, "rao_score", "middle_vs_top_bottom")
     annotate_meth_level_with_score_function_table(axes[1][0], axes[1][1], methyl_data, function_source, "rao_score", "top_vs_middle")
