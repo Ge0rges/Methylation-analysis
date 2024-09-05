@@ -6,7 +6,6 @@
 # sparsity coefficient) for the sparse tensor decomposition model of
 # ProMo metabolite data, using parameter grid search.
 
-# imports
 from concurrent.futures import ProcessPoolExecutor
 import datetime
 import json
@@ -37,7 +36,7 @@ import xarray as xr
 
 # function to return random replicate labelings
 def generate_replicate_labels(sample_names, random_state=None, replicate_map=None):
-    '''Generates random replicate labels to align with an input vector of sample names.
+    """Generates random replicate labels to align with an input vector of sample names.
 
     Parameters
     ----------
@@ -56,25 +55,25 @@ def generate_replicate_labels(sample_names, random_state=None, replicate_map=Non
     replicate_labels : np.ndarray
         Array of randomly generated replicate lables, to be aligned with input `sample_names`.
 
-    '''
-    # check that input is a numpy array
-    if not type(sample_names) is np.ndarray:
-        raise AssertionError('`sample_names` must be a numpy.ndarray')
-    # check sample_names are sorted
-    if not np.all(sample_names[:-1] <= sample_names[1:]):
-        raise AssertionError('`sample_names` must be sorted in ascending order')
-    # get counts of each sample name
+    """
+
+    # check that input is a numpy array, and sample_names are sorted
+    assert type(sample_names) is np.ndarray, "`sample_names` must be a numpy.ndarray"
+    assert np.all(sample_names[:-1] <= sample_names[1:]), "`sample_names` must be sorted in ascending order"
+
+    # Get counts of each sample name
     names, counts = np.unique(sample_names, return_counts=True)
-    # get random state
     rns = check_random_state(random_state)
-    # generate replicate labels
+
+    # Generate replicate labels
     replicate_labels = [rns.choice(np.arange(counts.max()), size=c, replace=False) for c in counts]
     replicate_labels = np.concatenate(replicate_labels)
-    # map preferred replicate labels
+
+    # Map preferred replicate labels
     if replicate_map is not None:
         mapped_replicate_labels = [replicate_map[i] for i in replicate_labels]
         replicate_labels = np.array(mapped_replicate_labels)
-    # return result
+
     return replicate_labels
 
 
@@ -169,6 +168,7 @@ def select_common_indices(dataset_1, dataset_2, coordinates):
             common_index_labels[coord] = shared_labels
             indices_1[coord] = index_1
             indices_2[coord] = index_2
+
     # return results
     if len(coordinates) > 1:
         return common_index_labels, indices_1, indices_2
@@ -229,8 +229,72 @@ def nonzero_components(cp, return_trimmed_cp=False):
         return (accumulator != 0.0).sum()
 
 
-# main experiment script
-def start_grid_search(dataset):
+def load_existing_data(filepath, columns=None):
+    if filepath.is_file():
+        return pd.read_csv(filepath).to_dict('records')
+    return pd.DataFrame(columns=columns if columns else []).to_dict('records')
+
+
+def shuffle_dataset(output_dir, boot_id, dataset, shuffle_seed, replicate_col, group_cols):
+    filepath_shuffle_ds = output_dir / f"dataset_bootstrap_{boot_id}.nc"
+
+    # Import shuffled dataset if it exists
+    if filepath_shuffle_ds.is_file():
+        print(f"Importing DataSet discovered at:\n\t{filepath_shuffle_ds}", flush=True)
+        return xr.open_dataset(filepath_shuffle_ds)
+
+    # Make and save shuffled dataset if it doesn't exist
+    # NOTE: This shuffling is done in a way so that all metabolite measurements
+    # from the same replicate remain together. If instead it makes sense to
+    # shuffle each set of metabolite replicates independently, we can do that.
+    print('Shuffling DataSet replicate labels', flush=True)
+
+    # pull out NormAbundance DataArray as Series
+    abun_df = dataset.Abundance.to_series().reset_index().rename(columns={replicate_col: 'OldReplicate'})
+    sample_df = dataset.Sample.to_series().reset_index().rename(columns={replicate_col: 'OldReplicate'})
+
+    # make new "SampleName" field in Series with combined Treatment + control
+    sample_df['GroupName'] = sample_df[group_cols].agg('_'.join, axis=1)
+    sample_df = sample_df.sort_values('GroupName')
+
+    # Automatically generate the replicate map: {0: 'A', 1: 'B', ...}
+    unique_replicates = sorted(sample_df["OldReplicate"].unique())
+
+    # use generate_replicate_labels() to get new replicate labels
+    new_labels = generate_replicate_labels(
+        sample_names=sample_df['GroupName'].to_numpy(),
+        random_state=shuffle_seed,
+        replicate_map=dict(enumerate(unique_replicates))
+    )
+
+    sample_df[replicate_col] = new_labels
+
+    # map new replicate labels onto abundance data
+    shuffle_abun_df = pd.merge(left=abun_df, right=sample_df, how='left', on=group_cols + ['OldReplicate'])
+
+    # Rebuild the dataset with shuffled replicate labels
+    restored_data_vars = {}
+
+    for var_name, data_array in dataset.data_vars.items():
+        original_dims = list(data_array.dims)
+        restored_data_vars[var_name] = xr.DataArray().from_series(
+            shuffle_abun_df[original_dims + [var_name]].drop_duplicates().set_index(original_dims)[var_name])
+
+    # 4. Create the new dataset with restored DataArrays
+    shuffle_ds = xr.Dataset(restored_data_vars, coords=dataset.coords)
+
+    # Save random seed used for shuffling as dataset attribute
+    shuffle_ds.attrs['shuffle_seed'] = shuffle_seed
+
+    # Save replicate shuffled dataset to netCDF4 file
+    if not output_dir.is_dir():
+        output_dir.mkdir(parents=True)
+    shuffle_ds.to_netcdf(filepath_shuffle_ds)
+
+    return shuffle_ds
+
+
+def start_grid_search(dataset, replicate_col, group_cols):
     # set random state
     seed = 9481
     rns = check_random_state(seed)
@@ -251,95 +315,29 @@ def start_grid_search(dataset):
         'n_iter_max': [2000],
         'n_initializations': [5]
     }
-    param_grid = list(ParameterGrid(model_params))
+
     # sort by rank to make parallelization more efficient
-    param_grid = sorted(param_grid, key=lambda d: d['rank'])
+    param_grid = sorted(list(ParameterGrid(model_params)), key=lambda d: d['rank'])
 
     # set up output data records and locations
     filepath_fit_data = base_dir / 'fitting_data.csv'
-    if filepath_fit_data.is_file():
-        fitting_df = pd.read_csv(filepath_fit_data)
-        fitting_results = fitting_df.to_dict('records')
-    else:
-        fitting_df = pd.DataFrame()
-        fitting_results = []
     filepath_cv_data = base_dir / 'cv_data.csv'
-    if filepath_cv_data.is_file():
-        cv_df = pd.read_csv(filepath_cv_data)
-        cv_results = cv_df.to_dict('records')
-    else:
-        cv_df = pd.DataFrame(
-            columns=['bootstrap_id', 'rank', 'lambda', 'modeled_replicate',
-                     'comparison_replicate', 'replicate_pair', 'n_components',
-                     'mean_gene_sparsity', 'relative_sse', 'fms_cv',
-                     'css_cv_factor0', 'scss_cv_factor0']
-        )
-        cv_results = []
+    fitting_results = load_existing_data(filepath_fit_data)
+    cv_results = load_existing_data(filepath_cv_data, columns=[
+        'bootstrap_id', 'rank', 'lambda', 'modeled_replicate', 'comparison_replicate', 'replicate_pair',
+        'n_components', 'mean_gene_sparsity', 'relative_sse', 'fms_cv', 'css_cv_factor0', 'scss_cv_factor0'
+    ])
+
 
     # begin experiment
     for boot_id in range(n_bootstraps):
         shuffle_seed = rns.randint(2 ** 32)
-        print('\nBootstrap: {} (seed={})'.format(boot_id, shuffle_seed), flush=True)
+        print(f"\nBootstrap: {boot_id} (seed={shuffle_seed})", flush=True)
 
         # directory and file paths
-        output_dir = base_dir / 'bootstrap{}'.format(boot_id)
-        filepath_shuffle_ds = output_dir / 'dataset_bootstrap_{}.nc'.format(boot_id)
+        output_dir = base_dir / f"bootstrap{boot_id}"
 
-        # import shuffled dataset if it exists
-        if filepath_shuffle_ds.is_file():
-            print('Importing DataSet discovered at:\n\t{}'.format(
-                filepath_shuffle_ds
-            ), flush=True)
-            shuffle_ds = xr.open_dataset(filepath_shuffle_ds)
-        # make and save shuffled dataset if it doesn't exist
-        else:
-            # NOTE: This shuffling is done in a way so that all metabolite measurements
-            # from the same replicate remain together. If instead it makes sense to
-            # shuffle each set of metabolite replicates independently, we can do that.
-            print('Shuffling DataSet replicate labels', flush=True)
-            shuffle_ds = dataset.copy()
-            if not output_dir.is_dir():
-                output_dir.mkdir(parents=True)
-            # pull out NormAbundance DataArray as Series
-            abun_df = shuffle_ds.Abundance.to_series().reset_index().rename(
-                columns={'replicate': 'OldReplicate'}
-            )
-            # pull out Sample DataArray as Series
-            sample_df = shuffle_ds.Sample.to_series().reset_index().rename(
-                columns={'replicate': 'OldReplicate'}
-            )
-            # make new "SampleName" field in Series with combined Treatment + control
-            sample_df['SampleName'] = [f"{row['treatment']}" for _, row in sample_df.iterrows()]
-            sample_df = sample_df.sort_values('SampleName')
-            # use generate_replicate_labels() to get new replicate labels
-            new_labels = generate_replicate_labels(
-                sample_names=sample_df.SampleName.to_numpy(),
-                random_state=shuffle_seed,
-                replicate_map={0: 'A', 1: 'B', 2: 'C'}
-            )
-            sample_df['replicate'] = new_labels
-            # map new replicate labels onto NormAbundance data with pd.merge()
-            shuffle_abun_df = pd.merge(
-                left=abun_df, right=sample_df, how='left',
-                on=['treatment', 'OldReplicate']
-            )
-            # re-form shuffled dataset
-            shuffle_ds = xr.Dataset(
-                dict(
-                    Abundance=xr.DataArray().from_series(
-                        shuffle_abun_df.set_index(
-                            ['methylation_type', 'treatment', 'position', 'replicate']
-                        )['Abundance']
-                    ),
-                    Sample=xr.DataArray().from_series(
-                        sample_df.set_index(['treatment', 'replicate'])['Sample']
-                    )
-                )
-            )
-            # save random seed used for shuffling as dataset attribute
-            shuffle_ds.attrs['shuffle_seed'] = shuffle_seed
-            # save replicate shuffled dataset to netCDF4 file
-            shuffle_ds.to_netcdf(filepath_shuffle_ds)
+        shuffle_ds = shuffle_dataset(output_dir, boot_id, dataset, shuffle_seed, replicate_col, group_cols)
 
         # set up replicate subtensor data
         filepaths_reps = {}

@@ -1,5 +1,5 @@
 from utilities.data_loading import *
-from utilities.utils import readable_methylation_name, barcode_sample_map
+from utilities.utils import readable_methylation_name, barcode_sample_map, add_gene_caller_id
 import xarray as xr
 from barnacle_grid_search import start_grid_search
 
@@ -38,6 +38,10 @@ def run_dmr_analysis(genome_name, data_dir):
         end=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
     )
 
+    # Add gene caller id
+    genes = get_genes_polars(data_dir, genome_name)
+    methyl_data = add_gene_caller_id(methyl_data, genes, True)
+
     # Filter samples
     methyl_data = methyl_data.with_columns(
         treatment=pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
@@ -45,26 +49,41 @@ def run_dmr_analysis(genome_name, data_dir):
     methyl_data = methyl_data.with_columns(
         replicate=pl.col("sample").replace_strict(replicate_map, default=pl.first())).collect(streaming=True)
 
-    # Sort by contig, strand, start, end. Then add a position index column
+    # Sort by contig, strand, start, end.
     methyl_data = methyl_data.sort("strand", "contig", "start")
     name_map = methyl_data.select("name").unique().with_row_index("position").to_dict(as_series=False)
+
+    # Add absolute position column
     name_map = dict(zip(name_map["name"], name_map["position"]))
     methyl_data = methyl_data.with_columns(position=pl.col("name").replace_strict(name_map, default=pl.first()))
 
     # Pivot the dataframe
-    methyl_data = methyl_data.unpivot(index=["position", "treatment", "replicate", "sample"],
+    methyl_data = methyl_data.unpivot(index=["position", "treatment", "replicate", "sample", "gene_callers_id"],
                                       on=methylation_types + ["Ncanonical"],
                                       variable_name="methylation_type").to_pandas()
 
     # Make a 3D Xarray with dimensions: methylation_types, samples, positions
+    # methyl_xr = xr.Dataset(dict(
+    #     Abundance=xr.DataArray.from_series(
+    #         methyl_data[["treatment", "replicate", "position", "methylation_type", "value"]].set_index(["treatment", "replicate", "position", "methylation_type"])["value"]),
+    #     Sample=xr.DataArray.from_series(
+    #         methyl_data[["treatment", "replicate", "sample"]].drop_duplicates().set_index(["treatment", "replicate"])["sample"])
+    # ))
+    # start_grid_search(methyl_xr, "replicate", ["treatment"])
+
+    # Add gene position column and use it as a dimension
+    methyl_data = methyl_data.with_columns(pl.int_range(pl.len()).over("gene_callers_id").alias("position"))
+
     methyl_xr = xr.Dataset(dict(
         Abundance=xr.DataArray.from_series(
-            methyl_data[["treatment", "replicate", "position", "methylation_type", "value"]].set_index(["treatment", "replicate", "position", "methylation_type"])["value"]),
+            methyl_data[["treatment", "replicate", "position", "methylation_type", "gene_callers_id", "value"]].set_index(
+                ["treatment", "replicate", "position", "methylation_type", "gene_callers_id"])["value"]),
         Sample=xr.DataArray.from_series(
-            methyl_data[["treatment", "replicate", "sample"]].drop_duplicates().set_index(["treatment", "replicate"])["sample"])
+            methyl_data[["treatment", "replicate", "sample"]].drop_duplicates().set_index(["treatment", "replicate"])[
+                "sample"])
     ))
 
-    start_grid_search(methyl_xr)
+    start_grid_search(methyl_xr, "replicate", ["treatment"])
 
     return
 
