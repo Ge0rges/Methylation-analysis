@@ -57,6 +57,9 @@ def run_dmr_analysis(genome_name, data_dir):
     name_map = dict(zip(name_map["name"], name_map["position"]))
     methyl_data = methyl_data.with_columns(position=pl.col("name").replace_strict(name_map, default=pl.first()))
 
+    # Add gene position column and use it as a dimension
+    methyl_data = methyl_data.with_columns(pl.int_range(pl.len()).over("gene_callers_id").alias("position"))
+    
     # Pivot the dataframe
     methyl_data = methyl_data.unpivot(index=["position", "treatment", "replicate", "sample", "gene_callers_id"],
                                       on=methylation_types + ["Ncanonical"],
@@ -70,9 +73,6 @@ def run_dmr_analysis(genome_name, data_dir):
     #         methyl_data[["treatment", "replicate", "sample"]].drop_duplicates().set_index(["treatment", "replicate"])["sample"])
     # ))
     # start_grid_search(methyl_xr, "replicate", ["treatment"])
-
-    # Add gene position column and use it as a dimension
-    methyl_data = methyl_data.with_columns(pl.int_range(pl.len()).over("gene_callers_id").alias("position"))
 
     methyl_xr = xr.Dataset(dict(
         Abundance=xr.DataArray.from_series(
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     for coverage in ["5", "5_agg"]:
         print(f"Running rao analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                f"../data/methylation_data/methylation_{coverage}")
+                                f"../../methylation_data/methylation_{coverage}")
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store":
                 continue
