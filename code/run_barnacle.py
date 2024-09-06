@@ -1,7 +1,9 @@
 from utilities.data_loading import *
-from utilities.utils import readable_methylation_name, barcode_sample_map, add_gene_caller_id
+from utilities.utils import readable_methylation_name, barcode_sample_map, add_gene_caller_id, normalize_data_by_pileup
 import xarray as xr
 from barnacle_grid_search import start_grid_search
+import concurrent
+
 
 replicate_map = {"barcode01": "A",
                  "barcode02": "A",
@@ -58,32 +60,75 @@ def run_dmr_analysis(genome_name, data_dir):
     methyl_data = methyl_data.with_columns(position=pl.col("name").replace_strict(name_map, default=pl.first()))
 
     # Add gene position column and use it as a dimension
-    methyl_data = methyl_data.with_columns(pl.int_range(pl.len()).over("gene_callers_id").alias("position"))
-    
+    methyl_data = methyl_data.with_columns(pl.int_range(pl.len()).over("gene_callers_id").alias("gene_position"))
+
+    # Normalize
+    methyl_data_norm = normalize_data_by_pileup(methyl_data.lazy()).collect(streaming=True)
+
     # Pivot the dataframe
-    methyl_data = methyl_data.unpivot(index=["position", "treatment", "replicate", "sample", "gene_callers_id"],
+    methyl_data_df = methyl_data.unpivot(index=["position", "treatment", "replicate", "sample", "gene_callers_id", "gene_position"],
                                       on=methylation_types + ["Ncanonical"],
                                       variable_name="methylation_type").to_pandas()
 
-    # Make a 3D Xarray with dimensions: methylation_types, samples, positions
-    # methyl_xr = xr.Dataset(dict(
-    #     Abundance=xr.DataArray.from_series(
-    #         methyl_data[["treatment", "replicate", "position", "methylation_type", "value"]].set_index(["treatment", "replicate", "position", "methylation_type"])["value"]),
-    #     Sample=xr.DataArray.from_series(
-    #         methyl_data[["treatment", "replicate", "sample"]].drop_duplicates().set_index(["treatment", "replicate"])["sample"])
-    # ))
-    # start_grid_search(methyl_xr, "replicate", ["treatment"])
+    methyl_data_norm_df = methyl_data_norm.unpivot(index=["position", "treatment", "replicate", "sample", "gene_callers_id", "gene_position"],
+                                      on=methylation_types + ["Ncanonical"],
+                                      variable_name="methylation_type").to_pandas()
 
-    methyl_xr = xr.Dataset(dict(
+    # Turn into datasets
+    methyl_xr_abs = xr.Dataset(dict(
         Abundance=xr.DataArray.from_series(
-            methyl_data[["treatment", "replicate", "position", "methylation_type", "gene_callers_id", "value"]].set_index(
-                ["treatment", "replicate", "position", "methylation_type", "gene_callers_id"])["value"]),
+            methyl_data_df[["treatment", "replicate", "position", "methylation_type", "value"]].set_index(["treatment", "replicate", "position", "methylation_type"])["value"]),
         Sample=xr.DataArray.from_series(
-            methyl_data[["treatment", "replicate", "sample"]].drop_duplicates().set_index(["treatment", "replicate"])[
+            methyl_data_df[["treatment", "replicate", "sample"]].drop_duplicates().set_index(["treatment", "replicate"])["sample"])
+    ))
+
+    methyl_xr_gene = xr.Dataset(dict(
+        Abundance=xr.DataArray.from_series(
+            methyl_data_df[["treatment", "replicate", "gene_position", "methylation_type", "gene_callers_id", "value"]].set_index(
+                ["treatment", "replicate", "gene_position", "methylation_type", "gene_callers_id"])["value"]),
+        Sample=xr.DataArray.from_series(
+            methyl_data_df[["treatment", "replicate", "sample"]].drop_duplicates().set_index(["treatment", "replicate"])[
                 "sample"])
     ))
 
-    start_grid_search(methyl_xr, "replicate", ["treatment"])
+    methyl_xr_abs_norm = xr.Dataset(dict(
+        Abundance=xr.DataArray.from_series(
+            methyl_data_norm_df[["treatment", "replicate", "position", "methylation_type", "value"]].set_index(
+                ["treatment", "replicate", "position", "methylation_type"])["value"]),
+        Sample=xr.DataArray.from_series(
+            methyl_data_norm_df[["treatment", "replicate", "sample"]].drop_duplicates().set_index(
+                ["treatment", "replicate"])["sample"])
+    ))
+
+    methyl_xr_gene_norm = xr.Dataset(dict(
+        Abundance=xr.DataArray.from_series(
+            methyl_data_norm_df[
+                ["treatment", "replicate", "gene_position", "methylation_type", "gene_callers_id", "value"]].set_index(
+                ["treatment", "replicate", "gene_position", "methylation_type", "gene_callers_id"])["value"]),
+        Sample=xr.DataArray.from_series(
+            methyl_data_norm_df[["treatment", "replicate", "sample"]].drop_duplicates().set_index(
+                ["treatment", "replicate"])[
+                "sample"])
+    ))
+
+    def run_in_parallel():
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            # Submit the tasks for parallel execution
+            executor.submit(start_grid_search, methyl_xr_abs, "replicate", ["treatment"],
+                            '../data/models/absolute/'),
+            executor.submit(start_grid_search, methyl_xr_gene, "replicate", ["treatment"], '../data/models/gene/'),
+            executor.submit(start_grid_search, methyl_xr_abs_norm, "replicate", ["treatment"],
+                            '../data/models/absolute_norm/'),
+            executor.submit(start_grid_search, methyl_xr_gene_norm, "replicate", ["treatment"],
+                            '../data/models/gene_norm/')
+
+    # Call the function to run them in parallel
+    run_in_parallel()
+
+    # start_grid_search(methyl_xr_abs, "replicate", ["treatment"], '../data/models/absolute/')
+    # start_grid_search(methyl_xr_gene, "replicate", ["treatment"], '../data/models/gene/')
+    # start_grid_search(methyl_xr_abs_norm, "replicate", ["treatment"], '../data/models/absolute_norm/')
+    # start_grid_search(methyl_xr_gene_norm, "replicate", ["treatment"], '../data/models/gene_norm/')
 
     return
 
@@ -92,7 +137,7 @@ if __name__ == "__main__":
     for coverage in ["5", "5_agg"]:
         print(f"Running rao analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                f"../../methylation_data/methylation_{coverage}")
+                                f"../data/methylation_data/methylation_{coverage}")
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store":
                 continue

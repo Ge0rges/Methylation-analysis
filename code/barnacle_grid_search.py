@@ -294,7 +294,175 @@ def shuffle_dataset(output_dir, boot_id, dataset, shuffle_seed, replicate_col, g
     return shuffle_ds
 
 
-def start_grid_search(dataset, replicate_col, group_cols):
+# Helper function to set up replicate directories and file paths
+def setup_replicate_paths(output_dir, replicates):
+    filepaths_reps = {}
+    for rep in replicates:
+        path = output_dir / f'replicate{rep}'
+        if not path.is_dir():
+            path.mkdir(parents=True)
+        filepaths_reps[rep] = path / f'shuffled_replicate_{rep}.nc'
+    return filepaths_reps
+
+
+# Import or generate replicate subtensors
+def get_replicate_sets(filepaths_reps, replicates, shuffle_ds):
+    replicates_exist = np.all([filepaths_reps[f].is_file() for f in replicates])
+    if replicates_exist:
+        print(
+            f'Importing replicate DataArrays from:\n{json.dumps({i: str(k) for i, k in filepaths_reps.items()}, indent=4)}',
+            flush=True)
+        replicate_sets = {rep: xr.open_dataarray(filepaths_reps[rep]) for rep in replicates}
+    else:
+        print('Separating shuffled replicate DataArrays', flush=True)
+        replicate_sets = separate_replicates(shuffle_ds, ['methylation_type', 'treatment', 'position'],
+                                             'Abundance', replicate_label='replicate')
+        for rep in replicates:
+            replicate_sets[rep].to_netcdf(filepaths_reps[rep])
+    return replicate_sets
+
+
+# Function to fit models to each replicate dataset
+def fit_models_to_replicates(replicates, replicate_sets, param_grid, output_dir, boot_id, fitting_results, filepath_fit_data):
+    for rep in replicates:
+        tensor = replicate_sets[rep]
+        models, dirpaths_models = [], []
+
+        for params in param_grid:
+            model_seed = rns.randint(2**32)
+            model_dir = output_dir / f'replicate{rep}/rank{params["rank"]}/lambda{params["lambdas"][0]}'
+            filepath_fitted = model_dir / 'fitted_model.h5'
+
+            if not filepath_fitted.is_file():
+                models.append(SparseCP(**params, random_state=model_seed))
+                dirpaths_models.append(model_dir)
+
+        if not models:
+            print(f"Pre-existing models discovered, skipping replicate {rep}", flush=True)
+            continue
+
+        print(f'\nFitting replicate {rep} models\n', flush=True)
+
+        # Assemble job parameters and run jobs
+        job_params = (models, [tensor.data for m in models], dirpaths_models, [{'threads': 1, 'verbose': 0} for m in models])
+        executor = ProcessPoolExecutor(max_workers=20)
+        fit_models = executor.map(fit_save_model, *job_params)
+
+        # Process fitted models and record metrics
+        for model in fit_models:
+            record_model_metrics(model, rep, boot_id, tensor, fitting_results)
+            save_fitting_results(fitting_results, filepath_fit_data)
+
+        executor.shutdown()
+
+
+# Record model fitting metrics
+def record_model_metrics(model, rep, boot_id, tensor, fitting_results):
+    metrics = {
+        'datetime': datetime.datetime.now(),
+        'bootstrap_id': boot_id,
+        'replicate': rep,
+        'rank': model.rank,
+        'lambda': model.lambdas[0],
+        'best_init': model._best_cp_index,
+        'loss': model.loss_[-1],
+        'convergence_iterations': len(model.loss_),
+        'sse': relative_sse(model.decomposition_, tensor),
+        'degeneracy': degeneracy_score(model.decomposition_),
+        'core_consistency': core_consistency(model.decomposition_, tensor),
+        'monotonicity': np.all(np.diff(model.loss_) < 0),
+        'candidate_monotonicity': [np.all(np.diff(l) < 0) for l in model.candidate_losses_],
+        'candidate_fms': [factor_match_score(model.decomposition_, c, consider_weights=False, allow_smaller_rank=True) for c in model.candidates_],
+        'candidate_sse': [relative_sse(c, tensor) for c in model.candidates_]
+    }
+    fitting_results.append(metrics)
+    print(f'rank:{metrics["rank"]}, lambda:{metrics["lambda"]}, sse:{metrics["sse"]:.5}', flush=True)
+
+
+# Save fitting results to CSV
+def save_fitting_results(fitting_results, filepath_fit_data):
+    fitting_df = pd.DataFrame(fitting_results)
+    fitting_df.to_csv(filepath_fit_data, index=False)
+
+
+# Perform cross-validation calculations
+def cross_validate(n_bootstraps, base_dir, replicates, param_grid, cv_results, filepath_cv_data):
+    for boot_id in range(n_bootstraps):
+        boot_path = base_dir / f'bootstrap{boot_id}'
+        rep_data = {rep: xr.open_dataarray(boot_path / f'replicate{rep}/shuffled_replicate_{rep}.nc') for rep in
+                    replicates}
+
+        for params in param_grid:
+            cps = {rep: load_cp_tensor(
+                boot_path / f'replicate{rep}/rank{params["rank"]}/lambda{params["lambdas"][0]}/fitted_model.h5') for rep
+                   in replicates}
+
+            for modeled_rep in replicates:
+                for comparison_rep in replicates:
+                    if cross_validation_record_exists(cv_results, boot_id, params, modeled_rep, comparison_rep):
+                        continue
+
+                    fms_cv, css_cv, scss_cv = calculate_cross_validation_metrics(cps, modeled_rep, comparison_rep)
+                    rel_sse = relative_sse(cps[modeled_rep], rep_data[comparison_rep].data)
+
+                    store_cv_results(cv_results, boot_id, params, modeled_rep, comparison_rep, rel_sse, fms_cv, css_cv,
+                                     scss_cv)
+                    save_cv_results(cv_results, filepath_cv_data)
+
+
+# Helper function to check if cross-validation record already exists
+def cross_validation_record_exists(cv_df, boot_id, params, modeled_rep, comparison_rep):
+    record = cv_df.loc[
+        (cv_df['bootstrap_id'] == boot_id) & (cv_df['rank'] == params['rank']) &
+        (cv_df['lambda'] == params['lambdas'][0]) &
+        (cv_df['modeled_replicate'] == modeled_rep) &
+        (cv_df['comparison_replicate'] == comparison_rep)
+        ]
+    if len(record) >= 1:
+        print(
+            f'Pre-existing record found, skipping comparison: {boot_id}, {params["rank"]}, {params["lambdas"][0]}, {modeled_rep}, {comparison_rep}',
+            flush=True)
+        return True
+    return False
+
+
+# Calculate cross-validation metrics
+def calculate_cross_validation_metrics(cps, modeled_rep, comparison_rep):
+    if modeled_rep < comparison_rep:
+        fms_cv = factor_match_score(cps[modeled_rep], cps[comparison_rep], consider_weights=False,
+                                    allow_smaller_rank=True)
+        css_cv = cosine_similarity(cps[modeled_rep].factors[0], cps[comparison_rep].factors[0])
+        scss_cv = cosine_similarity((cps[modeled_rep].factors[0] != 0), (cps[comparison_rep].factors[0] != 0))
+    else:
+        fms_cv = css_cv = scss_cv = np.nan
+    return fms_cv, css_cv, scss_cv
+
+
+# Store cross-validation results
+def store_cv_results(cv_results, boot_id, params, modeled_rep, comparison_rep, rel_sse, fms_cv, css_cv, scss_cv):
+    cv_results.append({
+        'bootstrap_id': boot_id,
+        'rank': params['rank'],
+        'lambda': params['lambdas'][0],
+        'modeled_replicate': modeled_rep,
+        'comparison_replicate': comparison_rep,
+        'replicate_pair': f'{modeled_rep}, {comparison_rep}',
+        'n_components': nonzero_components(cps[modeled_rep]),
+        'mean_gene_sparsity': (cps[modeled_rep].factors[0] != 0.0).sum(axis=0).mean(),
+        'relative_sse': rel_sse,
+        'fms_cv': fms_cv,
+        'css_cv_factor0': css_cv,
+        'scss_cv_factor0': scss_cv
+    })
+
+
+# Save cross-validation results to CSV
+def save_cv_results(cv_results, filepath_cv_data):
+    cv_df = pd.DataFrame(cv_results)
+    cv_df.to_csv(filepath_cv_data, index=False)
+
+
+def start_grid_search(dataset, replicate_col, group_cols, base_dir):
     # set random state
     seed = 9481
     rns = check_random_state(seed)
@@ -302,9 +470,9 @@ def start_grid_search(dataset, replicate_col, group_cols):
     print('\nBeginning parameter grid search\n', flush=True)
 
     # output directory and experiment parameters
-    base_dir = Path('../data/models/')
+    base_dir = Path(base_dir)
     n_bootstraps = 100
-    replicates = ['A', 'B', 'C']
+    replicates = dataset[replicate_col].unique().values
 
     # define model grid search param
     model_params = {
@@ -328,234 +496,18 @@ def start_grid_search(dataset, replicate_col, group_cols):
         'n_components', 'mean_gene_sparsity', 'relative_sse', 'fms_cv', 'css_cv_factor0', 'scss_cv_factor0'
     ])
 
-
     # begin experiment
     for boot_id in range(n_bootstraps):
         shuffle_seed = rns.randint(2 ** 32)
         print(f"\nBootstrap: {boot_id} (seed={shuffle_seed})", flush=True)
 
-        # directory and file paths
+        # Shuffle the dataset
         output_dir = base_dir / f"bootstrap{boot_id}"
-
         shuffle_ds = shuffle_dataset(output_dir, boot_id, dataset, shuffle_seed, replicate_col, group_cols)
 
-        # set up replicate subtensor data
-        filepaths_reps = {}
-        for rep in replicates:
-            path = output_dir / 'replicate{}'.format(rep)
-            if not path.is_dir():
-                path.mkdir(parents=True)
-            # collect all filepaths
-            filepaths_reps[rep] = path / 'shuffled_replicate_{}.nc'.format(rep, rep)
-        # check if all replicate dataarrays exist or not
-        all_reps_saved = np.all([filepaths_reps[f].is_file() for f in replicates])
-        # import replicate subtensors if the saved files exist
-        if all_reps_saved:
-            print('Importing replicate DataArrays discovered at:\n{}'.format(
-                json.dumps({i: str(k) for i, k in filepaths_reps.items()}, indent=4)
-            ), flush=True)
-            replicate_sets = {}
-            for rep in replicates:
-                replicate_sets[rep] = xr.open_dataarray(filepaths_reps[rep])
-        # otherwise separate out replicate sets from shuffled tensor
-        else:
-            print('Separating shuffled replicate DataArrays', flush=True)
-            replicate_sets = separate_replicates(
-                shuffle_ds,
-                ['methylation_type', 'treatment', 'position'],
-                'Abundance',
-                replicate_label='replicate'
-            )
-            for rep in replicates:
-                # save shuffled replicate data
-                replicate_sets[rep].to_netcdf(filepaths_reps[rep])
+        # Check if replicate sets exist, otherwise import them
+        filepaths_reps = setup_replicate_paths(output_dir, replicates)
+        replicate_sets = get_replicate_sets(filepaths_reps, replicates, shuffle_ds)
 
-        # fit grid search models to each replicate dataset
-        for rep in replicates:
-            # pull out shuffled replicate data
-            tensor = replicate_sets[rep]
-
-            # instantiate models and define output filepaths
-            models = []
-            dirpaths_models = []
-            for params in param_grid:
-                model_seed = rns.randint(2 ** 32)
-                model_dir = output_dir / 'replicate{}/rank{}/lambda{}'.format(
-                    rep, params['rank'], params['lambdas'][0]
-                )
-                filepath_fitted = model_dir / 'fitted_model.h5'
-                # don't re-fit any models that have already been fitted
-                if not filepath_fitted.is_file():
-                    # instantiate parameterized model
-                    models.append(SparseCP(**params, random_state=model_seed))
-                    dirpaths_models.append(model_dir)
-
-            # continue to next set of replicates if all models have already been fit
-            if len(models) == 0:
-                print(
-                    """
-                    Pre-existing models discovered, skipping fitting to following dataset:
-                        bootstrap = {}
-                        replicate = {}
-                    """.format(boot_id, rep),
-                    flush=True
-                )
-                continue
-            else:
-                print('\nFitting replicate {} models\n'.format(rep), flush=True)
-
-            # assemble job parameters
-            job_params = (
-                models,
-                [tensor.data for m in models],
-                dirpaths_models,
-                [{'threads': 1, 'verbose': 0} for m in models]
-            )
-
-            # run jobs
-            executor = ProcessPoolExecutor(max_workers=20)
-            fit_models = executor.map(fit_save_model, *job_params)
-
-            # iterate through models in order
-            for model in fit_models:
-                # calculate metrics
-                rank = model.rank
-                lamb = model.lambdas[0]
-                best_init = model._best_cp_index
-                loss = model.loss_[-1]
-                cvg_iter = len(model.loss_)
-                sse = relative_sse(model.decomposition_, tensor)
-                degeneracy = degeneracy_score(model.decomposition_)
-                cc = core_consistency(model.decomposition_, tensor)
-                monotonicity = np.all(np.diff(model.loss_) < 0)
-                can_mon = [np.all(np.diff(l) < 0) for l in model.candidate_losses_]
-                can_fms = [factor_match_score(model.decomposition_, c, consider_weights=False, allow_smaller_rank=True)
-                           for c in model.candidates_]
-                can_sse = [relative_sse(c, tensor) for c in model.candidates_]
-
-                # record metrics
-                fitting_results.append(
-                    {
-                        'datetime': datetime.datetime.now(),
-                        'bootstrap_id': boot_id,
-                        'replicate': rep,
-                        'rank': rank,
-                        'lambda': lamb,
-                        'best_init': best_init,
-                        'loss': loss,
-                        'convergence_iterations': cvg_iter,
-                        'sse': sse,
-                        'degeneracy': degeneracy,
-                        'core_consistency': cc,
-                        'monotonicity': monotonicity,
-                        'candidate_monotonicity': can_mon,
-                        'candidate_fms': can_fms,
-                        'candidate_sse': can_sse
-                    }
-                )
-
-                # print some metrics
-                print('rank:{}, lambda:{}, sse:{:.5}'.format(
-                    rank,
-                    lamb,
-                    sse,
-                ), flush=True)
-
-                # save data
-                fitting_df = pd.DataFrame(fitting_results)
-                fitting_df.to_csv(filepath_fit_data, index=False)
-
-            # shut down executor
-            executor.shutdown()
-
-    # collect cross validation results
-    print('\nBeginning cross validataion calculations\n', flush=True)
-    for boot_id in range(n_bootstraps):
-        # set path of bootstrap data
-        boot_path = base_dir / 'bootstrap{}'.format(boot_id)
-        # read in shuffled replicate data
-        rep_data = {}
-        for rep in replicates:
-            rep_path = boot_path / 'replicate{}'.format(rep)
-            rep_data[rep] = xr.open_dataarray(rep_path / 'shuffled_replicate_{}.nc'.format(rep))
-        # iterate through all parameter combos
-        for params in param_grid:
-            # get all the models
-            cps = {}
-            expt_path = 'rank{}/lambda{}'.format(params['rank'], params['lambdas'][0])
-            for rep in replicates:
-                cp_path = boot_path / 'replicate{}'.format(rep) / expt_path
-                cps[rep] = load_cp_tensor(cp_path / 'fitted_model.h5')
-            for modeled_rep in replicates:
-                for comparison_rep in replicates:
-                    print_string = 'bootstrap: {}, rank: {}, lambda: {}, modeled: {}, comparison: {}'.format(
-                        boot_id,
-                        params['rank'],
-                        params['lambdas'][0],
-                        modeled_rep,
-                        comparison_rep
-                    )
-                    # check if comparison has already been calculated
-                    record = cv_df.loc[(
-                            (cv_df['bootstrap_id'] == boot_id) &
-                            (cv_df['rank'] == params['rank']) &
-                            (cv_df['lambda'] == params['lambdas'][0]) &
-                            (cv_df['modeled_replicate'] == modeled_rep) &
-                            (cv_df['comparison_replicate'] == comparison_rep)
-                    )]
-                    if len(record) >= 1:
-                        print(
-                            'Pre-existing record found, ' +
-                            'skipping following comparison:\n\t{}'.format(print_string),
-                            flush=True
-                        )
-                        continue
-                    else:
-                        print(print_string, flush=True)
-
-                    # pull out data to be compared against
-                    comparison_data = rep_data[comparison_rep]
-
-                    # calculate fms & cosine similiary scores against other fit models
-                    if modeled_rep < comparison_rep:
-                        fms_cv = factor_match_score(
-                            cps[modeled_rep],
-                            cps[comparison_rep],
-                            consider_weights=False,
-                            allow_smaller_rank=True
-                        )
-                        css_cv = cosine_similarity(
-                            cps[modeled_rep].factors[0],
-                            cps[comparison_rep].factors[0]
-                        )
-                        scss_cv = cosine_similarity(
-                            (cps[modeled_rep].factors[0] != 0),
-                            (cps[comparison_rep].factors[0] != 0)
-                        )
-                    else:
-                        # skip redundant and self comparisons
-                        fms_cv = css_cv = scss_cv = np.nan
-                    # calculate relative sse
-                    rel_sse = relative_sse(cps[modeled_rep], comparison_data.data)
-                    # keep results
-                    cv_results.append(
-                        {
-                            'bootstrap_id': boot_id,
-                            'rank': params['rank'],
-                            'lambda': params['lambdas'][0],
-                            'modeled_replicate': modeled_rep,
-                            'comparison_replicate': comparison_rep,
-                            'replicate_pair': '{}, {}'.format(modeled_rep, comparison_rep),
-                            'n_components': nonzero_components(cps[modeled_rep]),
-                            'mean_gene_sparsity':
-                                (cps[modeled_rep].factors[0] != 0.0).sum(axis=0).mean(),
-                            'relative_sse': rel_sse,
-                            'fms_cv': fms_cv,
-                            'css_cv_factor0': css_cv,
-                            'scss_cv_factor0': scss_cv,
-                        }
-                    )
-                    # store results in dataframe
-                    cv_df = pd.DataFrame(cv_results)
-        # save data
-        cv_df.to_csv(filepath_cv_data, index=False)
+        fit_models_to_replicates(replicates, replicate_sets, param_grid, output_dir, boot_id, fitting_results, filepath_fit_data)
+        cross_validate(n_bootstraps, base_dir, replicates, param_grid, cv_results, filepath_cv_data)
