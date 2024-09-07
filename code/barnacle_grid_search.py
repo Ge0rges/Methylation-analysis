@@ -7,32 +7,17 @@
 # ProMo metabolite data, using parameter grid search.
 
 from utilities.utils import generate_cross_validation_sets
-import itertools
 from concurrent.futures import ProcessPoolExecutor
 import datetime
 import json
 import numpy as np
 from pathlib import Path
-import pandas as pd
-import scipy
 from sklearn.model_selection import ParameterGrid
-import tensorly as tl
 from tensorly import check_random_state
-from tensorly.cp_tensor import CPTensor
-from barnacle import (
-    SparseCP,
-    simulated_sparse_tensor,
-    visualize_3d_tensor,
-    plot_factors_heatmap,
-    recovery_relevance,
-    pairs_precision_recall
-)
-from barnacle.tensors import SparseCPTensor
-from tlab.cp_tensor import store_cp_tensor, load_cp_tensor
-from tlviz.visualisation import optimisation_diagnostic_plots
+from barnacle import SparseCP
+from tlab.cp_tensor import store_cp_tensor
 from tlviz.model_evaluation import relative_sse, core_consistency
 from tlviz.factor_tools import factor_match_score, cosine_similarity, degeneracy_score
-from tlviz.multimodel_evaluation import similarity_evaluation
 import xarray as xr
 
 

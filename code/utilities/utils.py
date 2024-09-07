@@ -1,4 +1,6 @@
+import itertools
 import textwrap
+import random
 import polars as pl
 import utilities.data_loading as dl
 
@@ -210,7 +212,7 @@ def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, aggregat
 
 def normalize_data_by_pileup(df: pl.LazyFrame) -> pl.LazyFrame:
     methylation_types = list(readable_methylation_name.keys()) + ["Ncanonical"]
-    df = df.with_columns(pl.col(methylation_types) /  pl.concat_list(methylation_types).list.sum())
+    df = df.with_columns(pl.col(methylation_types) / pl.concat_list(methylation_types).list.sum())
 
     return df
 
@@ -240,3 +242,14 @@ def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str, genome_na
     # Clean up by dropping columns that are no longer needed
     merged_df = merged_df.sort(by=['contig', 'start_right']).lazy()
     return merged_df.drop("contig", "start_right", "stop", "e_value")
+
+
+def generate_cross_validation_sets(df, treatmeant_col, sample_col, boot_id) -> pl.LazyFrame:
+    # Get all possible combinations of replicate_labels and treatments
+    all_permutations = list(itertools.product(*[df.filter(pl.col(treatmeant_col).eq(group)).get_column(sample_col).unique().to_list() for group in df.get_column(treatmeant_col).unique().to_list()]))
+    if boot_id >= len(all_permutations):
+        print(f"Max bootstraps is {len(all_permutations)}")
+        boot_id = random.randint(0, len(all_permutations))
+
+    combination = all_permutations[boot_id]
+    return df.filter(pl.col(sample_col).is_in(combination))
