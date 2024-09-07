@@ -28,7 +28,7 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
 
     # Rename samples and make total methylation column
     methyl_data = normalize_data_by_pileup(methyl_data)
-    methyl_data = methyl_data.with_columns(pl.col("sample").replace(barcode_sample_map, default=pl.first()),
+    methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()),
                                            pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
 
     # Calculate rao score between each group in parallel
