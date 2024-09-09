@@ -120,9 +120,7 @@ def fit_models_to_replicates(replicates_labels, replicates_gen_param, param_grid
                 'core_consistency': core_consistency(model.decomposition_, tensor),
                 'monotonicity': np.all(np.diff(model.loss_) < 0),
                 'candidate_monotonicity': [np.all(np.diff(l) < 0) for l in model.candidate_losses_],
-                'candidate_fms': [
-                    factor_match_score(model.decomposition_, c, consider_weights=False, allow_smaller_rank=True) for c
-                    in model.candidates_],
+                #'candidate_fms': [factor_match_score(model.decomposition_, c, consider_weights=False, allow_smaller_rank=True) for c in model.candidates_],
                 'candidate_sse': [relative_sse(c, tensor) for c in model.candidates_]
             }
             fitting_results[rep].append(metrics)
@@ -171,8 +169,7 @@ def cross_validate(boot_id, replicate_labels, all_models, all_tensors, param_gri
 # Calculate cross-validation metrics
 def calculate_cross_validation_metrics(cps, modeled_rep, comparison_rep):
     if modeled_rep < comparison_rep:
-        fms_cv = factor_match_score(cps[modeled_rep], cps[comparison_rep], consider_weights=False,
-                                    allow_smaller_rank=True)
+        fms_cv = np.nan #factor_match_score(cps[modeled_rep], cps[comparison_rep], consider_weights=False, allow_smaller_rank=True)
         css_cv = cosine_similarity(cps[modeled_rep].factors[0], cps[comparison_rep].factors[0])
         scss_cv = cosine_similarity((cps[modeled_rep].factors[0] != 0), (cps[comparison_rep].factors[0] != 0))
     else:
