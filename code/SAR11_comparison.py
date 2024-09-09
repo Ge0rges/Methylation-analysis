@@ -31,25 +31,25 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()),
                                            pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
 
-    # Calculate rao score between each group in parallel
-    samples = methyl_data.get_column("sample").unique().to_list()
-
-    def process_sample_pair(sample_tuple):
-        sampleA, sampleB = sample_tuple
-        _, significant, comp_str = add_rao_score_by_sample(methyl_data, [sampleA, sampleB], baseline=False)
-        return sampleA, sampleB, significant
-
-    comp_df = pd.DataFrame(index=samples, columns=samples)
-
-    with mp.get_context("spawn").Pool(15) as p:
-        for result in p.map(process_sample_pair, combinations(samples, 2)):
-            sampleA, sampleB, significant = result
-            comp_df.loc[sampleA, sampleB] = significant
-            comp_df.loc[sampleB, sampleA] = significant
-    print(comp_df)
+    # # Calculate rao score between each group in parallel
+    # samples = methyl_data.get_column("sample").unique().to_list()
+    # 
+    # def process_sample_pair(sample_tuple):
+    #     sampleA, sampleB = sample_tuple
+    #     _, significant, comp_str = add_rao_score_by_sample(methyl_data, [sampleA, sampleB], baseline=False)
+    #     return sampleA, sampleB, significant
+    # 
+    # comp_df = pd.DataFrame(index=samples, columns=samples)
+    # 
+    # with mp.get_context("spawn").Pool(15) as p:
+    #     for result in p.map(process_sample_pair, combinations(samples, 2)):
+    #         sampleA, sampleB, significant = result
+    #         comp_df.loc[sampleA, sampleB] = significant
+    #         comp_df.loc[sampleB, sampleA] = significant
+    # print(comp_df)
 
     # Create figure
-    fig, axes = plt.subplots(1, 1, figsize=(20, 5), sharex=False, layout="constrained")
+    fig, axes = plt.subplots(1, 1, figsize=(5, 5), layout="constrained")
 
     # Mean together all the different methylation types
     genes = get_genes_polars(data_dir, genome_name)
@@ -57,14 +57,14 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     all_ids = methyl_data.get_column("gene_callers_id").to_list()
     ids = dict(zip(all_ids, rankdata(all_ids, method='dense')))
     methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=np.NAN))
-    mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation')
+    g = methyl_data.select('gene_id', 'sample', 'total_methylation').group_by("gene_id", "sample").mean()
 
     sns.lineplot(mean_data, x="gene_id", y="total_methylation", hue="sample")
     #sns.heatmap(comp_df, ax=axes, cbar=False)
 
     # Save the figure
     fig.suptitle(f"Comparison of SAR11", fontsize=26)
-    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}.svg", format='svg', transparent=True)
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}.pdf", format='pdf', transparent=True)
 
     print("Done.")
     return

@@ -41,7 +41,6 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     # Create the total methylation column and normalize values
     methyl_data = normalize_data_by_pileup(methyl_data)
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
-    #methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).drop("norm_sample").collect(streaming=True)
 
     # Add a gene_id column, which is just a map from gene_callers_id
     all_ids = methyl_data.get_column("gene_callers_id").to_list()
