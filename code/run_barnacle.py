@@ -85,7 +85,7 @@ if __name__ == "__main__":
     for coverage in ["5", "5_agg"]:
         print(f"Running barnacle analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                f"../data/methylation_data/methylation_{coverage}")
+                                f"../../methylation_data/methylation_{coverage}")
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store":
                 continue
