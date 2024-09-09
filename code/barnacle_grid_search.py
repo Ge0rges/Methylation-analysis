@@ -55,6 +55,8 @@ def fit_save_model(model, data, path, fit_params):
         else:
             with open(path / 'model_parameters.txt', 'w') as f:
                 f.write(json.dumps(model.__dict__, indent=4))
+    print(f"Data fitting is: {data}")
+    exit()
     _ = model.fit_transform(data, return_losses=False, **fit_params)
     # save best fit model
     if path is not None:
@@ -95,7 +97,7 @@ def fit_models_to_replicates(replicates_labels, replicates_gen_param, param_grid
             tensors.append(tensor.data)
 
         # Assemble job parameters and run jobs
-        job_params = (models, tensors, [model_out]*len(models), [{'threads': 1, 'verbose': 0}]*len(models))
+        job_params = (models, tensors, [model_out]*len(models), [{'threads': 1, 'verbose': 5}]*len(models))
         executor = ProcessPoolExecutor(max_workers=20)
         fit_models = executor.map(fit_save_model, *job_params)
         executor.shutdown()
@@ -190,8 +192,8 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
         'rank': [1], #2, 3, 4, 5, 6, 7, 8, 9, 10],
         'lambdas': [[i, 0.0, 0.0] for i in [9.0, 10.0]], #[0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0]],
         # 'nonneg_modes': [[1, 2]],
-        'tol': [1e-5],
-        'n_iter_max': [2000],
+        'tol': [1e-3],
+        'n_iter_max': [5000],
         'n_initializations': [5]
     }
 

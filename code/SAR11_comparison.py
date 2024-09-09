@@ -57,7 +57,7 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     all_ids = methyl_data.get_column("gene_callers_id").to_list()
     ids = dict(zip(all_ids, rankdata(all_ids, method='dense')))
     methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=np.NAN))
-    g = methyl_data.select('gene_id', 'sample', 'total_methylation').group_by("gene_id", "sample").mean()
+    mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation').group_by("gene_id", "sample").mean()
 
     sns.lineplot(mean_data, x="gene_id", y="total_methylation", hue="sample")
     #sns.heatmap(comp_df, ax=axes, cbar=False)

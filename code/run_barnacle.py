@@ -69,6 +69,11 @@ def run_dmr_analysis(genome_name, data_dir):
                                       on=methylation_types + ["Ncanonical"],
                                       variable_name="methylation_type")
 
+    # Filter out NaNs
+    methyl_data = methyl_data.filter(pl.col("value").is_not_nan())
+    
+    methyl_data = methyl_data.sample(100000)
+
     # Generate cross-validation datasets
     methyl_cv_params = [methyl_data, "treatment", "sample"]
 
