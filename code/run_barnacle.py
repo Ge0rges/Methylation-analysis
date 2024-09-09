@@ -59,7 +59,7 @@ def run_dmr_analysis(genome_name, data_dir):
     # Add absolute position column
     name_map = methyl_data.select("name").unique().with_row_index("position").to_dict(as_series=False)
     name_map = dict(zip(name_map["name"], name_map["position"]))
-    methyl_data = methyl_data.with_columns(position=pl.col("name").replace_strict(name_map, default=pl.first()))
+    methyl_data = methyl_data.with_columns(position=pl.col("name").replace_strict(name_map))
 
     # Normalize
     # methyl_data_norm = normalize_data_by_pileup(methyl_data.lazy()).collect(streaming=True)

@@ -26,7 +26,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     )
 
     # Filter samples
-    #methyl_data = methyl_data.with_columns(pl.col("sample").alias("norm_sample"), pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
+    #methyl_data = methyl_data.with_columns(pl.col("sample").alias("norm_sample"), pl.col("sample").replace_strict(barcode_sample_map))
     methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 

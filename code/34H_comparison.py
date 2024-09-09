@@ -28,17 +28,17 @@ def run_34h_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
 
     # Rename samples and make total methylation column
     methyl_data = normalize_data_by_pileup(methyl_data)
-    methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(col34h_barcode_sample_map, default=pl.first()),
+    methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(col34h_barcode_sample_map),
                                            pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect()
 
     # Calculate rao score between each group in parallel
     samples = methyl_data.get_column("sample").unique().to_list()
-    
+
     def process_sample_pair(sample_tuple):
         sampleA, sampleB = sample_tuple
         _, significant, comp_str = add_rao_score_by_sample(methyl_data, [sampleA, sampleB], baseline=False)
         return sampleA, sampleB, significant
-    
+
     comp_df = pd.DataFrame(index=samples, columns=samples)
 
     with mp.get_context("spawn").Pool(15) as p:
@@ -65,7 +65,7 @@ def run_34h_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     # Save the figure
     fig.suptitle(f"Comparison of different preervation treatment of 34H", fontsize=26)
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}.svg", format='svg', transparent=True)
-    
+
     print("Done.")
     return
 
