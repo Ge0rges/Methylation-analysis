@@ -71,14 +71,12 @@ def run_dmr_analysis(genome_name, data_dir):
 
     # Filter out NaNs
     methyl_data = methyl_data.filter(pl.col("value").is_not_nan())
-    
-    methyl_data = methyl_data.sample(100000)
 
     # Generate cross-validation datasets
-    methyl_cv_params = [methyl_data, "treatment", "sample"]
+    methyl_cv_params = [methyl_data, "position", "treatment", "sample"]
 
     # Call barnacle grid search on it
-    barnacle_grid_search(methyl_cv_params, ["A", "B", "C"], ["position", "treatment", "methylation_type", "value"],  '../data/models/abs/')
+    barnacle_grid_search(methyl_cv_params, ["A", "B", "C"], ["position", "treatment", "methylation_type", "value"],  f'../data/models/{genome_name}/abs/')
 
     return
 
@@ -87,7 +85,7 @@ if __name__ == "__main__":
     for coverage in ["5", "5_agg"]:
         print(f"Running barnacle analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                f"../../methylation_data/methylation_{coverage}")
+                                f"../data/methylation_data/methylation_{coverage}")
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store":
                 continue

@@ -21,7 +21,7 @@ from tlviz.factor_tools import factor_match_score, cosine_similarity, degeneracy
 import xarray as xr
 
 
-def fit_save_model(model, data, path, fit_params):
+def fit_save_model(model, data, path, rep, fit_params):
     """Helper function that takes an instantiated model and data as input,
     fits the model to the data, and returns the fit model. Optionally, the model
     and its settings can be saved to an input file path.
@@ -55,12 +55,11 @@ def fit_save_model(model, data, path, fit_params):
         else:
             with open(path / 'model_parameters.txt', 'w') as f:
                 f.write(json.dumps(model.__dict__, indent=4))
-    print(f"Data fitting is: {data}")
-    exit()
     _ = model.fit_transform(data, return_losses=False, **fit_params)
     # save best fit model
-    if path is not None:
-        store_cp_tensor(model.decomposition_, path / 'fitted_model.h5')
+    # if path is not None:
+    #     print(path / f"fitted_model_{rep}.h5")
+    #     store_cp_tensor(model.decomposition_, path / f"fitted_model_{rep}.h5")
     # return model
     return model
 
@@ -80,33 +79,33 @@ def nonzero_components(cp, return_trimmed_cp=False):
 def fit_models_to_replicates(replicates_labels, replicates_gen_param, param_grid, boot_id, rns, abundance_cols: list, model_out):
     model_seed = rns.randint(2 ** 32)
     all_models = {}
-    all_metrics = {}
+    fitting_results = {}
+    replicate_data = {}
 
     for i, rep in enumerate(replicates_labels):
         print(f"Fitting replicate {rep} models")
         models = [SparseCP(**params, random_state=model_seed) for params in param_grid]
 
         # Make Xarray from df
-        tensors = []
-        dfs = [generate_cross_validation_sets(*replicates_gen_param, boot_id+i) for i in range(len(replicates_labels))]
-        for df in dfs:
-            df = df.to_pandas()
-            tensor = xr.DataArray.from_series(
-                df[abundance_cols].reset_index().drop_duplicates().set_index(abundance_cols[:-1])[abundance_cols[-1]]
-            )
-            tensors.append(tensor.data)
+        df = generate_cross_validation_sets(*replicates_gen_param, boot_id).to_pandas()
+        tensor = xr.DataArray.from_series(
+            df[abundance_cols].reset_index().drop_duplicates().set_index(abundance_cols[:-1])[abundance_cols[-1]]
+        )
+        tensor = tensor.fillna(0)
 
         # Assemble job parameters and run jobs
-        job_params = (models, tensors, [model_out]*len(models), [{'threads': 1, 'verbose': 5}]*len(models))
+        job_params = (models, [tensor.data]*len(models), [model_out]*len(models), [rep]*len(models), [{'threads': 1, 'verbose': 1}]*len(models))
         executor = ProcessPoolExecutor(max_workers=20)
         fit_models = executor.map(fit_save_model, *job_params)
         executor.shutdown()
 
-        all_models[rep] = fit_models
-        all_metrics[rep] = []
+        # Save models and data
+        all_models[rep] = list(fit_models)
+        fitting_results[rep] = []
+        replicate_data[rep] = tensor
 
         # Process fitted models and record metrics
-        for model, tensor in zip(fit_models, tensors):
+        for model in all_models[rep]:
             metrics = {
                 'datetime': datetime.datetime.now(),
                 'bootstrap_id': boot_id,
@@ -126,27 +125,29 @@ def fit_models_to_replicates(replicates_labels, replicates_gen_param, param_grid
                     in model.candidates_],
                 'candidate_sse': [relative_sse(c, tensor) for c in model.candidates_]
             }
-            all_metrics[rep].append(metrics)
+            fitting_results[rep].append(metrics)
 
-    return all_models, all_metrics
+
+    return all_models, fitting_results, replicate_data
 
 
 # Perform cross-validation calculations
-def cross_validate(boot_id, replicate_labels, all_cps, rep_data, param_grid) -> list:
+def cross_validate(boot_id, replicate_labels, all_models, all_tensors, param_grid) -> list:
     cv_results = []
     for params in param_grid:
 
         # Keep only models that have the right params
         cps = {}
-        for key, value_list in all_cps.items():
+        for key, value_list in all_models.items():
             # Filter the list based on the 'rank' property
-            cps[key] = [item for item in value_list if item.rank == params["rank"] and item.lambdas == params["lambdas"]]
+            for item in value_list:
+                if item.rank == params["rank"] and item.lambdas == params["lambdas"]:
+                    cps[key] = item.decomposition_
 
         for modeled_rep in replicate_labels:
             for comparison_rep in replicate_labels:
 
                 fms_cv, css_cv, scss_cv = calculate_cross_validation_metrics(cps, modeled_rep, comparison_rep)
-                rel_sse = relative_sse(cps[modeled_rep], rep_data[comparison_rep].data)
 
                 cv_results.append({
                     'bootstrap_id': boot_id,
@@ -157,7 +158,7 @@ def cross_validate(boot_id, replicate_labels, all_cps, rep_data, param_grid) -> 
                     'replicate_pair': f'{modeled_rep}, {comparison_rep}',
                     'n_components': nonzero_components(cps[modeled_rep]),
                     'mean_gene_sparsity': (cps[modeled_rep].factors[0] != 0.0).sum(axis=0).mean(),
-                    'relative_sse': rel_sse,
+                    'relative_sse': relative_sse(cps[modeled_rep], all_tensors[comparison_rep].data),
                     'fms_cv': fms_cv,
                     'css_cv_factor0': css_cv,
                     'scss_cv_factor0': scss_cv
@@ -189,11 +190,11 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
 
     # Define model grid search param
     model_params = {
-        'rank': [1], #2, 3, 4, 5, 6, 7, 8, 9, 10],
-        'lambdas': [[i, 0.0, 0.0] for i in [9.0, 10.0]], #[0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0]],
+        'rank': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        'lambdas': [[i, 0.0, 0.0] for i in [0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0]],
         # 'nonneg_modes': [[1, 2]],
-        'tol': [1e-3],
-        'n_iter_max': [5000],
+        'tol': [1e-5],
+        'n_iter_max': [2000],
         'n_initializations': [5]
     }
 
@@ -207,12 +208,12 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
         model_out.mkdir(parents=True, exist_ok=True)
 
         # Fit models to replicate_labels and cross validate
-        all_models, all_metrics = fit_models_to_replicates(replicate_labels, cross_df_gen_params, param_grid, boot_id, rns, abundance_cols, model_out)
-        cv_result = cross_validate(boot_id, replicate_labels, all_models, cross_df_gen_params, param_grid)
+        models, fitting_results, replicate_data = fit_models_to_replicates(replicate_labels, cross_df_gen_params, param_grid, boot_id, rns, abundance_cols, model_out)
+        cv_result = cross_validate(boot_id, replicate_labels, models, replicate_data, param_grid)
 
         # Save all this to files
         with open(output_dir / f'cv_results_{boot_id}.json', 'w') as f:
             json.dump(cv_result, f, indent=4)
 
         with open(output_dir / f'metrics_{boot_id}.json', 'w') as f:
-            json.dump(all_metrics, f, indent=4)
+            json.dump(fitting_results, f, indent=4)

@@ -244,12 +244,16 @@ def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str, genome_na
     return merged_df.drop("contig", "start_right", "stop", "e_value")
 
 
-def generate_cross_validation_sets(df, treatmeant_col, sample_col, boot_id) -> pl.LazyFrame:
+def generate_cross_validation_sets(df, unique_col, treatmeant_col, sample_col, boot_id) -> pl.LazyFrame:
     # Get all possible combinations of replicate_labels and treatments
     all_permutations = list(itertools.product(*[df.filter(pl.col(treatmeant_col).eq(group)).get_column(sample_col).unique().to_list() for group in df.get_column(treatmeant_col).unique().to_list()]))
     if boot_id >= len(all_permutations):
         print(f"Max bootstraps is {len(all_permutations)}")
         boot_id = random.randint(0, len(all_permutations))
+
+    # Keep only names that are in all samples
+    labels_in_all_groups = df.group_by(unique_col).agg(pl.col(sample_col).n_unique().alias("unique_groups")).filter(pl.col("unique_groups") == df.get_column(sample_col).n_unique()).get_column(unique_col).to_list()
+    df = df.filter(pl.col(unique_col).is_in(labels_in_all_groups))
 
     combination = all_permutations[boot_id]
     return df.filter(pl.col(sample_col).is_in(combination))
