@@ -89,6 +89,36 @@ col34h_barcode_sample_map = {
         'barcode18': 'RNA_Pellet'
 }
 
+sar11_barcode_sample_map = {"barcode01": "top",
+                      "barcode02": "middle",
+                      "barcode03": "bottom",
+                      "barcode04": "control",
+                      "barcode05": "top",
+                      "barcode06": "middle",
+                      "barcode07": "bottom",
+                      "barcode08": "top",
+                      "barcode09": "middle",
+                      "barcode10": "bottom",
+                      "barcode11": "core-40",
+                      "barcode12": "core-160",
+                      "barcode13": "core-205",
+                      "barcode14": "core-70",
+                      "uisw_101": "uisw_101",
+                      "uisw_104": "uisw_104",
+                      "uisw_106": "uisw_106",
+                      "uisw_113": "uisw_113",
+                      "uisw_114": "uisw_114",
+                      "uisw_116": "uisw_116",
+                      "uisw_121": "uisw_121",
+                      "uisw_127": "uisw_127",
+                      "uisw_130": "uisw_130",
+                      "uisw_134": "uisw_134",
+                      "uisw_136": "uisw_136",
+                      "uisw_137": "uisw_137",
+                      "uisw_90": "uisw_90",
+                      "uisw_92": "uisw_92",
+                      "uisw_94": "uisw_94"
+}
 
 def truncate_label(label, max_length, max_lines):
     """Truncate labels to a maximum length and line count, adding an ellipsis if truncated."""

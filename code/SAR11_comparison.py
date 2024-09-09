@@ -1,7 +1,7 @@
 from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
-from utilities.utils import add_gene_caller_id, barcode_sample_map, normalize_data_by_pileup
+from utilities.utils import add_gene_caller_id, sar11_barcode_sample_map, normalize_data_by_pileup
 from itertools import combinations
 from scipy.stats import rankdata
 import multiprocess as mp
@@ -25,10 +25,11 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
         start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
         end=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
     )
+    
 
     # Rename samples and make total methylation column
     methyl_data = normalize_data_by_pileup(methyl_data)
-    methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()),
+    methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(sar11_barcode_sample_map),
                                            pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
 
     # # Calculate rao score between each group in parallel
