@@ -43,7 +43,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
 
     # Add a gene_id column, which is just a map from gene_callers_id
-    all_ids = methyl_data.get_column("gene_callers_id").to_list()
+    all_ids = methyl_data.sort("strand", "contig",  "start").get_column("gene_callers_id").to_list()
     ids = dict(zip(all_ids, rankdata(all_ids, method='dense')))
     methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=np.NAN))
 

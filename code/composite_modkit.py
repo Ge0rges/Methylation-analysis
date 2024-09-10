@@ -65,7 +65,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
 
     # Add a gene_id column, which is just a map from gene_callers_id
-    all_ids = dmr_data.get_column("gene_callers_id").to_list() + methyl_data.get_column("gene_callers_id").to_list()
+    all_ids = dmr_data.sort("strand", "chrom",  "start").get_column("gene_callers_id").to_list() + methyl_data.sort("strand", "contig",  "start").get_column("gene_callers_id").to_list()
     ids = dict(zip(all_ids, rankdata(all_ids, method='dense')))
     dmr_data = dmr_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=-1))
     methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=-1))

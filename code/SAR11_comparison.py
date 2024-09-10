@@ -33,14 +33,14 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
 
     # # Calculate rao score between each group in parallel
     # samples = methyl_data.get_column("sample").unique().to_list()
-    # 
+    #
     # def process_sample_pair(sample_tuple):
     #     sampleA, sampleB = sample_tuple
     #     _, significant, comp_str = add_rao_score_by_sample(methyl_data, [sampleA, sampleB], baseline=False)
     #     return sampleA, sampleB, significant
-    # 
+    #
     # comp_df = pd.DataFrame(index=samples, columns=samples)
-    # 
+    #
     # with mp.get_context("spawn").Pool(15) as p:
     #     for result in p.map(process_sample_pair, combinations(samples, 2)):
     #         sampleA, sampleB, significant = result
@@ -54,7 +54,7 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     # Mean together all the different methylation types
     genes = get_genes_polars(data_dir, genome_name)
     methyl_data = add_gene_caller_id(methyl_data.lazy(), genes, True).collect(streaming=True)
-    all_ids = methyl_data.get_column("gene_callers_id").to_list()
+    all_ids = methyl_data.sort("strand", "contig",  "start").get_column("gene_callers_id").to_list()
     ids = dict(zip(all_ids, rankdata(all_ids, method='dense')))
     methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=np.NAN))
     mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation').group_by("gene_id", "sample").mean()
