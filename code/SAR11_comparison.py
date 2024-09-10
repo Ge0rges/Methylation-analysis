@@ -25,7 +25,7 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
         start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
         end=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
     )
-    
+
 
     # Rename samples and make total methylation column
     methyl_data = normalize_data_by_pileup(methyl_data)
@@ -51,9 +51,6 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     #         comp_df.loc[sampleB, sampleA] = significant
     # print(comp_df)
 
-    # Create figure
-    fig, axes = plt.subplots(1, 1, figsize=(5, 5), layout="constrained")
-
     # Mean together all the different methylation types
     genes = get_genes_polars(data_dir, genome_name)
     methyl_data = add_gene_caller_id(methyl_data.lazy(), genes, True).collect(streaming=True)
@@ -62,7 +59,15 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=np.NAN))
     mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation').group_by("gene_id", "sample").mean()
 
-    sns.lineplot(mean_data, x="gene_id", y="total_methylation", hue="sample")
+    # Create figure
+    samples = mean_data.get_column("sample").unique().to_list()
+    fig, axes = plt.subplots(len(samples)//2, len(samples)//2, figsize=(5*len(samples), 5*len(samples)), layout="constrained")
+    axes = axes.flatten()
+
+    for i, sample in enumerate(samples):
+        sns.lineplot(mean_data.filter(pl.col("sample").eq(sample)), x="gene_id", y="total_methylation", ax=axes[i], label=sample)
+        axes[i].set_title(sample)
+
     #sns.heatmap(comp_df, ax=axes, cbar=False)
 
     # Save the figure
