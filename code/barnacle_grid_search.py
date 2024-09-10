@@ -211,6 +211,6 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
         cv_result = cross_validate(boot_id, replicate_labels, models, replicate_data, param_grid)
 
         # Save all this to files
-        results[boot_id] = (fitting_results, cv_results)
+        results[boot_id] = (fitting_results, cv_result)
         
     return results
