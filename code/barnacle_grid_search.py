@@ -197,6 +197,8 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
 
     # Sort by rank to make parallelization more efficient
     param_grid = sorted(list(ParameterGrid(model_params)), key=lambda d: d['rank'])
+    
+    results = {}
 
     # begin experiment
     for boot_id in range(n_bootstraps):
@@ -209,8 +211,6 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
         cv_result = cross_validate(boot_id, replicate_labels, models, replicate_data, param_grid)
 
         # Save all this to files
-        with open(output_dir / f'cv_results_{boot_id}.json', 'w') as f:
-            json.dump(cv_result, f, indent=4)
-
-        with open(output_dir / f'metrics_{boot_id}.json', 'w') as f:
-            json.dump(fitting_results, f, indent=4)
+        results[boot_id] = (fitting_results, cv_results)
+        
+    return results
