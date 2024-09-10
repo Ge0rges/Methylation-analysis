@@ -19,9 +19,9 @@ replicate_map = {"barcode01": "A",
                  "barcode14": "D"}
 
 
-def run_dmr_analysis(genome_name, data_dir):
+def run_barnacle(genome_name, data_dir):
     """
-    Run the DMR analysis for a specific genome_name, DMR type, and function_source.
+    Run the barnacle analysis for a specific genome_name, DMR type, and function_source.
     """
 
     print(f"Starting to generate  composite for {genome_name}")
@@ -76,7 +76,12 @@ def run_dmr_analysis(genome_name, data_dir):
     methyl_cv_params = [methyl_data, "position", "treatment", "sample"]
 
     # Call barnacle grid search on it
-    barnacle_grid_search(methyl_cv_params, ["A", "B", "C"], ["position", "treatment", "methylation_type", "value"],  f'../data/models/{genome_name}/abs/')
+    out =  f'../data/models/{genome_name}/abs'
+    result = barnacle_grid_search(methyl_cv_params, ["A", "B", "C"], ["position", "treatment", "methylation_type", "value"], out) 
+
+    print(result)
+    with open(f"{out}/result.pickle", 'wb') as file:
+            pickle.dump(data, file)
 
     return
 
@@ -90,4 +95,4 @@ if __name__ == "__main__":
             if genome == ".DS_Store":
                 continue
 
-            run_dmr_analysis(genome, data_dir)
+            run_barnacle(genome, data_dir)

@@ -32,6 +32,8 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(sar11_barcode_sample_map),
                                            pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
 
+    methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+
     # # Calculate rao score between each group in parallel
     # samples = methyl_data.get_column("sample").unique().to_list()
     # 
