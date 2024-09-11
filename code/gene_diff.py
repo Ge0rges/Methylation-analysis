@@ -1,12 +1,10 @@
-from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
 from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
-    add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map
-from scipy.stats import rankdata
+    add_functional_annotations_polars, readable_methylation_name, barcode_sample_map
 
 
-def run_analysis(genome_name, data_dir, fig_savepath="plots"):
+def run_analysis(genome_name, data_dir):
     """
     Run the DMR analysis for a specific genome_name, DMR type, and function_source.
     """
@@ -39,7 +37,6 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     methyl_data = normalize_data_by_pileup(methyl_data)
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
 
-    
     # Add rao score - Doing this first prevents row duplication issues
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "bottom"], baseline=False)
 
@@ -47,17 +44,16 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
         # Mean together all the different methylation types
         top = pl.col(type).filter(pl.col('sample').eq('top'))
         bot = pl.col(type).filter(pl.col('sample').eq('bottom'))
-        methyl_data = methyl_data.join(methyl_data.select(type, "gene_callers_id", "sample").group_by('gene_callers_id').agg(top.mean() - bot.mean()), on="gene_callers_id").drop(type).rename({type+"_right": type})
+        methyl_data = methyl_data.join(methyl_data.select(type, "gene_callers_id", "sample").group_by('gene_callers_id').agg(top.mean() - bot.mean()), on="gene_callers_id").drop(type).rename({type+"_right": type}).unique()
 
     # Add functional annotation
     methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir, genome_name).collect()
 
     # Write the dataframe to a CSV
-    methyl_data = methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result").sort("total_methylation", descending=True)
-    methyl_data.write_csv(f"../data/gene_level_data/{genome_name}_all_gene_level.csv")
+    methyl_data = methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result").unique()
 
     # Now take only significant RAO's and order by the total methylation
-    methyl_data = methyl_data.filter(pl.col("test_result") == True).sort("total_methylation", descending=True)
+    methyl_data = methyl_data.filter(pl.col("test_result") == True & pl.col("rao_score").is_not_nan()).sort("total_methylation", descending=True)
     methyl_data.write_csv(f"../data/gene_level_data/{genome_name}_rao-filtered_gene_level.csv")
 
     # Now only those who have a function of interest
@@ -76,4 +72,4 @@ if __name__ == "__main__":
             if genome == ".DS_Store":
                 continue
 
-            run_analysis(genome, data_dir, fig_savepath=f"../plots/plots_{coverage}")
+            run_analysis(genome, data_dir)
