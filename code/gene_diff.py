@@ -1,7 +1,7 @@
 from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
-from utilities.utils import normalize_data_for_methylation_level, add_gene_caller_id, \
+from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map
 from scipy.stats import rankdata
 
@@ -32,16 +32,14 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
-    # Create the total methylation column and normalize values
-    methyl_data = normalize_data_for_methylation_level(methyl_data)
-    methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
-
     # Add the gene_caller_id
     methyl_data = add_gene_caller_id(methyl_data, genes, True)
 
-    # Add functional annotation
-    methyl_data = add_functional_annotations_polars(methyl_data, data_dir, genome_name).collect(streaming=True)
+    # Create the total methylation column and normalize values
+    methyl_data = normalize_data_by_pileup(methyl_data)
+    methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
 
+    
     # Add rao score - Doing this first prevents row duplication issues
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "bottom"], baseline=False)
 
@@ -49,11 +47,13 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
         # Mean together all the different methylation types
         top = pl.col(type).filter(pl.col('sample').eq('top'))
         bot = pl.col(type).filter(pl.col('sample').eq('bottom'))
-        methyl_data = methyl_data.replace_column(methyl_data.get_column_index(type), methyl_data.group_by('gene_id').agg(top.mean() - bot.mean()).get_column(type))
+        methyl_data = methyl_data.join(methyl_data.select(type, "gene_callers_id", "sample").group_by('gene_callers_id').agg(top.mean() - bot.mean()), on="gene_callers_id").drop(type).rename({type+"_right": type})
 
+    # Add functional annotation
+    methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir, genome_name).collect()
 
     # Write the dataframe to a CSV
-    methyl_data = methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result")
+    methyl_data = methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result").sort("total_methylation", descending=True)
     methyl_data.write_csv(f"../data/gene_level_data/{genome_name}_all_gene_level.csv")
 
     # Now take only significant RAO's and order by the total methylation
@@ -71,7 +71,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
 if __name__ == "__main__":
     for coverage in ["5"]:
         print(f"Running gene_detail analysis at coverage {coverage}")
-        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../data/methylation_data/methylation_{coverage}")
+        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store":
                 continue
