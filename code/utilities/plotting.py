@@ -235,13 +235,13 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.
     texts = []
     df = df.filter(pl.col("comparison").eq(comparison) & pl.col(score_col).is_not_nan() & pl.col("source").eq(function_source))
     df = df.select("function", score_col, "gene_id", "test_result")
-    
+
     # Show significance if there is a not significant value or all are not significant
-    show_significance = (df.unique().top_k(10, by=score_col).filter(pl.col("test_result")  == False).height > 0)
+    show_significance = (df.unique().top_k(10, by=score_col).filter(pl.col("test_result") == False).height > 0)
     table_data = df.select('function', score_col, "test_result")
     if not show_significance:
         table_data = df.select('function', score_col)
-    
+
     table_data = table_data.unique().top_k(10, by=score_col).to_numpy()
 
     if len(table_data) == 0:
@@ -263,7 +263,7 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.
 
                 # Update max_y if the current y value is greater
                 max_y = max(max_y, y_data[idx])
-            
+
             label = str(i+1) + "*" if show_significance and row[2] else str(i+1)
             texts.append(annotate_ax.text(gene, max_y, label, fontsize=12, color='red'))
 
