@@ -183,7 +183,7 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
 
     # Output directory and experiment parameters
     output_dir = Path(output_dir)
-    n_bootstraps = 84
+    n_bootstraps = 27
 
     # Define model grid search param
     model_params = {

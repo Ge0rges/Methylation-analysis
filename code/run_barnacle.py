@@ -1,7 +1,7 @@
 from utilities.data_loading import *
 from utilities.utils import readable_methylation_name, barcode_sample_map, add_gene_caller_id, normalize_data_by_pileup
 from barnacle_grid_search import barnacle_grid_search
-
+import pickle
 
 replicate_map = {"barcode01": "A",
                  "barcode02": "A",
@@ -81,7 +81,7 @@ def run_barnacle(genome_name, data_dir):
 
     print(result)
     with open(f"{out}/result.pickle", 'wb') as file:
-            pickle.dump(data, file)
+            pickle.dump(result, file)
 
     return
 
