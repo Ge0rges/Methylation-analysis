@@ -13,8 +13,8 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     print(f"Starting to generate  composite for {genome_name}")
 
-    # Get the genes
-    genes = get_genes_polars(data_dir, genome_name)
+    # Get the gene_lengths
+    gene_lengths = get_genes_polars(data_dir, genome_name)
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
@@ -31,7 +31,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Add the gene_caller_id
-    methyl_data = add_gene_caller_id(methyl_data, genes, True)
+    methyl_data = add_gene_caller_id(methyl_data, gene_lengths, True)
 
     # Create the total methylation column and normalize values
     methyl_data = normalize_data_by_pileup(methyl_data)
@@ -56,13 +56,13 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.with_columns(pl.col('sample').replace(readable_sample_name))
 
     # Get gene length stats
-    genes = methyl_data.select("gene_position", "gene_id").group_by("gene_id").max()
-    min_gene_length = genes.get_column("gene_position").quantile(0.1)
-    median_gene_length = genes.get_column("gene_position").median()
-    max_percentile = genes.get_column("gene_position").quantile(0.95)
+    gene_lengths = methyl_data.select("gene_position", "gene_id").group_by("gene_id").max()
+    min_gene_length = gene_lengths.get_column("gene_position").quantile(0.1)
+    median_gene_length = gene_lengths.get_column("gene_position").median()
+    max_percentile = gene_lengths.get_column("gene_position").quantile(0.95)
 
     # Plot gene length distribution
-    sns.histplot(genes.to_pandas(), x="gene_position", ax=axes[0][0])
+    sns.histplot(gene_lengths.to_pandas(), x="gene_position", ax=axes[0][0])
 
     # Plot total methylation over everything
     df = methyl_data.select("sample", "gene_position", "gene_id", "total_methylation").filter(pl.col("gene_position").le(max_percentile))
@@ -85,8 +85,8 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     # Populate graphs
     for j, (min_limit, max_limit) in enumerate([(0, 500), (1000, 2000), (2000, 3500), (4000, 5000), (9000, np.inf)]):
         j += 1
-        # Filter out genes whose length isn't in the range
-        gene_ids = genes.filter(pl.col("gene_position").ge(min_limit).le(max_limit)).get_column("gene_id").to_list()
+        # Filter out gene_lengths whose length isn't in the range
+        gene_ids = gene_lengths.filter(pl.col("gene_position").ge(min_limit).le(max_limit)).get_column("gene_id").to_list()
 
         for i, type in enumerate(methylation_types+["total_methylation"]):
             ax = axes[i][j]
@@ -95,9 +95,9 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
             # Labels
             if type == "total_methylation":
-                ax.set_title(f'Total methylation by genic position for genes with length between {min_limit} and {max_limit}')
+                ax.set_title(f'Total methylation by genic position for gene_lengths with length between {min_limit} and {max_limit}')
             else:
-                ax.set_title(f'Fraction methylated with {readable_methylation_name[type]} by genic position for genes with length between {min_limit} and {max_limit}')
+                ax.set_title(f'Fraction methylated with {readable_methylation_name[type]} by genic position for gene_lengths with length between {min_limit} and {max_limit}')
             ax.set_xlabel('Gene Position')
             ax.set_ylabel(f'Methylation fraction %')
 
@@ -115,7 +115,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 if __name__ == "__main__":
     for coverage in ["5", "5_agg"]:
         print(f"Running rao analysis at coverage {coverage}")
-        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
+        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../data/methylation_data/methylation_{coverage}")
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store":
                 continue
