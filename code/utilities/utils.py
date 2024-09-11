@@ -222,7 +222,7 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> p
     return result_df.lazy()
 
 
-def normalize_data_for_methylation_level(df: pl.LazyFrame, genome_name, aggregate=False) -> pl.LazyFrame:
+def normalize_data_by_genome_coverage(df: pl.LazyFrame, genome_name, aggregate=False) -> pl.LazyFrame:
     # Normalize to coverage
     coverages = dl.get_coverage("../data/", genome_name, agg=aggregate).drop("Genome").collect().to_dict(as_series=False)
 

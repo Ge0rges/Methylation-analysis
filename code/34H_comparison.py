@@ -1,7 +1,7 @@
 from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
-from utilities.utils import normalize_data_for_methylation_level, add_gene_caller_id, col34h_barcode_sample_map, normalize_data_by_pileup
+from utilities.utils import normalize_data_by_genome_coverage, add_gene_caller_id, col34h_barcode_sample_map, normalize_data_by_pileup
 from itertools import combinations
 from scipy.stats import rankdata
 import multiprocess as mp

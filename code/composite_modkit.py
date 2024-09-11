@@ -1,7 +1,7 @@
 from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
-from utilities.utils import normalize_data_for_methylation_level, add_gene_caller_id, \
+from utilities.utils import normalize_data_by_genome_coverage, add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map
 from scipy.stats import rankdata
 
@@ -59,7 +59,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     if "agg" in coverage:
         methyl_data = methyl_data.with_columns(pl.col(*methylation_types).floordiv(3))
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
-    methyl_data = normalize_data_for_methylation_level(methyl_data, genome_name, ("agg" in coverage)).drop("norm_sample")
+    methyl_data = normalize_data_by_genome_coverage(methyl_data, genome_name, ("agg" in coverage)).drop("norm_sample")
 
     # Add gene caller id
     methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)

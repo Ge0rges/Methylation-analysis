@@ -1,7 +1,7 @@
 from utilities.plotting import *
 from _statistics import add_rao_score_by_gene
 from utilities.data_loading import *
-from utilities.utils import normalize_data_for_methylation_level, add_gene_caller_id, \
+from utilities.utils import normalize_data_by_genome_coverage, add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map, normalize_data_by_pileup
 from scipy.stats import rankdata
 
