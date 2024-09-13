@@ -29,6 +29,7 @@ def run_analysis(genome_name, data_dir):
     # Filter samples
     methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+    methyl_data = methyl_data.filter(pl.concat_list(methylation_types).list.sum() >= 5)
 
     # Add the gene_caller_id
     methyl_data = add_gene_caller_id(methyl_data, genes, True)
@@ -42,9 +43,9 @@ def run_analysis(genome_name, data_dir):
 
     for type in methylation_types+["total_methylation"]:
         # Mean together all the different methylation types
-        top = pl.col(type).filter(pl.col('sample').eq('top'))
-        bot = pl.col(type).filter(pl.col('sample').eq('bottom'))
-        methyl_data = methyl_data.join(methyl_data.select(type, "gene_callers_id", "sample").group_by('gene_callers_id').agg(top.mean() - bot.mean()), on="gene_callers_id").drop(type).rename({type+"_right": type}).unique()
+        top = pl.col(type).filter(pl.col('sample').eq('top')).mean()
+        bot = pl.col(type).filter(pl.col('sample').eq('bottom')).mean()
+        methyl_data = methyl_data.join(methyl_data.select(type, "gene_callers_id", "sample").group_by('gene_callers_id').agg(top - bot), on="gene_callers_id").drop(type).rename({type+"_right": type}).unique()
 
     # Add functional annotation
     methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir, genome_name).collect()
@@ -53,7 +54,7 @@ def run_analysis(genome_name, data_dir):
     methyl_data = methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result").unique()
 
     # Now take only significant RAO's and order by the total methylation
-    methyl_data = methyl_data.filter(pl.col("test_result") == True & pl.col("rao_score").is_not_nan()).sort("total_methylation", descending=True)
+    methyl_data = methyl_data.filter(pl.col("rao_score").is_not_nan()).sort("test_result", "total_methylation", descending=True)
     methyl_data.write_csv(f"../data/gene_level_data/{genome_name}_rao-filtered_gene_level.csv")
 
     # Now only those who have a function of interest
