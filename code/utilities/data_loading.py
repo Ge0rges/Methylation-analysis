@@ -60,11 +60,14 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
 
     # Concat everything together
     dfs = pl.concat(dfs)
-
+    print(f"concat {dfs}")
     # Filter for coverage
     if coverage is not None:
-        methyl_data = methyl_data.filter(pl.concat_list(methylation_types+["Ncanonical"]).list.sum().ge(coverage))
-        methyl_data = methyl_data.filter(pl.any_horizontal(pl.col(methylation_types).is_not_null() & pl.col(methylation_types).is_not_nan()))
+        methylation_types = utils.readable_methylation_name.keys() + ["Nacanonical"]
+        dfs = dfs.filter(pl.concat_list(methylation_types).list.sum().ge(coverage))
+        dfs = dfs.filter(pl.any_horizontal(pl.col(methylation_types).is_not_null() & pl.col(methylation_types).is_not_nan()))
+
+    return dfs
 
    
 
