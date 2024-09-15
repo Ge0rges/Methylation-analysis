@@ -87,12 +87,15 @@ def run_barnacle(genome_name, data_dir):
 
 
 if __name__ == "__main__":
-    for coverage in ["5", "5_agg"]:
+    for coverage in ["5"]:
         print(f"Running barnacle analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                 f"../../methylation_data/methylation_{coverage}")
-        for genome in os.listdir(data_dir):
-            if genome == ".DS_Store":
-                continue
-
-            run_barnacle(genome, data_dir)
+        #run_barnacle("metagenome_assembly", data_dir)
+        run_barnacle("Pelagibacter_r-contigs", data_dir)
+        
+        #for genome in os.listdir(data_dir):
+        #    if genome == ".DS_Store":
+        #        continue
+        #
+        #    run_barnacle(genome, data_dir)

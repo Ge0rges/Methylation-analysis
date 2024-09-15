@@ -26,7 +26,7 @@ def get_pileup_polars(path) -> pl.LazyFrame:
     return pileup
 
 
-def load_combined_methyl_data_for_genome_polars(genome_name, data_dir) -> pl.LazyFrame:
+def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=None) -> pl.LazyFrame:
     """
     Load the methyl data from every sample into a matrix.
 
@@ -59,7 +59,17 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir) -> pl.Laz
         dfs.append(methyl_data)
 
     # Concat everything together
-    return pl.concat(dfs)
+    dfs = pl.concat(dfs)
+    print(f"concat {dfs}")
+    # Filter for coverage
+    if coverage is not None:
+        methylation_types = utils.readable_methylation_name.keys() + ["Nacanonical"]
+        dfs = dfs.filter(pl.concat_list(methylation_types).list.sum().ge(coverage))
+        dfs = dfs.filter(pl.any_horizontal(pl.col(methylation_types).is_not_null() & pl.col(methylation_types).is_not_nan()))
+
+    return dfs
+
+   
 
 
 def get_genes_polars(data_dir, genome_name, drop_extras=True) -> pl.LazyFrame:

@@ -94,8 +94,8 @@ def fit_models_to_replicates(replicates_labels, replicates_gen_param, param_grid
         tensor = tensor.fillna(0)
 
         # Assemble job parameters and run jobs
-        job_params = (models, [tensor.data]*len(models), [model_out]*len(models), [rep]*len(models), [{'threads': 1, 'verbose': 1}]*len(models))
-        executor = ProcessPoolExecutor(max_workers=20)
+        job_params = (models, [tensor.data]*len(models), [model_out]*len(models), [rep]*len(models), [{'threads': 1, 'verbose': 0}]*len(models))
+        executor = ProcessPoolExecutor(max_workers=5)
         fit_models = executor.map(fit_save_model, *job_params)
         executor.shutdown()
 
@@ -202,6 +202,7 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
 
     # begin experiment
     for boot_id in range(n_bootstraps):
+        print(f"Running bootstrap {boot_id}/{n_bootstraps}")
         # Make the output directory with parents
         model_out = output_dir / f"models_{boot_id}"
         model_out.mkdir(parents=True, exist_ok=True)
