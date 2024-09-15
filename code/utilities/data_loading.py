@@ -60,7 +60,7 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
 
     # Concat everything together
     dfs = pl.concat(dfs)
-    print(f"concat {dfs}")
+
     # Filter for coverage
     if coverage is not None:
         methylation_types = utils.readable_methylation_name.keys() + ["Nacanonical"]
@@ -69,10 +69,10 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
 
     return dfs
 
-   
 
 
-def get_genes_polars(data_dir, genome_name, drop_extras=True) -> pl.LazyFrame:
+
+def get_genes_polars(data_dir, drop_extras=True) -> pl.LazyFrame:
     """
     Parameters:
     data_dir (str): The path to the data directory.
@@ -81,7 +81,7 @@ def get_genes_polars(data_dir, genome_name, drop_extras=True) -> pl.LazyFrame:
     Returns:
     pandas.DataFrame: DataFrame with gene functions.
     """
-    gene_calls = pl.scan_csv(f"{data_dir}/{genome_name}/gene-calls.txt", separator="\t")
+    gene_calls = pl.scan_csv(f"{data_dir}/gene-calls.txt", separator="\t")
     if drop_extras:
         gene_calls = gene_calls.drop("source", "version", "partial", "call_type")
 
@@ -199,7 +199,7 @@ def get_coverage(data_dir, genome_name=None, agg=False) -> pl.LazyFrame:
     return coverage
 
 
-def get_coordinated_functions_polars(data_dir, genome_name) -> pl.LazyFrame:
+def get_coordinated_functions_polars(data_dir) -> pl.LazyFrame:
     """
     Read gene caller and functions from seperate files then intersect.
 
@@ -211,8 +211,8 @@ def get_coordinated_functions_polars(data_dir, genome_name) -> pl.LazyFrame:
     pandas.DataFrame: DataFrame with gene functions.
     """
     # Load data
-    function_calls = pl.scan_csv(f"{data_dir}/{genome_name}/function-calls.txt", separator="\t")
-    gene_calls = get_genes_polars(data_dir, genome_name)
+    function_calls = pl.scan_csv(f"{data_dir}/function-calls.txt", separator="\t")
+    gene_calls = get_genes_polars(data_dir)
 
     # Merge using efficient indexing
     coordinated_functions = gene_calls.join(function_calls, on='gene_callers_id')

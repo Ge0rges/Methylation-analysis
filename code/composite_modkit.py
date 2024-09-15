@@ -18,7 +18,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
         return
 
     # Get genes and annotate the dmrs with the gene ID
-    genes = get_genes_polars(data_dir, genome_name)
+    genes = get_genes_polars(data_dir)
     dmr_data = add_gene_caller_id(dmr_data, genes, False)
 
     # Keep only statistically significant DMRs
@@ -27,7 +27,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
                                          lambda row: modkit_llr(row['score'], row['num_tests']), return_dtype=pl.Boolean))
 
     # Annotate with function
-    dmr_data = add_functional_annotations_polars(dmr_data, data_dir, genome_name).collect()
+    dmr_data = add_functional_annotations_polars(dmr_data, data_dir).collect()
 
     # Filter for signiciant DMR with correct function_source and comparison, then keep top 10
     function_source = "KEGG_Module"

@@ -12,7 +12,7 @@ def run_analysis(genome_name, data_dir):
     print(f"Starting to generate  composite for {genome_name}")
 
     # Get the genes
-    genes = get_genes_polars(data_dir, genome_name)
+    genes = get_genes_polars(data_dir)
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
@@ -48,7 +48,7 @@ def run_analysis(genome_name, data_dir):
         methyl_data = methyl_data.join(methyl_data.select(type, "gene_callers_id", "sample").group_by('gene_callers_id').agg(top - bot), on="gene_callers_id").drop(type).rename({type+"_right": type}).unique()
 
     # Add functional annotation
-    methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir, genome_name).collect()
+    methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir).collect()
 
     # Write the dataframe to a CSV
     methyl_data = methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result").unique()

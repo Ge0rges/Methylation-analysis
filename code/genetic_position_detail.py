@@ -14,7 +14,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     print(f"Starting to generate  composite for {genome_name}")
 
     # Get the gene_lengths
-    gene_lengths = get_genes_polars(data_dir, genome_name)
+    gene_lengths = get_genes_polars(data_dir)
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     for coverage in ["5"]:
         print(f"Running genetic position  analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
-        
+
         run_analysis("brevundimonas_r-contigs", coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store":

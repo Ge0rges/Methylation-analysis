@@ -39,7 +39,7 @@ def run_barnacle(genome_name, data_dir):
     )
 
     # Add gene caller id
-    #genes = get_genes_polars(data_dir, genome_name)
+    #genes = get_genes_polars(data_dir)
     #methyl_data = add_gene_caller_id(methyl_data, genes, True)
 
     # Filter samples
@@ -77,7 +77,7 @@ def run_barnacle(genome_name, data_dir):
 
     # Call barnacle grid search on it
     out =  f'../data/models/{genome_name}/abs'
-    result = barnacle_grid_search(methyl_cv_params, ["A", "B", "C"], ["position", "treatment", "methylation_type", "value"], out) 
+    result = barnacle_grid_search(methyl_cv_params, ["A", "B", "C"], ["position", "treatment", "methylation_type", "value"], out)
 
     print(result)
     with open(f"{out}/result.pickle", 'wb') as file:
@@ -90,10 +90,10 @@ if __name__ == "__main__":
     for coverage in ["5"]:
         print(f"Running barnacle analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                                f"../../methylation_data/methylation_{coverage}")
+                                f"../data/methylation_data/methylation_{coverage}")
         #run_barnacle("metagenome_assembly", data_dir)
         run_barnacle("Pelagibacter_r-contigs", data_dir)
-        
+
         #for genome in os.listdir(data_dir):
         #    if genome == ".DS_Store":
         #        continue

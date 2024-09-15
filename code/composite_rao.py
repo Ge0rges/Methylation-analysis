@@ -13,7 +13,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     print(f"Starting to generate  composite for {genome_name}")
 
     # Get the genes
-    genes = get_genes_polars(data_dir, genome_name)
+    genes = get_genes_polars(data_dir)
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
@@ -74,7 +74,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     plot_gene_methylation_level_diff(axes[2][0], top_bottom, "Top – Bottom")
 
     # Add functional annotation
-    methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir, genome_name).collect()
+    methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir).collect()
     function_source = "KEGG_Module"
 
     # Plot functional annotations

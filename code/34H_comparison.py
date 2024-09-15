@@ -14,7 +14,7 @@ def run_34h_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     """
 
     # Get genes and annotate the dmrs with the gene ID
-    genes = get_genes_polars(data_dir, genome_name)
+    genes = get_genes_polars(data_dir)
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
