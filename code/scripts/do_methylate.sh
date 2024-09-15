@@ -83,8 +83,8 @@ do
         reads_name=`basename $reads .fastq`
 
         # Map
-        if [ ! -f "$methylation_dir/$genome_name/$reads_name.bam" ]; then
-            echo "Mapping methylated reads onto MAG for " $reads_name
+        if [ ! -f "$methylation_dir/$genome_name/$reads_name.bam" ] && [ ! -f "$methylation_dir/$genome_name/$reads_name.bed" ] ; then
+            echo "Mapping methylated reads onto " $genome  " for " $reads_name
             minimap2 -t $num_threads -ayx lr:hq $genome $reads > $methylation_dir/$genome_name/$reads_name.sam
             samtools view -bS -@ $num_threads $methylation_dir/$genome_name/$reads_name.sam | samtools sort -@ $num_threads -o $methylation_dir/$genome_name/$reads_name.bam
             samtools index -@ $num_threads $methylation_dir/$genome_name/$reads_name.bam
@@ -94,7 +94,7 @@ do
     done
 
 
-    if [ ! -f "$methylation_dir/$genome_name/top.bam" ] && $agg; then
+    if [ ! -f "$methylation_dir/$genome_name/top.bam" ] && [ ! -f "$methylation_dir/$genome_name/top.bed" ] && $agg; then
         # Merge samples together
         samtools merge -@ $num_threads -o "$methylation_dir/$genome_name/top.bam"  $methylation_dir/$genome_name/barcode{01,05,08}.bam
         samtools merge -@ $num_threads -o "$methylation_dir/$genome_name/middle.bam" $methylation_dir/$genome_name/barcode{02,06,09}.bam
@@ -110,10 +110,13 @@ do
     for bam in $methylation_dir/$genome_name/*.bam
     do
         bam_name=`basename $bam .bam`
+        if [ ! -f "$methylation_dir/$genome_name/$bam_name.bam" ]; then
+            continue
+        fi
 
         # Pileup
         if [ ! -f "$methylation_dir/$genome_name/$bam_name.bed" ]; then
-            echo "Running modkit pileup and summary for " $bam_name
+            echo "Running modkit pileup and summary " $genome_name " for " $bam_name
             modkit pileup -p 0.1 $bam $methylation_dir/$genome_name/$bam_name.bed -t $num_threads
             awk -v OFS="\t" '{print $1, $2, $3, $11, $10}' $methylation_dir/$genome_name/$bam_name.bed > $methylation_dir/$genome_name/$bam_name-bedgraph.bed
             modkit summary -t $num_threads -p 0.1 --tsv $bam > $methylation_dir/$genome_name/summary_$bam_name.tsv
@@ -123,17 +126,18 @@ do
 
         fi
     done
-
-    for bam in $methylation_dir/$genome_name/*.bam
+    
+    for bed in $methylation_dir/$genome_name/*.bed
     do
-        if [ ! -f "$methylation_dir/$genome_name/$bam_name-motifs.tsv" ]; then
+        bed_name=`basename $bed .bed`
+        if [ ! -f "$methylation_dir/$genome_name/$bed_name-motifs.tsv" ]; then
 
-            echo "Getting enriched motifs " $genome_name " " $bam_name
-            modkit find-motifs --min-coverage $coverage  -i $methylation_dir/$genome_name/$bam_name.bed -r $genome -o $methylation_dir/$genome_name/$bam_name-motifs.tsv --threads $num_threads || echo "Find-motifs failed, probably due to coverage."
+            echo "Getting enriched motifs " $genome_name " " $bed_name
+            #modkit find-motifs --min-coverage $coverage  -i $bed -r $genome -o $methylation_dir/$genome_name/$bed_name-motifs.tsv --threads $num_threads || echo "Find-motifs failed, probably due to coverage."
         fi
 
         #echo "Calculating entropy..."
-        #modkit entropy --min-coverage $coverage --in-bam $bam -o $methylation_dir/$genome_name/$bam_name-entropyA.tsv --ref $genome --threads $num_threads --base A --base C
+        #modkit entropy --min-coverage $coverage --in-bam $methylation_dir/$genome_name/$bed_name.bam -o $methylation_dir/$genome_name/$bed_name-entropy.tsv --ref $genome --threads $num_threads --base A --base C
     done
 
     if [ ! -f "$methylation_dir/$genome_name/gene-calls.txt" ]; then
@@ -213,7 +217,7 @@ done
 wait
 
 echo "Cleaning up..."
-rm $methylation_dir/*/*gz* $methylation_dir/*/gene-coordinates.txt #$methylation_dir/*/*.bam* 
+rm $methylation_dir/*/*gz* $methylation_dir/*/gene-coordinates.txt $methylation_dir/*/*.bam* 
 
 echo "All done."
 
