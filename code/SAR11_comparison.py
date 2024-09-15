@@ -6,7 +6,7 @@ from itertools import combinations
 from scipy.stats import rankdata
 import multiprocess as mp
 import pandas as pd
-
+import math
 
 def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     """
@@ -32,7 +32,7 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(sar11_barcode_sample_map),
                                            pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
 
-    #methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+    methyl_data = methyl_data.filter(pl.col("sample").str.contains("core", literal=True).not_())
 
     # # Calculate rao score between each group in parallel
     # samples = methyl_data.get_column("sample").unique().to_list()
@@ -56,22 +56,26 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
     methyl_data = add_gene_caller_id(methyl_data.lazy(), genes, True).collect(streaming=True)
     all_ids = methyl_data.sort("strand", "contig",  "start").get_column("gene_callers_id").to_list()
     ids = dict(zip(all_ids, rankdata(all_ids, method='dense')))
-    methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=np.NAN))
+    #methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=np.NAN))
+    methyl_data = methyl_data.with_columns(pl.col("gene_callers_id").alias("gene_id"))
     mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation').group_by("gene_id", "sample").mean()
+    mean_data = mean_data.sort("sample")
 
     # Create figure
     samples = mean_data.get_column("sample").unique().to_list()
-    fig, axes = plt.subplots(len(samples)//2, len(samples)//2, figsize=(5*len(samples), 5*len(samples)), layout="constrained")
+    fig, axes = plt.subplots(math.ceil(math.sqrt(len(samples))), math.ceil(math.sqrt(len(samples))), figsize=(5*len(samples), 5*len(samples)), layout="constrained")
     axes = axes.flatten()
 
     for i, sample in enumerate(samples):
         sns.lineplot(mean_data.filter(pl.col("sample").eq(sample)), x="gene_id", y="total_methylation", ax=axes[i], label=sample)
         axes[i].set_title(sample)
+        axes[i].set_ylim(0, 0.5)
+        axes[i].set_title(sample, fontsize=36)
 
     #sns.heatmap(comp_df, ax=axes, cbar=False)
 
     # Save the figure
-    fig.suptitle(f"Comparison of SAR11", fontsize=26)
+    fig.suptitle(f"Comparison of SAR11", fontsize=38)
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}.pdf", format='pdf', transparent=True)
 
     print("Done.")

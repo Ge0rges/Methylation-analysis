@@ -63,7 +63,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Plot total methylation over everything
     df = methyl_data.select("sample", "gene_position", "gene_callers_id", "total_methylation")
-    sns.lineplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[1][0])
+    sns.scatterplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[1][0])
     axes[1][0].set_title(f'Total methylation by genic position and sample')
     axes[1][0].axvline(x=62, color="blue", linestyle='--', label='Position 100')
     axes[1][0].axvline(x=min_gene_length, color="red", linestyle='--', label='10% percentile gene length')
@@ -71,12 +71,12 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Plot total methylation on first 100 positions
     df = methyl_data.select("sample", "gene_position", "gene_callers_id", "total_methylation").filter(pl.col("gene_position").le(100))
-    sns.lineplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[2][0])
+    sns.scatterplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[2][0])
     axes[2][0].set_title(f'Total methylation by genic position and sample up to 100 positions')
 
     # Plot total methylation on last 100 positions
     df = methyl_data.select("sample", "backwards_gene_position", "gene_callers_id", "total_methylation").filter(pl.col("backwards_gene_position").le(100))
-    sns.lineplot(x='backwards_gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[3][0])
+    sns.scatterplot(x='backwards_gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[3][0])
     axes[3][0].set_title(f'Total methylation by genic position  on last 100 positions')
 
     # Populate graphs
@@ -88,7 +88,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
         for i, type in enumerate(methylation_types+["total_methylation"]):
             ax = axes[i][j]
             df = methyl_data.select("sample", "gene_position", "gene_callers_id", type).filter(pl.col("gene_callers_id").is_in(gene_ids))
-            sns.lineplot(x='gene_position', y=type, hue="sample", data=df.to_pandas(), ax=ax)
+            sns.scatterplot(x='gene_position', y=type, hue="sample", data=df.to_pandas(), ax=ax)
 
             # Labels
             if type == "total_methylation":
