@@ -62,11 +62,11 @@ def run_barnacle(genome_name, data_dir):
     methyl_data = methyl_data.with_columns(position=pl.col("name").replace_strict(name_map))
 
     # Normalize
-    # methyl_data_norm = normalize_data_by_pileup(methyl_data.lazy()).collect(streaming=True)
+    methyl_data = normalize_data_by_pileup(methyl_data.lazy()).collect(streaming=True)
 
     # Pivot the dataframe
     methyl_data = methyl_data.unpivot(index=["position", "treatment", "sample"], #, "gene_callers_id", "gene_position"],
-                                      on=methylation_types + ["Ncanonical"],
+                                      on=methylation_types,# + ["Ncanonical"],
                                       variable_name="methylation_type")
 
     # Filter out NaNs
@@ -76,7 +76,7 @@ def run_barnacle(genome_name, data_dir):
     methyl_cv_params = [methyl_data, "position", "treatment", "sample"]
 
     # Call barnacle grid search on it
-    out =  f'../data/models/{genome_name}/abs'
+    out = f'../data/models/{genome_name}/abs'
     result = barnacle_grid_search(methyl_cv_params, ["A", "B", "C"], ["position", "treatment", "methylation_type", "value"], out)
 
     print(result)

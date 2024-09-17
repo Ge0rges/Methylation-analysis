@@ -21,7 +21,6 @@ def analyze_result(result):
         ['bootstrap_id', 'rank', 'lambda', 'replicate_pair']).reset_index(drop=True)
     results_df['sparsity coefficient'] = results_df['lambda'].astype(str)
 
-    define data
     plot_df = results_df[results_df['comparison'] == 'cross-validation']
     # plot_df = plot_df[plot_df['bootstrap_id'].isin(np.arange(10))]
     # plot_df = plot_df[plot_df['rank'].isin([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])]
