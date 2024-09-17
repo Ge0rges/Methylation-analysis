@@ -63,13 +63,11 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
 
     # Filter for coverage
     if coverage is not None:
-        methylation_types = utils.readable_methylation_name.keys() + ["Nacanonical"]
+        methylation_types = list(utils.readable_methylation_name.keys()) + ["Ncanonical"]
         dfs = dfs.filter(pl.concat_list(methylation_types).list.sum().ge(coverage))
         dfs = dfs.filter(pl.any_horizontal(pl.col(methylation_types).is_not_null() & pl.col(methylation_types).is_not_nan()))
 
     return dfs
-
-
 
 
 def get_genes_polars(data_dir, drop_extras=True) -> pl.LazyFrame:
