@@ -19,6 +19,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
     methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=5).select("name", "sample", *methylation_types, "Ncanonical")
+    
     methyl_data = methyl_data.with_columns(
         contig=pl.col('name').str.split(by='|').list.get(0),
         strand=pl.col('name').str.split(by='|').list.get(1),
@@ -48,7 +49,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Create figure
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(n_types+1, 6, figsize=(100, 100), sharex=False, layout="constrained")
+    fig, axes = plt.subplots(n_types+1, 5, figsize=(100, 100), sharex=False, layout="constrained")
 
     # Rename samples
     methyl_data = methyl_data.with_columns(pl.col('sample').replace(readable_sample_name))
@@ -63,43 +64,59 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Plot total methylation over everything
     df = methyl_data.select("sample", "gene_position", "gene_callers_id", "total_methylation")
-    sns.scatterplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[1][0])
-    axes[1][0].set_title(f'Total methylation by genic position and sample')
-    axes[1][0].axvline(x=62, color="blue", linestyle='--', label='Position 100')
-    axes[1][0].axvline(x=min_gene_length, color="red", linestyle='--', label='10% percentile gene length')
-    axes[1][0].axvline(x=median_gene_length, color="green", linestyle='--', label='Median Gene Length')
+    df = df.select(pl.col("total_methylation").mean().over(pl.int_range(pl.len()) // 1000), "sample", "gene_position").with_columns(pl.col("gene_position") // 1000)
+    sns.boxenplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[1][0])
+    axes[1][0].set_title(f'Total methylation by genic position and sample in 1000 length bins')
 
     # Plot total methylation on first 100 positions
-    df = methyl_data.select("sample", "gene_position", "gene_callers_id", "total_methylation").filter(pl.col("gene_position").le(100))
-    sns.scatterplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[2][0])
-    axes[2][0].set_title(f'Total methylation by genic position and sample up to 100 positions')
+    df = methyl_data.select("sample", "gene_position", "total_methylation").filter(pl.col("gene_position").le(100))
+    sns.kdeplot(x='gene_position', y="total_methylation",  hue="sample", data=df.to_pandas(), ax=axes[2][0], bw_adjust=0.75)
+    axes[2][0].set_title(f'Total methylation by genic position on first 100 positions')
 
     # Plot total methylation on last 100 positions
-    df = methyl_data.select("sample", "backwards_gene_position", "gene_callers_id", "total_methylation").filter(pl.col("backwards_gene_position").le(100))
-    sns.scatterplot(x='backwards_gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[3][0])
-    axes[3][0].set_title(f'Total methylation by genic position  on last 100 positions')
+    df = df.select(pl.col("total_methylation").mean().over(pl.int_range(pl.len()) // 10), "sample", "gene_position").with_columns(pl.col("gene_position") // 10)
+    sns.boxenplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[3][0])
+    axes[3][0].set_title(f'Total methylation by genic position on first 100 positions')
 
     # Populate graphs
-    for j, (min_limit, max_limit) in enumerate([(0, 500), (1000, 2000), (2000, 3500), (4000, 5000), (9000, np.inf)]):
+    for j, (min_limit, max_limit) in enumerate([(0, 100), (0, 500), (0, 1000), (1000, 2000)]):
         j += 1
         # Filter out gene_lengths whose length isn't in the range
-        gene_ids = gene_lengths.filter(pl.col("gene_length").ge(min_limit) & pl.col("gene_length").le(max_limit)).get_column("gene_callers_id").to_list()
+        if j > 1:
+            gene_ids = gene_lengths.filter(pl.col("gene_length").ge(min_limit) & pl.col("gene_length").le(max_limit)).get_column("gene_callers_id").to_list()
+        else:
+            gene_ids = gene_lengths.get_column("gene_callers_id").unique().to_list()
 
-        for i, type in enumerate(methylation_types+["total_methylation"]):
+        for i, sample in enumerate(methyl_data.get_column("sample").unique().to_list()):
+            type = "total_methylation"
             ax = axes[i][j]
-            df = methyl_data.select("sample", "gene_position", "gene_callers_id", type).filter(pl.col("gene_callers_id").is_in(gene_ids))
-            sns.scatterplot(x='gene_position', y=type, hue="sample", data=df.to_pandas(), ax=ax)
+            df = methyl_data.select("sample", "gene_position", "gene_callers_id", type).filter(pl.col("gene_callers_id").is_in(gene_ids) & pl.col("sample").eq(sample)).select("sample", "gene_position", type)
+            if j == 1:
+                df = methyl_data.filter(pl.col("gene_position").ge(min_limit) & pl.col("gene_position").le(max_limit))
+
+            df = df.vstack(df.group_by(pl.col("gene_position")).agg(pl.col(type).rolling_mean(10)).with_columns(pl.lit("rolling mean").alias("sample")))
+            sns.lineplot(x='gene_position', y=type, hue="sample", data=df.to_pandas(), ax=ax)
 
             # Labels
-            if type == "total_methylation":
-                ax.set_title(f'Total methylation by genic position for gene_lengths with length between {min_limit} and {max_limit}')
+            if j == 1:
+                ax.set_title(f"{type} by genic position for {sample} for first 100 positions")
             else:
-                ax.set_title(f'Fraction methylated with {readable_methylation_name[type]} by genic position for gene_lengths with length between {min_limit} and {max_limit}')
+                if type == "total_methylation":
+                    ax.set_title(f'Total methylation by genic position for gene with length between {min_limit} and {max_limit} for {sample}')
+                else:
+                    ax.set_title(f'Fraction methylated with {readable_methylation_name[type]} by genic position for genes  with length between {min_limit} and {max_limit} for {sample}')
             ax.set_xlabel('Gene Position')
             ax.set_ylabel(f'Methylation fraction %')
 
             # Add vertical lines
             ax.axvline(x=62, color="blue", linestyle='--', label='Position 100')
+
+        # Boxen of entire region
+        df = methyl_data.select("sample", "gene_position", "gene_callers_id", type).filter(pl.col("gene_callers_id").is_in(gene_ids))
+        if j == 1:
+            df = methyl_data.filter(pl.col("gene_position").ge(min_limit) & pl.col("gene_position").le(max_limit)) 
+        sns.boxenplot(x='sample', y="total_methylation", data=df.to_pandas(), ax=axes[4][j])
+
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
@@ -113,10 +130,12 @@ if __name__ == "__main__":
     for coverage in ["5"]:
         print(f"Running genetic position  analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
+        
+        run_analysis("Pelagibacter_r-contigs", coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")
+        exit()
 
-        run_analysis("brevundimonas_r-contigs", coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")
         for genome in os.listdir(data_dir):
-            if genome == ".DS_Store":
+            if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs":
                 continue
 
             run_analysis(genome, coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")
