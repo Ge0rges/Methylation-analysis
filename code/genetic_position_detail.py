@@ -5,10 +5,10 @@ from utilities.utils import add_gene_caller_id, readable_methylation_name, reada
 
 def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     """
-    Run the DMR analysis for a specific genome_name, DMR type, and function_source.
+    Run the gene position analysis for a specific genome_name, DMR type, and function_source.
     """
 
-    print(f"Starting to generate  composite for {genome_name}")
+    print(f"Starting to generate gene position plots for {genome_name}")
 
     # Get the gene_lengths
     gene_lengths = get_genes_polars(data_dir)
@@ -100,8 +100,11 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
         # Boxen of entire region
         df = gene_df.select("sample", "gene_position", "total_methylation")
-        sns.boxenplot(x='sample', y="total_methylation", data=df.to_pandas(), ax=axes[4][j])
-        axes[4][j].set_title(f"Distribution of methylation by sample for genes in length range {min_limit}, {max_limit}")
+        try:
+            sns.boxenplot(x='sample', y="total_methylation", data=df.to_pandas(), ax=axes[4][j])
+            axes[4][j].set_title(f"Distribution of methylation by sample for genes in length range {min_limit}, {max_limit}")
+        except:
+            print(df)
 
     # Save the figure
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene_detail.pdf", format='pdf', transparent=True)
@@ -113,10 +116,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 if __name__ == "__main__":
     for coverage in ["5"]:
         print(f"Running genetic position  analysis at coverage {coverage}")
-        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../data/methylation_data/methylation_{coverage}")
-
-        run_analysis("Pelagibacter_r-contigs", coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")
-        exit()
+        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
 
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs":
