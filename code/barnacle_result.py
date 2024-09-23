@@ -51,7 +51,7 @@ def analyze_result(result):
     # look at SSE and FMS vs lambda
 
     # define data
-    rank = 4
+    rank = 1
     plot_df = results_df[results_df['comparison'] == 'cross-validation']
     plot_df = plot_df[plot_df['rank'] == rank]
 

@@ -247,13 +247,13 @@ def normalize_data_by_pileup(df: pl.LazyFrame) -> pl.LazyFrame:
     return df
 
 
-def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str, genome_name: str) -> pl.LazyFrame:
+def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str) -> pl.LazyFrame:
     """
     Add functional annotations to DMRs (Differentially Methylated Regions) by matching DMR positions with
     genomic annotations to find overlaps. Drops the "partial" column from the merged DataFrame.
     """
     # Load functional annotations for the specified genome_name from a data directory
-    functions = dl.get_coordinated_functions_polars(data_dir, genome_name)
+    functions = dl.get_coordinated_functions_polars(data_dir)
 
     # Merge DMR data with functional annotations based on contig name
     merged_df = df.join(functions, on="gene_callers_id", how="left")
