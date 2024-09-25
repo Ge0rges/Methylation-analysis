@@ -4,7 +4,7 @@ from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name, barcode_sample_map
 
 
-def run_analysis(genome_name, data_dir):
+def run_analysis(genome_name, data_dir, slice=None):
     """
     Run the DMR analysis for a specific genome_name, DMR type, and function_source.
     """
@@ -16,9 +16,12 @@ def run_analysis(genome_name, data_dir):
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
-    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir).select("name", "sample",
-                                                                                            *methylation_types,
-                                                                                            "Ncanonical")
+
+    methyl_data = slice
+    if slice is None:
+        methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir).select("name", "sample",
+                                                                                                *methylation_types,
+                                                                                                "Ncanonical")
     methyl_data = methyl_data.with_columns(
         contig=pl.col('name').str.split(by='|').list.get(0),
         strand=pl.col('name').str.split(by='|').list.get(1),
@@ -55,7 +58,11 @@ def run_analysis(genome_name, data_dir):
 
     # Now take only significant RAO's and order by the total methylation
     methyl_data = methyl_data.filter(pl.col("rao_score").is_not_nan()).sort("test_result", "total_methylation", descending=True)
-    methyl_data.write_csv(f"../data/gene_level_data/{genome_name}_rao-filtered_gene_level.csv")
+
+    if slice is None:
+        methyl_data.write_csv(f"../data/gene_level_data/{genome_name}_rao-filtered_gene_level.csv")
+    else
+        return methyl_data
 
     # Now only those who have a function of interest
     # methyl_data = methyl_data.filter(pl.col("accession").is_in([]))
@@ -73,4 +80,25 @@ if __name__ == "__main__":
             if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs":
                 continue
 
-            run_analysis(genome, data_dir)
+            if genome == "metagenome_assembly":
+                methylation_types = list(readable_methylation_name.keys())
+                df = load_combined_methyl_data_for_genome_polars(genome, data_dir).select("name", "sample",
+                                                                                                        *methylation_types,
+                                                                                                        "Ncanonical")
+
+                result_df = pl.DataFrame()
+                sliced_chunks = 0
+                chunk_size = 500000
+                last_height = 0
+                while result_df.height - last_height != 0 and result_df.height > 0:
+                    last_height = result_df.height
+                    print(f"Doing {sliced_chunks} which is {sliced_chunks * chunk_size}")
+                    temp_df = df.slice(sliced_chunks * chunk_size, chunk_size)
+                    sliced_chunks += 1
+
+                    result_df = result_df.vstack(run_analysis(genome, data_dir, slice=temp_df))
+
+                result_df.write_csv(f"../data/gene_level_data/{genome}_rao-filtered_gene_level.csv")
+
+            else:
+                run_analysis(genome, data_dir)
