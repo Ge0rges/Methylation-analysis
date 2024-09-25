@@ -27,7 +27,7 @@ def analyze_result(result):
     # plot_df = plot_df[plot_df['lambda'].isin([0.0, 0.05, 0.1, 0.2, 0.5, 1.0])]
 
     # plot figure
-    fig, axis = plt.subplots(figsize=(6, 4))
+    fig, axis = plt.subplots(figsize=(10, 4), layout="constrained")
 
     sns.lineplot(
         x='rank',
@@ -38,6 +38,7 @@ def analyze_result(result):
         err_style='bars',
         data=plot_df,
         ax=axis,
+        alpha=0.5
         #     label=lamb,
     )
 
@@ -59,7 +60,7 @@ def analyze_result(result):
     mpl.rcParams['axes.spines.left'] = True
     mpl.rcParams['axes.spines.right'] = False
     color = sns.color_palette()[0]
-    fig, axis = plt.subplots(figsize=(6, 4))
+    fig, axis = plt.subplots(figsize=(6, 6), layout="constrained")
     sns.lineplot(
         x='lambda',
         y='relative_sse',
