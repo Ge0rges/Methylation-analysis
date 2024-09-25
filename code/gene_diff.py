@@ -2,6 +2,9 @@ from _statistics import *
 from utilities.data_loading import *
 from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name, barcode_sample_map
+import os
+from pathlib import Path
+os.environ["POLARS_TEMP_DIR"] = str(Path("./polars_temp/"))
 
 
 def run_analysis(genome_name, data_dir, slice=None):
