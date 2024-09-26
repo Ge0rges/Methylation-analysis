@@ -3,11 +3,12 @@ from utilities.data_loading import *
 from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name, barcode_sample_map
 import os
+import matplotlib.pyplot as plt
 from pathlib import Path
 os.environ["POLARS_TEMP_DIR"] = str(Path("./polars_temp/"))
 
 
-def run_analysis(genome_name, data_dir, slice=None):
+def run_analysis(genome_name, data_dir, slice=None, fig_savepath="plots"):
     """
     Run the DMR analysis for a specific genome_name, DMR type, and function_source.
     """
@@ -67,9 +68,27 @@ def run_analysis(genome_name, data_dir, slice=None):
     else:
         return methyl_data
 
-    # Now only those who have a function of interest
-    # methyl_data = methyl_data.filter(pl.col("accession").is_in([]))
-    # methyl_data.write_csv(f"../data/gene_level_data/{genome_name}_function-filtered_gene_level.csv")
+    # Get the 10% biggest differences
+    methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).filter(pl.col("test_result").eq("TRUE") & pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.9))).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
+
+    # Make a figure with a table of these
+    table_df = methyl_data.select("function", "total_methylation").to_pandas()
+    fig, ax = plt.subplots(figsize=(10, 10), layout="constrained")
+
+    # Hide axes
+    ax.xaxis.set_visible(False)
+    ax.yaxis.set_visible(False)
+    ax.set_frame_on(False)
+
+    # Create the table
+    table = ax.table(cellText=table_df.values, colLabels=table_df.columns, cellLoc='center', loc='center')
+
+    # Adjust the layout for better display
+    table.auto_set_font_size(True)
+    table.scale(1.5, 1.5)
+
+    # Show the plot with the table
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_meth_funcs.pdf", format='pdf', transparent=True)
 
     print(f"Done writing genes for {genome_name}")
     return
@@ -100,10 +119,10 @@ if __name__ == "__main__":
                     temp_df = df.slice(sliced_chunks * chunk_size, chunk_size)
                     sliced_chunks += 1
 
-                    result_df = result_df.vstack(run_analysis(genome, data_dir, slice=temp_df))
+                    result_df = result_df.vstack(run_analysis(genome, data_dir, slice=temp_df, fig_savepath=f"../plots/plots_{coverage}))
 
                 result_df.write_csv(f"../data/gene_level_data/{genome}_rao-filtered_gene_level.csv")
 
             else:
                 continue
-                run_analysis(genome, data_dir)
+                run_analysis(genome, data_dir, fig_savepath=f"../plots/plots_{coverage})

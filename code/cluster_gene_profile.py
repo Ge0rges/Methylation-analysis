@@ -22,8 +22,8 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
 
     print(f"Starting to generate gene position plots for {genome_name}")
 
-    # Get the gene_lengths
-    gene_lengths = get_genes_polars(data_dir)
+    # Get the genes
+    genes = get_genes_polars(data_dir)
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
@@ -41,7 +41,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Add the gene_caller_id
-    methyl_data = add_gene_caller_id(methyl_data, gene_lengths, True).collect(streaming=True)
+    methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
     if methyl_data.is_empty():
         print(f"{genome_name} had no viable data.")
         return
@@ -57,8 +57,9 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.join(gene_positions, on="name", how="inner", validate="m:1")
 
     # Rename samples
-    df = methyl_data.filter(pl.col("sample").eq("top")).with_columns(pl.col('sample').replace(readable_sample_name)).select("gene_position", "total_methylation", "gene_callers_id", "sample").group_by("gene_callers_id", "gene_position", "sample").agg(pl.col("total_methylation").mean()).to_pandas()
-    # Step 1: Reshape the Dat
+    df = methyl_data.with_columns(pl.col('sample').replace(readable_sample_name)).select("gene_position", "total_methylation", "gene_callers_id", "sample").group_by("gene_callers_id", "gene_position", "sample").agg(pl.col("total_methylation").mean()).to_pandas()
+
+    # Step 1: Reshape the Data
     # Pivot the data to get one row per (gene_id, sample) combination with position as columns
     pivot_df = df.pivot_table(index=['sample', 'gene_callers_id'], columns='gene_position', values='total_methylation').reset_index().fillna(0)
 
