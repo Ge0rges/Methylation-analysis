@@ -74,7 +74,7 @@ def nonzero_components(cp, return_trimmed_cp=False):
 
 
 # Function to fit models to each replicate dataset
-def fit_models_to_replicates(replicates_labels, replicates_gen_param, param_grid, boot_id, rns, abundance_cols: list, model_out):
+def fit_models_to_replicates(replicates_labels, replicates_gen_param, param_grid, boot_id, rns, abundance_cols: list, model_out, max_cpus):
     model_seed = rns.randint(2 ** 32)
     all_models = {}
     fitting_results = {}
@@ -93,7 +93,7 @@ def fit_models_to_replicates(replicates_labels, replicates_gen_param, param_grid
 
         # Assemble job parameters and run jobs
         job_params = (models, [tensor.data]*len(models), [model_out]*len(models), [rep]*len(models), [{'threads': 1, 'verbose': 3}]*len(models))
-        executor = ProcessPoolExecutor(max_workers=5)
+        executor = ProcessPoolExecutor(max_workers=max_cpus)
         fit_models = executor.map(fit_save_model, *job_params)
         executor.shutdown()
 
@@ -181,12 +181,13 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
 
     # Output directory and experiment parameters
     output_dir = Path(output_dir)
-    n_bootstraps = 27
+    n_bootstraps = 1
+    max_cpus = 10
 
     # Define model grid search param
     model_params = {
-        'rank': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-        'lambdas': [[i, 0.0, 0.0] for i in [0.0, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0]],
+        'rank': list(range(20, 50, 5)),
+        'lambdas': [[i, 0.0, 0.0] for i in [1]],
         # 'nonneg_modes': [[1, 2]],
         'tol': [1e-5],
         'n_iter_max': [2000],
@@ -206,7 +207,7 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
         model_out.mkdir(parents=True, exist_ok=True)
 
         # Fit models to replicate_labels and cross validate
-        models, fitting_results, replicate_data = fit_models_to_replicates(replicate_labels, cross_df_gen_params, param_grid, boot_id, rns, abundance_cols, model_out)
+        models, fitting_results, replicate_data = fit_models_to_replicates(replicate_labels, cross_df_gen_params, param_grid, boot_id, rns, abundance_cols, model_out, max_cpus)
         cv_result = cross_validate(boot_id, replicate_labels, models, replicate_data, param_grid)
 
         # Save all this to files

@@ -64,7 +64,7 @@ def run_analysis(genome_name, data_dir, slice=None):
 
     if slice is None:
         methyl_data.write_csv(f"../data/gene_level_data/{genome_name}_rao-filtered_gene_level.csv")
-    else
+    else:
         return methyl_data
 
     # Now only those who have a function of interest
@@ -88,6 +88,7 @@ if __name__ == "__main__":
                 df = load_combined_methyl_data_for_genome_polars(genome, data_dir).select("name", "sample",
                                                                                                         *methylation_types,
                                                                                                         "Ncanonical")
+                print("loaded metagenome")
 
                 result_df = pl.DataFrame()
                 sliced_chunks = 0
@@ -104,4 +105,5 @@ if __name__ == "__main__":
                 result_df.write_csv(f"../data/gene_level_data/{genome}_rao-filtered_gene_level.csv")
 
             else:
+                continue
                 run_analysis(genome, data_dir)

@@ -76,7 +76,7 @@ def run_barnacle(genome_name, data_dir):
     methyl_cv_params = [methyl_data, "position", "treatment", "sample"]
 
     # Call barnacle grid search on it
-    out = f'../data/models/{genome_name}/abs'
+    out = f'../data/models/{genome_name}/small_run'
     result = barnacle_grid_search(methyl_cv_params, ["A", "B", "C"], ["position", "treatment", "methylation_type", "value"], out)
 
     print(result)

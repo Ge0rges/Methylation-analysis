@@ -72,7 +72,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     pivot_df['cluster'] = kmeans.labels_
 
     # Reduce dimensions using PCA
-    pca = PCA(n_components=2)
+    pca = PCA(n_components=10)
     profiles_pca = pca.fit_transform(profiles)
 
     plot_df = pd.DataFrame(profiles_pca, columns=['PC1', 'PC2'])
@@ -88,12 +88,12 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     plt.xlabel('PC1')
     plt.ylabel('PC2')
     plt.legend()
-    plt.show()
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene_cluster.pdf", format='pdf', transparent=True)
 
     sample_cluster_distribution = pivot_df.groupby(['cluster', 'sample']).size().unstack().fillna(0)
     print(sample_cluster_distribution)
 
-    print(f"Done plotting detail gene view for {genome_name}")
+    print(f"Done plotting detail gene cluster for {genome_name}")
     return
 
 
@@ -120,7 +120,7 @@ def do_elbow(X):
 if __name__ == "__main__":
     for coverage in ["5"]:
         print(f"Running genetic position  analysis at coverage {coverage}")
-        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../data/methylation_data/methylation_{coverage}")
+        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
 
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs":
