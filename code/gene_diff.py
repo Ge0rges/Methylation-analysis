@@ -69,10 +69,14 @@ def run_analysis(genome_name, data_dir, slice=None, fig_savepath="plots"):
         return methyl_data
 
     # Get the 10% biggest differences
-    methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).filter(pl.col("test_result").eq("TRUE") & pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.9))).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
+    methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).filter(pl.col("test_result").eq(True) & pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.9))).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
 
     # Make a figure with a table of these
     table_df = methyl_data.select("function", "total_methylation").to_pandas()
+    if table_df.shape[0] == 0:
+        print(f"No data for table {genome_name}")
+        return
+
     fig, ax = plt.subplots(figsize=(10, 10), layout="constrained")
 
     # Hide axes
@@ -119,10 +123,9 @@ if __name__ == "__main__":
                     temp_df = df.slice(sliced_chunks * chunk_size, chunk_size)
                     sliced_chunks += 1
 
-                    result_df = result_df.vstack(run_analysis(genome, data_dir, slice=temp_df, fig_savepath=f"../plots/plots_{coverage}))
+                    result_df = result_df.vstack(run_analysis(genome, data_dir, slice=temp_df, fig_savepath=f"../plots/plots_{coverage}"))
 
                 result_df.write_csv(f"../data/gene_level_data/{genome}_rao-filtered_gene_level.csv")
 
             else:
-                continue
-                run_analysis(genome, data_dir, fig_savepath=f"../plots/plots_{coverage})
+                run_analysis(genome, data_dir, fig_savepath=f"../plots/plots_{coverage}")
