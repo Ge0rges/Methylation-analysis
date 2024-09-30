@@ -81,7 +81,7 @@ def run_analysis(genome_name, data_dir, slice=None, fig_savepath="plots"):
 
     fig, ax = plt.subplots(figsize=(10, 10), layout="constrained")
 
-    sns.scatterplot(data=table_df,  ax=ax)
+    sns.stripplot(data=table_df,  x="function", y="total_methylation", ax=ax)
     ax.set_title(f"Total methylation difference between top and bottom")
 
     # Show the plot with the table
