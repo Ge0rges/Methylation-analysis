@@ -151,9 +151,8 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame:
     methyl_data = methyl_data.with_columns(
         pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
 
-    grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov').alias('max_valid_cov'))
-    methyl_data = methyl_data.join(grouped, on=['name', 'mod_group'], how='inner').filter(
-        pl.col('Nvalid_cov') == pl.col('max_valid_cov'))
+    grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov'))
+    methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')
 
     pivot_df = methyl_data.collect(streaming=True).pivot(index='name', columns='modified base code and motif',
                                                          values='Nmod', aggregate_function='first').lazy()
