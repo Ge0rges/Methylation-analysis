@@ -1,7 +1,7 @@
 from _statistics import *
 from utilities.data_loading import *
 from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
-    add_functional_annotations_polars, readable_methylation_name, barcode_sample_map
+    add_functional_annotations_polars, readable_methylation_name, barcode_sample_map, truncate_label
 import os
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -70,13 +70,13 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
 
     # Concat
     all_methyl_data = pl.concat(all_methyl_data)
-    
+
     # Split and explode functions
     all_methyl_data = all_methyl_data.with_columns(pl.col("function").str.split("!!!")).explode("function")
 
     # Get functions that are in every genome
     functions = all_methyl_data.group_by("function").agg(pl.col("genome_name").n_unique().alias("n_genomes")).filter(pl.col("n_genomes").eq(len(genome_names))).get_column("function").unique().to_list()
-    
+
     # Determine the number of rows and columns for subplots
     num_functions = len(functions)
     cols = 3  # You can adjust this based on how wide you want the plot grid
@@ -100,13 +100,25 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         sns.boxplot(x="genome_name", y="total_methylation", data=df, ax=ax)
 
         # Set plot title and labels
-        ax.set_title(f"{function} - Total genes: {df.shape[0]}")
+        ax.set_title(truncate_label(function, 50, 3))
+
+        # Get the counts for each genome_name
+        genome_counts = df.groupby("genome_name").size()
+
+        # Annotate the number of genes above each x-tick
+        for xtick, genome_name in enumerate(genome_counts.index):
+            count = genome_counts[genome_name]
+            ax.text(xtick, df['total_methylation'].min() - 0.05 * df['total_methylation'].ptp(),
+                    # Adjust position below plot
+                    f"n={count}",
+                    ha='center', va='top', fontsize=10, color='black')
 
     # Remove any empty subplots if the number of functions doesn't fill the grid
     for j in range(i + 1, len(axes)):
         fig.delaxes(axes[j])
 
     # Save
+    plt.subplots_adjust(vspace=0.5)
     plt.savefig(f"{fig_savepath}/{genome_names}_{coverage}_pathway_boxenplot.pdf", format='pdf', transparent=True)
 
     return
