@@ -1,6 +1,6 @@
 from utilities.data_loading import *
 from utilities.utils import readable_methylation_name, barcode_sample_map, add_gene_caller_id, normalize_data_by_pileup
-from barnacle_grid_search import barnacle_grid_search
+from barnacle_grid_search_from_saved_model import barnacle_grid_search
 import pickle
 
 replicate_map = {"barcode01": "A",

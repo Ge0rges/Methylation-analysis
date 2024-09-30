@@ -46,7 +46,7 @@ def fit_save_model(model, data, path, rep, fit_params):
         Fit model.
     """
 
-    return load_cp_tensor(path / f"fitted_model_{rep}_r{model.rank}_l{model.lambdas}.h5")
+    return (load_cp_tensor(path / f"fitted_model_{rep}_r{model.rank}_l{model.lambdas}.h5"), model.rank, model.lambdas)
 
 
 # function to count number of nonzero components in a cp tensor
@@ -90,23 +90,17 @@ def fit_models_to_replicates(replicates_labels, replicates_gen_param, param_grid
         replicate_data[rep] = tensor
 
         # Process fitted models and record metrics
-        for model in all_models[rep]:
+        for m in all_models[rep]:
+            model, rank, lambdas = m
             metrics = {
                 'datetime': datetime.datetime.now(),
                 'bootstrap_id': boot_id,
                 'replicate': rep,
-                'rank': model.rank,
-                'lambda': model.lambdas[0],
-                'best_init': model._best_cp_index,
-                'loss': model.loss_[-1],
-                'convergence_iterations': len(model.loss_),
-                'sse': relative_sse(model.decomposition_, tensor),
-                'degeneracy': degeneracy_score(model.decomposition_),
-                'core_consistency': core_consistency(model.decomposition_, tensor),
-                'monotonicity': np.all(np.diff(model.loss_) < 0),
-                'candidate_monotonicity': [np.all(np.diff(l) < 0) for l in model.candidate_losses_],
-                'candidate_fms': [factor_match_score(model.decomposition_, c, consider_weights=False, allow_smaller_rank=True) for c in model.candidates_],
-                'candidate_sse': [relative_sse(c, tensor) for c in model.candidates_]
+                'rank': rank,
+                'lambda': lambdas[0],
+                'sse': relative_sse(model, tensor),
+                'degeneracy': degeneracy_score(model),
+                'core_consistency': core_consistency(model, tensor),
             }
             fitting_results[rep].append(metrics)
 
@@ -124,8 +118,8 @@ def cross_validate(boot_id, replicate_labels, all_models, all_tensors, param_gri
         for key, value_list in all_models.items():
             # Filter the list based on the 'rank' property
             for item in value_list:
-                if item.rank == params["rank"] and item.lambdas == params["lambdas"]:
-                    cps[key] = item.decomposition_
+                if item[1] == params["rank"] and item[2] == params["lambdas"]:
+                    cps[key] = item[0]
 
         for modeled_rep in replicate_labels:
             for comparison_rep in replicate_labels:
@@ -140,7 +134,6 @@ def cross_validate(boot_id, replicate_labels, all_models, all_tensors, param_gri
                     'comparison_replicate': comparison_rep,
                     'replicate_pair': f'{modeled_rep}, {comparison_rep}',
                     'n_components': nonzero_components(cps[modeled_rep]),
-                    'mean_gene_sparsity': (cps[modeled_rep].factors[0] != 0.0).sum(axis=0).mean(),
                     'relative_sse': relative_sse(cps[modeled_rep], all_tensors[comparison_rep].data),
                     'fms_cv': fms_cv,
                     'css_cv_factor0': css_cv,
@@ -174,7 +167,7 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
     # Define model grid search param
     model_params = {
         'rank': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-        'lambdas': [[i, 0.0, 0.0] for i in [0, 0.1, 0.01, 0.1, 0.02, 0.5, 0.05, 1, 2, 5, 10]],
+        'lambdas': [[i, 0.0, 0.0] for i in [0.0, 0.1, 0.01, 0.1, 0.02, 0.5, 0.05, 1.0, 2.0, 5.0, 10.0]],
         # 'nonneg_modes': [[1, 2]],
         'tol': [1e-5],
         'n_iter_max': [2000],

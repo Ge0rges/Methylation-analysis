@@ -5,6 +5,7 @@ from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
 import os
 import matplotlib.pyplot as plt
 from pathlib import Path
+import seaborn as sns
 os.environ["POLARS_TEMP_DIR"] = str(Path("./polars_temp/"))
 
 
@@ -69,7 +70,7 @@ def run_analysis(genome_name, data_dir, slice=None, fig_savepath="plots"):
         return methyl_data
 
     # Get the 10% biggest differences
-    methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).filter(pl.col("test_result").eq(True) & pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.9))).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
+    methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).filter(pl.col("test_result").eq(True) & pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.8))).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
 
     # Make a figure with a table of these
     table_df = methyl_data.select("function", "total_methylation").to_pandas()
@@ -78,18 +79,9 @@ def run_analysis(genome_name, data_dir, slice=None, fig_savepath="plots"):
         return
 
     fig, ax = plt.subplots(figsize=(10, 10), layout="constrained")
-
-    # Hide axes
-    ax.xaxis.set_visible(False)
-    ax.yaxis.set_visible(False)
-    ax.set_frame_on(False)
-
-    # Create the table
-    table = ax.table(cellText=table_df.values, colLabels=table_df.columns, cellLoc='center', loc='center')
-
-    # Adjust the layout for better display
-    table.auto_set_font_size(True)
-    table.scale(1.5, 1.5)
+    
+    sns.scatterplot(data=table_df,  ax=ax)
+    ax.set_title(f"Total methylation difference between top and bottom")
 
     # Show the plot with the table
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_meth_funcs.pdf", format='pdf', transparent=True)
@@ -107,6 +99,7 @@ if __name__ == "__main__":
                 continue
 
             if genome == "metagenome_assembly":
+                print("Trying to load metagenome...")
                 methylation_types = list(readable_methylation_name.keys())
                 df = load_combined_methyl_data_for_genome_polars(genome, data_dir).select("name", "sample",
                                                                                                         *methylation_types,

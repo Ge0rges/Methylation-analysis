@@ -62,7 +62,7 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         methyl_data = methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result").unique()
 
         # Get the 10% biggest differences
-        methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).filter( pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.9))).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
+        methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).filter( pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.5))).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
 
         # Add to list
         methyl_data = methyl_data.with_columns(pl.lit(genome_name).alias("genome_name"))
@@ -82,8 +82,8 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
     cols = 3  # You can adjust this based on how wide you want the plot grid
     rows = math.ceil(num_functions / cols)
 
-    if num_functions == 0:
-        all_methyl_data.write_csv(f"../data/gene_level_data/{genome_name}_top_funcs_rao_filtered_common.csv")
+    all_methyl_data.write_csv(f"../data/gene_level_data/{genome_name}_top_funcs_rao_filtered_common.csv")
+    if functions == 0:
         print(f"No functions in common in {all_methyl_data}")
 
     # Create a matplotlib figure with subplots
@@ -97,12 +97,10 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         df = all_methyl_data.filter(pl.col("function").eq(function)).to_pandas()
 
         # Create the boxenplot
-        sns.boxenplot(x="genome_name", y="total_methylation", hue="sample", data=df, ax=ax)
+        sns.boxplot(x="genome_name", y="total_methylation", data=df, ax=ax)
 
         # Set plot title and labels
-        ax.title(f'Boxenplot for function: {function}')
-        ax.xticks(rotation=90)  # Rotate x-axis labels for better readability
-        ax.tight_layout()
+        ax.set_title(f"{function} - Total genes: {df.shape[0]}")
 
     # Remove any empty subplots if the number of functions doesn't fill the grid
     for j in range(i + 1, len(axes)):
