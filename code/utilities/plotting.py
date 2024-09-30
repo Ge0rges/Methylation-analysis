@@ -230,18 +230,23 @@ def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.
         else:
             function_source = ""
 
-    # Adding annotations for each gene_id
+    # Get the right data
     texts = []
     df = df.filter(pl.col("comparison").eq(comparison) & pl.col(score_col).is_not_nan() & pl.col("source").eq(function_source))
-    df = df.select("function", score_col, "gene_id", "test_result")
+
+    # Add absolute methylation change
+    top = pl.col("total_methylation").filter(pl.col('sample').eq('top')).mean()
+    bot = pl.col("total_methylation").filter(pl.col('sample').eq('bottom')).mean()
+    df = df.join(df.select("total_methylation", "gene_id", "sample").group_by('gene_id').agg(top - bot), on="gene_id").drop("total_methylation").rename({"total_methylation"+"_right": "total_methylation"}).unique()
+    df = df.with_columns(pl.col("total_methylation").abs().alias("total_methylation"))
 
     # Show significance if there is a not significant value or all are not significant
     show_significance = (df.unique().top_k(10, by=score_col).filter(pl.col("test_result") == False).height > 0)
     table_data = df.select('function', score_col, "test_result")
     if not show_significance:
-        table_data = df.select('function', score_col)
+        table_data = df.select('function', score_col, "total_methylation")
 
-    table_data = table_data.unique().top_k(10, by=score_col).to_numpy()
+    table_data = table_data.unique().top_k(10, by="total_methylation").drop("total_methylation").to_numpy()
 
     if len(table_data) == 0:
         return

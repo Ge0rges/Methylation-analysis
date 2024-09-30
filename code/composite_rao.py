@@ -65,8 +65,8 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Rename samples
     mean_data = mean_data.with_columns(pl.col('sample').replace(readable_sample_name))
-    top_bottom = top_bottom.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
     top_middle = top_middle.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
+    top_bottom = top_bottom.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
 
     # Populate graphs
     plot_mean_gene_methylation_level(axes[0][0], mean_data)
