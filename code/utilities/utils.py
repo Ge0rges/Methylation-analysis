@@ -141,15 +141,17 @@ def truncate_label(label, max_length, max_lines):
 
 
 def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame:
-    methyl_data = methyl_data.with_columns((pl.col('chrom') + '|' + pl.col('strand') + '|' + pl.col(
-        'inclusive start position').cast(pl.Utf8) + '|' + pl.col('exclusive end position').cast(pl.Utf8)).alias('name'))
 
-    # Ndiff is reads with a base other than the canonical base for this modification
-    methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
+    if not "name" in methyl_data.collect_schema().names:
+        methyl_data = methyl_data.with_columns((pl.col('chrom') + '|' + pl.col('strand') + '|' + pl.col(
+            'inclusive start position').cast(pl.Utf8) + '|' + pl.col('exclusive end position').cast(pl.Utf8)).alias('name'))
 
-    mod_base_map = {"a": "A", "m": "C", "21839": "C"}
-    methyl_data = methyl_data.with_columns(
-        pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
+        # Ndiff is reads with a base other than the canonical base for this modification
+        methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
+    
+        mod_base_map = {"a": "A", "m": "C", "21839": "C"}
+        methyl_data = methyl_data.with_columns(
+            pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
 
     grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov'))
     methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')

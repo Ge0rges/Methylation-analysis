@@ -57,7 +57,18 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
             if os.path.exists(parquet_file):
                 methyl_data = pl.scan_parquet(parquet_file)
             else:
-                methyl_data.sink_parquet(parquet_file)
+                methyl_data = methyl_data.with_columns((pl.col('chrom') + '|' + pl.col('strand') + '|' + pl.col(
+                    'inclusive start position').cast(pl.Utf8) + '|' + pl.col('exclusive end position').cast(
+                    pl.Utf8)).alias('name'))
+
+                # Ndiff is reads with a base other than the canonical base for this modification
+                methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
+
+                mod_base_map = {"a": "A", "m": "C", "21839": "C"}
+                methyl_data = methyl_data.with_columns(
+                    pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
+
+                methyl_data.write_parquet(parquet_file, partition_by=["name", "mod_group"])
                 methyl_data = pl.scan_parquet(parquet_file)
 
         methyl_data = utils.reshape_pileup_to_matrix_polars(methyl_data)
