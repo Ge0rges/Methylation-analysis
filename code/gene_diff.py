@@ -6,6 +6,7 @@ import os
 import matplotlib.pyplot as plt
 from pathlib import Path
 import seaborn as sns
+sns.set_theme(context="paper", style="white")
 os.environ["POLARS_TEMP_DIR"] = str(Path("./polars_temp/"))
 
 
@@ -79,7 +80,7 @@ def run_analysis(genome_name, data_dir, slice=None, fig_savepath="plots"):
         return
 
     fig, ax = plt.subplots(figsize=(10, 10), layout="constrained")
-    
+
     sns.scatterplot(data=table_df,  ax=ax)
     ax.set_title(f"Total methylation difference between top and bottom")
 

@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 from adjustText import adjust_text
 import matplotlib.patches as patches
 
-plt.style.use('ggplot')
 
 
 def plot_all_sources_figure(df: pl.DataFrame, genome_name, heatmap_type="gene", fig_savepath="plots",

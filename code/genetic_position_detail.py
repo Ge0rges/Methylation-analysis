@@ -1,8 +1,7 @@
-from utilities.plotting import *
 from utilities.data_loading import *
 from utilities.utils import add_gene_caller_id, readable_methylation_name, readable_sample_name, barcode_sample_map, normalize_data_by_pileup
-import matplotlib.pyplot as plt
-plt.style.use('ggplot')
+import seaborn as sns
+sns.set_theme(context="paper", style="white")
 
 
 def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):

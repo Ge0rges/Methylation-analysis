@@ -3,10 +3,11 @@ from utilities.data_loading import *
 from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name, barcode_sample_map, truncate_label
 import os
-import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
 import math
+import seaborn as sns
+sns.set_theme(context="paper", style="white")
 os.environ["POLARS_TEMP_DIR"] = str(Path("./polars_temp/"))
 
 
