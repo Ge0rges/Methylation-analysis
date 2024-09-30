@@ -50,6 +50,16 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
     dfs = []
     for i, bed_file in enumerate(bed_files):
         methyl_data = get_pileup_polars(bed_file)
+
+        if genome_name == "metagenome_assembly":
+            # Load file from parquet if it exists, otherwise write it
+            parquet_file = bed_file.replace(".bed", ".parquet")
+            if os.path.exists(parquet_file):
+                methyl_data = pl.scan_parquet(parquet_file)
+            else:
+                methyl_data.sink_parquet(parquet_file)
+                methyl_data = pl.scan_parquet(parquet_file)
+
         methyl_data = utils.reshape_pileup_to_matrix_polars(methyl_data)
 
         # Add sample column
