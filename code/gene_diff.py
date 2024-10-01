@@ -8,7 +8,7 @@ from pathlib import Path
 import seaborn as sns
 sns.set_theme(context="paper", style="white")
 os.environ["POLARS_TEMP_DIR"] = str(Path("./polars_temp/"))
-
+pl.Config.set_streaming_chunk_size(10000)
 
 def run_analysis(genome_name, data_dir, slice=None, fig_savepath="plots"):
     """
