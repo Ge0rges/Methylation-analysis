@@ -28,9 +28,7 @@ def run_barnacle(genome_name, data_dir):
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
-    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir).select("name", "sample",
-                                                                                            *methylation_types,
-                                                                                            "Ncanonical")
+    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=5)
 
     # Add gene caller id
     #genes = get_genes_polars(data_dir)

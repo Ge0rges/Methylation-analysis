@@ -25,9 +25,8 @@ def run_analysis(genome_name, data_dir, slice=None, fig_savepath="plots"):
 
     methyl_data = slice
     if slice is None:
-        methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir).select("name", "sample",
-                                                                                                *methylation_types,
-                                                                                                "Ncanonical", coverage=5)
+        methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=5)
+
 
     # Filter samples
     methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
@@ -135,9 +134,8 @@ if __name__ == "__main__":
             if genome == "metagenome_assembly":
                 print("Trying to load metagenome...")
                 methylation_types = list(readable_methylation_name.keys())
-                df = load_combined_methyl_data_for_genome_polars(genome, data_dir).select("name", "sample",
-                                                                                                        *methylation_types,
-                                                                                                        "Ncanonical")
+                methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=5)
+
                 print("loaded metagenome")
 
                 result_df = pl.DataFrame()

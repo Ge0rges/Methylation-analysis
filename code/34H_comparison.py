@@ -18,7 +18,7 @@ def run_34h_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())
-    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir).select("name", "sample", "Ncanonical", *methylation_types, coverage=5)
+    methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=5)
 
     # Rename samples and make total methylation column
     methyl_data = normalize_data_by_pileup(methyl_data)
