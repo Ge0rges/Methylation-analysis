@@ -148,7 +148,7 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame:
 
         # Ndiff is reads with a base other than the canonical base for this modification
         methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
-    
+
         mod_base_map = {"a": "A", "m": "C", "21839": "C"}
         methyl_data = methyl_data.with_columns(
             pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
@@ -242,7 +242,7 @@ def normalize_data_by_genome_coverage(df: pl.LazyFrame, genome_name, aggregate=F
     return df
 
 
-def normalize_data_by_pileup(df: pl.DataFrame) -> pl.DataFrame:
+def normalize_data_by_pileup(df: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame:
     methylation_types = list(readable_methylation_name.keys()) + ["Ncanonical"]
     df = df.with_columns(pl.col(methylation_types) / pl.concat_list(methylation_types).list.sum())
 

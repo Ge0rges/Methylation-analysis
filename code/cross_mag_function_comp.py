@@ -59,12 +59,10 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         # Add functional annotation
         methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir).collect()
 
-        # Write the dataframe to a CSV
+        # Get the absolute  differences
         methyl_data = methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result").unique()
+        methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation"))
 
-        # Get the 10% biggest differences
-        #methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
-        methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).filter(pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.5))).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
         # Add to list
         methyl_data = methyl_data.with_columns(pl.lit(genome_name).alias("genome_name"))
         all_methyl_data.append(methyl_data)
@@ -83,9 +81,10 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
     cols = 3  # You can adjust this based on how wide you want the plot grid
     rows = math.ceil(num_functions / cols)
 
-    all_methyl_data.write_csv(f"../data/gene_level_data/{genome_name}_top_funcs_rao_filtered_common.csv")
+    all_methyl_data.write_csv(f"../data/gene_level_data/{genome_names}_top_funcs_rao_filtered_common.csv")
     if functions == 0:
-        print(f"No functions in common in {all_methyl_data}")
+        print(f"No functions in common in {genome_names}")
+        return
 
     # Create a matplotlib figure with subplots
     fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 5 * rows), layout="constrained")
@@ -96,12 +95,13 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
     for i, (function, ax) in enumerate(zip(functions, axes)):
         # Filter the data for the functions of interest
         df = all_methyl_data.filter(pl.col("function").eq(function)).to_pandas()
-
+        function_type = all_methyl_data.filter(pl.col("function").eq(function)).get_column("source").unique().item()
+        
         # Create the boxenplot
         sns.boxplot(x="genome_name", y="total_methylation", data=df, ax=ax)
 
         # Set plot title and labels
-        ax.set_title(truncate_label(function, 50, 3))
+        ax.set_title(f"{function_type} - {truncate_label(function, 50, 3)}")
 
         # Get the counts for each genome_name
         genome_counts = df.groupby("genome_name").size()
@@ -119,7 +119,7 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         fig.delaxes(axes[j])
 
     # Save
-    plt.savefig(f"{fig_savepath}/{genome_names}_{coverage}_pathway_boxplot.pdf", format='pdf', transparent=True)
+    plt.savefig(f"{fig_savepath}/{genome_names}_{coverage}_common_functions.pdf", format='pdf', transparent=True)
 
     return
 
