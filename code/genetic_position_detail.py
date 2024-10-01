@@ -1,5 +1,6 @@
 from utilities.data_loading import *
 from utilities.utils import add_gene_caller_id, readable_methylation_name, readable_sample_name, barcode_sample_map, normalize_data_by_pileup
+import matplotlib.pyplot as plt
 import seaborn as sns
 sns.set_theme(context="paper", style="white")
 

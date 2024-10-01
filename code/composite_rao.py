@@ -89,7 +89,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
     fig.suptitle(f"Mean gene methylation overview for {cleaned_genome_name}", fontsize=26)
-    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite_rao.svg", format='svg', transparent=True)
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite_rao.pdf", format='pdf', transparent=True)
 
     print(f"Done plotting composite for {genome_name}")
     return
@@ -100,7 +100,7 @@ if __name__ == "__main__":
         print(f"Running rao analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
         for genome in os.listdir(data_dir):
-            if genome == ".DS_Store":
+            if genome == ".DS_Store" or ".txt" in genome or "Octadecabacter" in genome:
                 continue
 
             run_dmr_analysis(genome, coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")

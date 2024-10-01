@@ -63,8 +63,8 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         methyl_data = methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result").unique()
 
         # Get the 10% biggest differences
-        methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).filter( pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.5))).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
-
+        #methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
+        methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation")).filter(pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.5))).sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
         # Add to list
         methyl_data = methyl_data.with_columns(pl.lit(genome_name).alias("genome_name"))
         all_methyl_data.append(methyl_data)
@@ -109,7 +109,7 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         # Annotate the number of genes above each x-tick
         for xtick, genome_name in enumerate(genome_counts.index):
             count = genome_counts[genome_name]
-            ax.text(xtick, df['total_methylation'].min() - 0.05 * df['total_methylation'].ptp(),
+            ax.text(xtick, df['total_methylation'].min() - 0.05 * df['total_methylation'].to_numpy().ptp(),
                     # Adjust position below plot
                     f"n={count}",
                     ha='center', va='top', fontsize=10, color='black')
@@ -119,8 +119,7 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         fig.delaxes(axes[j])
 
     # Save
-    plt.subplots_adjust(vspace=0.5)
-    plt.savefig(f"{fig_savepath}/{genome_names}_{coverage}_pathway_boxenplot.pdf", format='pdf', transparent=True)
+    plt.savefig(f"{fig_savepath}/{genome_names}_{coverage}_pathway_boxplot.pdf", format='pdf', transparent=True)
 
     return
 

@@ -54,6 +54,8 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
         if genome_name == "metagenome_assembly":
             # Load file from parquet if it exists, otherwise write it
             parquet_file = bed_file.replace(".bed", ".parquet")
+            temp_parquet_file = bed_file.replace(".bed", "_temp.parquet")
+
             if os.path.exists(parquet_file):
                 methyl_data = pl.scan_parquet(parquet_file)
             else:
@@ -67,10 +69,20 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
                 mod_base_map = {"a": "A", "m": "C", "21839": "C"}
                 methyl_data = methyl_data.with_columns(
                     pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
-
-                methyl_data.write_parquet(parquet_file, partition_by=["name", "mod_group"])
+                
+                #methyl_data.collect(streaming=True).write_parquet(parquet_file, partition_by=["name", "mod_group"])
+                methyl_data.sink_parquet(temp_parquet_file)
+                methyl_data = pl.scan_parquet(temp_parquet_file)
+                
+                grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov'))
+                methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')
+                
+                methyl_data.sink_parquet(parquet_file)
                 methyl_data = pl.scan_parquet(parquet_file)
 
+                os.remove(temp_parquet_file)
+                
+        print(f"Got {i} bed file loaded and now reshaping")
         methyl_data = utils.reshape_pileup_to_matrix_polars(methyl_data)
 
         # Add sample column
@@ -78,8 +90,10 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
         methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
 
         dfs.append(methyl_data)
+        print(f"Added {i} bed file to array")
 
     # Concat everything together
+    print("Concating...")
     dfs = pl.concat(dfs)
 
     # Filter for coverage
