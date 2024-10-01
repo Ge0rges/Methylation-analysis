@@ -27,18 +27,11 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         methylation_types = list(readable_methylation_name.keys())
         methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir).select("name", "sample",
                                                                                                     *methylation_types,
-                                                                                                    "Ncanonical")
-        methyl_data = methyl_data.with_columns(
-            contig=pl.col('name').str.split(by='|').list.get(0),
-            strand=pl.col('name').str.split(by='|').list.get(1),
-            start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
-            end=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
-        )
+                                                                                                    "Ncanonical", coverage=5)
 
         # Filter samples
         methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
         methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
-        methyl_data = methyl_data.filter(pl.concat_list(methylation_types).list.sum() >= 5)
 
         # Add the gene_caller_id
         methyl_data = add_gene_caller_id(methyl_data, genes, True)
@@ -96,7 +89,7 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         # Filter the data for the functions of interest
         df = all_methyl_data.filter(pl.col("function").eq(function)).to_pandas()
         function_type = all_methyl_data.filter(pl.col("function").eq(function)).get_column("source").unique().item()
-        
+
         # Create the boxenplot
         sns.boxplot(x="genome_name", y="total_methylation", data=df, ax=ax)
 

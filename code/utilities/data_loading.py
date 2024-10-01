@@ -69,19 +69,19 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
                 mod_base_map = {"a": "A", "m": "C", "21839": "C"}
                 methyl_data = methyl_data.with_columns(
                     pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
-                
+
                 #methyl_data.collect(streaming=True).write_parquet(parquet_file, partition_by=["name", "mod_group"])
                 methyl_data.sink_parquet(temp_parquet_file)
                 methyl_data = pl.scan_parquet(temp_parquet_file)
-                
+
                 grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov'))
                 methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')
-                
+
                 methyl_data.sink_parquet(parquet_file)
                 methyl_data = pl.scan_parquet(parquet_file)
 
                 os.remove(temp_parquet_file)
-                
+
         print(f"Got {i} bed file loaded and now reshaping")
         methyl_data = utils.reshape_pileup_to_matrix_polars(methyl_data)
 
@@ -95,6 +95,14 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
     # Concat everything together
     print("Concating...")
     dfs = pl.concat(dfs)
+
+    # Split name
+    dfs = dfs.with_columns(
+        contig=pl.col('name').str.split(by='|').list.get(0),
+        strand=pl.col('name').str.split(by='|').list.get(1),
+        start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
+        end=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
+    )
 
     # Filter for coverage
     if coverage is not None:

@@ -31,12 +31,6 @@ def run_barnacle(genome_name, data_dir):
     methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir).select("name", "sample",
                                                                                             *methylation_types,
                                                                                             "Ncanonical")
-    methyl_data = methyl_data.with_columns(
-        contig=pl.col('name').str.split(by='|').list.get(0),
-        strand=pl.col('name').str.split(by='|').list.get(1),
-        start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
-        end=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
-    )
 
     # Add gene caller id
     #genes = get_genes_polars(data_dir)
