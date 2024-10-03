@@ -65,7 +65,10 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
     all_methyl_data = all_methyl_data.with_columns(pl.col("function").str.split("!!!")).explode("function")
 
     # Get functions that are in every genome
-    functions = all_methyl_data.group_by("function").agg(pl.col("genome_name").n_unique().alias("n_genomes")).filter(pl.col("n_genomes").eq(len(genome_names))).get_column("function").unique().head(40).to_list()
+    functions = all_methyl_data.group_by("function").agg(pl.col("genome_name").n_unique().alias("n_genomes"),
+                                                         pl.col("abs_total_methylation").diff().abs().alias("diff"))
+    functions = functions.filter(pl.col("n_genomes").eq(len(genome_names)) & pl.col("diff").ge(pl.col("diff").quantile(0.8)))
+    functions = functions.get_column("function").unique().to_list()
 
     # Determine the number of rows and columns for subplots
     num_functions = len(functions)
