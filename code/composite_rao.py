@@ -25,15 +25,20 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Add the gene_caller_id
     methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
+    
+    if methyl_data.is_empty():
+        print("No valid data for {genome_name}")
+        return
 
     # Add rao score - Doing this first prevents row duplication issues
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle", "bottom"], baseline="middle")
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle"], baseline=False)
-    methyl_data = add_rao_score_by_gene(methyl_data, ["top", "bottom"], baseline=False).lazy()
+    methyl_data = add_rao_score_by_gene(methyl_data, ["top", "bottom"], baseline=False)
+    
 
     # Create the total methylation column and normalize values
     methyl_data = normalize_data_by_pileup(methyl_data)
-    methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
+    methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
 
     # Add a gene_id column, which is just a map from gene_callers_id
     all_ids = methyl_data.sort("strand", "contig",  "start").get_column("gene_callers_id").to_list()
@@ -93,7 +98,7 @@ if __name__ == "__main__":
         print(f"Running rao analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
         for genome in os.listdir(data_dir):
-            if genome == ".DS_Store" or ".txt" in genome or "Octadecabacter" in genome:
+            if genome == ".DS_Store" or ".txt" in genome or "Octadecabacter" in genome or "metagenome" in genome:
                 continue
 
             run_dmr_analysis(genome, coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")

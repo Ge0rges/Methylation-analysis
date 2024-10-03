@@ -65,7 +65,7 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
     all_methyl_data = all_methyl_data.with_columns(pl.col("function").str.split("!!!")).explode("function")
 
     # Get functions that are in every genome
-    functions = all_methyl_data.group_by("function").agg(pl.col("genome_name").n_unique().alias("n_genomes")).filter(pl.col("n_genomes").eq(len(genome_names))).get_column("function").unique().to_list()
+    functions = all_methyl_data.group_by("function").agg(pl.col("genome_name").n_unique().alias("n_genomes")).filter(pl.col("n_genomes").eq(len(genome_names))).get_column("function").unique().head(40).to_list()
 
     # Determine the number of rows and columns for subplots
     num_functions = len(functions)
@@ -86,7 +86,8 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
     for i, (function, ax) in enumerate(zip(functions, axes)):
         # Filter the data for the functions of interest
         df = all_methyl_data.filter(pl.col("function").eq(function)).to_pandas()
-        function_type = all_methyl_data.filter(pl.col("function").eq(function)).get_column("source").unique().item()
+        function_type = all_methyl_data.filter(pl.col("function").eq(function)).get_column("source").unique()
+        print(function_type)
 
         # Create the boxenplot
         sns.boxplot(x="genome_name", y="total_methylation", data=df, ax=ax)

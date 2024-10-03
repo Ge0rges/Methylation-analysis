@@ -73,10 +73,10 @@ def run_analysis(genome_name, data_dir, slice=None, fig_savepath="plots"):
 
     # Get the aboslute biggest differences
     methyl_data = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation"))
-    methyl_data = methyl_data.group_by("function").agg(pl.col("abs_total_methylation").mean(), pl.col("total_methylation").mean())
+    methyl_data = methyl_data.group_by("function", "test_result").agg(pl.col("abs_total_methylation").mean(), pl.col("total_methylation").mean())
 
     # Make a figure with a table of the top 20% DMRed pathways
-    table_df = methyl_data.filter(pl.col("function").eq("KEGG_Brite") & pl.col("test_result").eq(True) & pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.8)))
+    table_df = methyl_data.filter(pl.col("function").eq("KEGG_BRITE") & pl.col("test_result").eq(True) & pl.col("abs_total_methylation").gt(pl.col("abs_total_methylation").quantile(0.8)))
     table_df = table_df.sort("abs_total_methylation", descending=False).drop("abs_total_methylation")
     table_df = table_df.select("function", "total_methylation").to_pandas()
     if table_df.shape[0] == 0:
@@ -134,7 +134,7 @@ if __name__ == "__main__":
             if genome == "metagenome_assembly":
                 print("Trying to load metagenome...")
                 methylation_types = list(readable_methylation_name.keys())
-                methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=5)
+                methyl_data = load_combined_methyl_data_for_genome_polars(genome, data_dir, coverage=5)
 
                 print("loaded metagenome")
 
@@ -153,4 +153,5 @@ if __name__ == "__main__":
                 result_df.write_csv(f"../data/gene_level_data/{genome}_rao-filtered_gene_level.csv")
 
             else:
+                continue
                 run_analysis(genome, data_dir, fig_savepath=f"../plots/plots_{coverage}")
