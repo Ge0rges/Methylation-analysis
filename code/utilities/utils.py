@@ -146,7 +146,7 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame:
         'inclusive start position').cast(pl.Utf8) + '|' + pl.col('exclusive end position').cast(pl.Utf8)).alias('name'))
 
     # Keep only what we need
-    methyl_data = methyl_data.select(['name', 'modified base code and motif', 'Nvalid_cov', "Ndiff"])
+    methyl_data = methyl_data.select(['name', 'modified base code and motif', 'Nvalid_cov', "Ndiff", "Nmod", "Ncanonical"])
 
     # Ndiff is reads with a base other than the canonical base for this modification
     methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
@@ -155,7 +155,9 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame:
     methyl_data = methyl_data.with_columns(
         pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
 
-    grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov'))
+    grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov')).collect(streaming=True).lazy()
+    print("Collected before reshaping")
+
     methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')
 
     pivot_df = methyl_data.collect(streaming=True).pivot(index='name', columns='modified base code and motif',

@@ -51,7 +51,7 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
     for i, bed_file in enumerate(bed_files):
         methyl_data = get_pileup_polars(bed_file)
 
-        print(f"Got {i} bed file loaded and now reshaping")
+        print(f"Got {bed_file} bed file loaded and now reshaping")
         methyl_data = utils.reshape_pileup_to_matrix_polars(methyl_data)
 
         # Add sample column

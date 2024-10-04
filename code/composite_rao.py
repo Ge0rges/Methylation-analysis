@@ -94,7 +94,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
 
 if __name__ == "__main__":
-    for coverage in ["5", "5_agg"]:
+    for coverage in ["5"]:
         print(f"Running rao analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
         for genome in os.listdir(data_dir):
