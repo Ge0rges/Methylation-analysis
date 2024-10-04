@@ -199,12 +199,10 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> p
         genes = genes.filter(pl.col("contig").is_in(temp_df.get_column("contig").unique().to_list()))
 
         # Merge merged_df with ranges based on conditions
-        og_columns = temp_df.columns
-        temp_df = temp_df.join(genes, on='contig')
-
         # Filter rows where merged_df start and end values are within range start and end.
         # Gene range is inclusive of end, modkit bed is not.
-        temp_df = temp_df.filter((pl.col('start') >= pl.col('start_right')) & (pl.col('end') <= pl.col('stop')))
+        og_columns = temp_df.columns
+        temp_df = temp_df.join_where(genes, pl.col('start').ge(pl.col('start_right')), pl.col('end').le(pl.col('stop')), pl.col("contig").eq(pl.col("contig_right")))
 
         # # Mark exons
         # for col in og_columns:
