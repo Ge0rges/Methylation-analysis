@@ -155,8 +155,7 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame:
     methyl_data = methyl_data.with_columns(
         pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
 
-    grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov')).collect(streaming=True).lazy()
-    print("Collected before reshaping")
+    grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov'))
 
     methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')
 
