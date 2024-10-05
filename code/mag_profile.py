@@ -5,7 +5,7 @@ from utilities.utils import normalize_data_by_genome_coverage, add_gene_caller_i
     add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map, normalize_data_by_pileup
 from scipy.stats import rankdata
 
-def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
+def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     """
     Run the DMR analysis for a specific genome_name, DMR type, and function_source.
     """
@@ -25,16 +25,10 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Add the gene_caller_id
     methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
-    
+
     if methyl_data.is_empty():
         print("No valid data for {genome_name}")
         return
-
-    # Add rao score - Doing this first prevents row duplication issues
-    methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle", "bottom"], baseline="middle")
-    methyl_data = add_rao_score_by_gene(methyl_data, ["top", "middle"], baseline=False)
-    methyl_data = add_rao_score_by_gene(methyl_data, ["top", "bottom"], baseline=False)
-    
 
     # Create the total methylation column and normalize values
     methyl_data = normalize_data_by_pileup(methyl_data)
@@ -47,7 +41,7 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Create figure
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(3, 2, figsize=(20, 5 * n_types), sharex=False, layout="constrained", gridspec_kw={'width_ratios': [5] + [5]})
+    fig, axes = plt.subplots(3, 1, figsize=(20, 5 * n_types), sharex=False, layout="constrained")
 
     # Mean together all the different methylation types
     mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation')
@@ -67,27 +61,14 @@ def run_dmr_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     top_bottom = top_bottom.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
 
     # Populate graphs
-    plot_mean_gene_methylation_level(axes[0][0], mean_data)
-    plot_gene_methylation_level_diff(axes[1][0], top_middle, "Top – Middle")
-    plot_gene_methylation_level_diff(axes[2][0], top_bottom, "Top – Bottom")
-
-    # Add functional annotation
-    methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir).collect()
-    function_source = "KEGG_Module"
-
-    # Plot functional annotations
-    annotate_meth_level_with_score_function_table(axes[0][0], axes[0][1], methyl_data, function_source, "rao_score", "middle_vs_top_bottom")
-    annotate_meth_level_with_score_function_table(axes[1][0], axes[1][1], methyl_data, function_source, "rao_score", "top_vs_middle")
-    annotate_meth_level_with_score_function_table(axes[2][0], axes[2][1], methyl_data, function_source, "rao_score", "top_vs_bottom")
-
-    axes[0][1].axis("off")
-    axes[1][1].axis("off")
-    axes[2][1].axis("off")
+    plot_mean_gene_methylation_level(axes[0], mean_data)
+    plot_gene_methylation_level_diff(axes[1], top_middle, "Top – Middle")
+    plot_gene_methylation_level_diff(axes[2], top_bottom, "Top – Bottom")
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
     fig.suptitle(f"Mean gene methylation overview for {cleaned_genome_name}", fontsize=26)
-    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite_rao.pdf", format='pdf', transparent=True)
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_profile.pdf", format='pdf', transparent=True)
 
     print(f"Done plotting composite for {genome_name}")
     return
@@ -101,4 +82,4 @@ if __name__ == "__main__":
             if genome == ".DS_Store" or ".txt" in genome or "Octadecabacter" in genome or "metagenome" in genome:
                 continue
 
-            run_dmr_analysis(genome, coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")
+            run_analysis(genome, coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")

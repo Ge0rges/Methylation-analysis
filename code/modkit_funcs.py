@@ -1,3 +1,4 @@
+from code.utilities.utils import normalize_data_by_pileup
 from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
@@ -29,12 +30,12 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     # Annotate with function
     dmr_data = add_functional_annotations_polars(dmr_data, data_dir).collect()
 
-    # Filter for signiciant DMR with correct function_source and comparison, then keep top 10
+    # Filter for signiciant DMR with correct function_source and comparison, then keep top 20
     function_source = "KEGG_Module"
     dmr_data = dmr_data.filter(pl.col("test_result") &
                                pl.col("source").eq(function_source) &
                                pl.col("comparison").is_in(["top_vs_bottom", "top_vs_middle"]))
-    dmr_data = dmr_data.group_by(['function', 'source', 'comparison']).agg(pl.col('score').mean(), pl.col("gene_callers_id"), pl.col("test_result").first()).top_k(10, by="score")
+    dmr_data = dmr_data.group_by(['function', 'source', 'comparison']).agg(pl.col('score').mean(), pl.col("gene_callers_id"), pl.col("test_result").first()).top_k(20, by="score")
     dmr_data = dmr_data.explode("gene_callers_id")
 
     # Handle empty
@@ -50,10 +51,8 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).collect().lazy()
 
     # Create the total methylation column and normalize
-    if "agg" in coverage:
-        methyl_data = methyl_data.with_columns(pl.col(*methylation_types).floordiv(3))
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
-    methyl_data = normalize_data_by_genome_coverage(methyl_data, genome_name, ("agg" in coverage)).drop("norm_sample")
+    methyl_data = normalize_data_by_pileup(methyl_data)
 
     # Add gene caller id
     methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
@@ -64,41 +63,22 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     dmr_data = dmr_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=-1))
     methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=-1))
 
-    # Create figure
+    # Get mean methylation for each gene
+    methyl_data = methyl_data.filter(pl.col("gene_id").is_in(dmr_data.get_column("gene_id")))
+    methyl_data = methyl_data.group_by("gene_id", "sample").agg(pl.col("total_methylation").mean())
+    methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir).collect(streaming=True)
+    methyl_data = methyl_data.filter(pl.col("source").eq("KOfam"))
+    methyl_data = methyl_data.pivot(on="function", index="sample", values="total_methylation")
+
+    # Plot heatmap of the methylation difference of these DMRs
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(3, 2, figsize=(20, 5 * n_types), sharex=False, layout="constrained", gridspec_kw={'width_ratios': [5] + [5]})
-
-    # Mean together all the different methylation types
-    mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation')
-    top = pl.col(*methylation_types).filter(pl.col('sample').eq('top'))
-    bot = pl.col(*methylation_types).filter(pl.col('sample').eq('bottom'))
-    middle = pl.col(*methylation_types).filter(pl.col('sample').eq('middle'))
-    top_bottom = methyl_data.group_by('gene_id').agg(top.mean() - bot.mean())
-    top_bottom = top_bottom.unpivot(index="gene_id", on=methylation_types, variable_name="methylation_type", value_name="methylation_level")
-    top_middle = methyl_data.group_by('gene_id').agg(top.mean() - middle.mean())
-    top_middle = top_middle.unpivot(index="gene_id", on=methylation_types, variable_name="methylation_type", value_name="methylation_level")
-
-    # Rename samples
-    mean_data = mean_data.with_columns(pl.col('sample').replace(readable_sample_name))
-    top_bottom = top_bottom.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
-    top_middle = top_middle.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
-
-    # Populate subplots
-    plot_mean_gene_methylation_level(axes[0][0], mean_data)
-    plot_gene_methylation_level_diff(axes[1][0], top_middle, "Top – Middle")
-    plot_gene_methylation_level_diff(axes[2][0], top_bottom, "Top – Bottom")
-
-    annotate_meth_level_with_score_function_table(axes[1][0], axes[1][1], dmr_data, function_source, score_col="score", comparison="top_vs_middle")
-    annotate_meth_level_with_score_function_table(axes[2][0], axes[2][1], dmr_data, function_source, score_col="score", comparison="top_vs_bottom")
-
-    axes[0][1].axis("off")
-    axes[1][1].axis("off")
-    axes[2][1].axis("off")
+    fig, axes = plt.subplots(1, 1, figsize=(20, 5 * n_types), sharex=False, layout="constrained")
+    sns.heatmap(methyl_data.to_pandas(), ax=axes, cmap="coolwarm", cbar_kws={'label': 'Mean methylation'})
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
-    fig.suptitle(f"Mean gene methylation overview for {cleaned_genome_name}", fontsize=26)
-    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_composite_modkit.svg", format='svg', transparent=True)
+    fig.suptitle(f"Top 20 differentially methylated KOfams according to modkit {cleaned_genome_name}", fontsize=26)
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_modkit.pdf", format='pdf', transparent=True)
 
     print(f"Done plotting composite for {genome_name}")
     return

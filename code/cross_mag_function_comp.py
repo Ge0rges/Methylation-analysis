@@ -70,7 +70,7 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
     functions = functions.filter(pl.col("n_genomes").eq(len(genome_names)))
     functions = functions.group_by("function", "genome_name").agg(pl.col("abs_total_methylation").mean())
     functions = functions.with_columns(pl.col("abs_total_methylation").diff().abs().alias("diff"))
-    functions = functions.filter(pl.col("diff").ge(pl.col("diff").quantile(0.8)))
+    functions = functions.filter(pl.col("diff").ge(0.05))
     functions = functions.get_column("function").unique().to_list()
 
     # Determine the number of rows and columns for subplots
@@ -92,8 +92,7 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
     for i, (function, ax) in enumerate(zip(functions, axes)):
         # Filter the data for the functions of interest
         df = all_methyl_data.filter(pl.col("function").eq(function)).to_pandas()
-        function_type = all_methyl_data.filter(pl.col("function").eq(function)).get_column("source").unique()
-        print(function_type)
+        function_type = all_methyl_data.filter(pl.col("function").eq(function)).get_column("source").unique().to_list()
 
         # Create the boxenplot
         sns.boxplot(x="genome_name", y="total_methylation", data=df, ax=ax)
@@ -105,12 +104,11 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         genome_counts = df.groupby("genome_name").size()
 
         # Annotate the number of genes above each x-tick
+        labels = []
         for xtick, genome_name in enumerate(genome_counts.index):
             count = genome_counts[genome_name]
-            ax.text(xtick, df['total_methylation'].min() - 0.05 * df['total_methylation'].to_numpy().ptp(),
-                    # Adjust position below plot
-                    f"n={count}",
-                    ha='center', va='top', fontsize=10, color='black')
+            labels.append(f"{genome_name} (n={count})")
+        ax.set_xticklabels(labels)
 
     # Remove any empty subplots if the number of functions doesn't fill the grid
     for j in range(i + 1, len(axes)):
