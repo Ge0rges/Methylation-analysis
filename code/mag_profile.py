@@ -7,7 +7,7 @@ from scipy.stats import rankdata
 
 def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     """
-    Run the DMR analysis for a specific genome_name, DMR type, and function_source.
+    Run the analysis for a specific genome_name, DMR type, and function_source.
     """
 
     print(f"Starting to generate  composite for {genome_name}")
@@ -27,7 +27,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
 
     if methyl_data.is_empty():
-        print("No valid data for {genome_name}")
+        print(f"No valid data for {genome_name}")
         return
 
     # Create the total methylation column and normalize values

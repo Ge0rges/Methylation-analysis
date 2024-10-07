@@ -1,8 +1,7 @@
-from code.utilities.utils import normalize_data_by_pileup
 from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
-from utilities.utils import normalize_data_by_genome_coverage, add_gene_caller_id, \
+from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map
 from scipy.stats import rankdata
 
@@ -85,11 +84,11 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
 
 if __name__ == "__main__":
-    for coverage in ["5_agg", "5"]:
+    for coverage in ["5"]:
         print(f"Running DMR analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
         for genome in os.listdir(data_dir):
-            if genome == ".DS_Store":
+            if genome == ".DS_Store" or "Octadecabacter" in genome or "metagenome" in genome:
                 continue
 
             run_dmr_analysis(genome, "dmr_by_gene", coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")

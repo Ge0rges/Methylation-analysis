@@ -70,8 +70,8 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
     functions = functions.filter(pl.col("n_genomes").eq(len(genome_names)))
     functions = functions.group_by("function", "genome_name").agg(pl.col("abs_total_methylation").mean())
     functions = functions.with_columns(pl.col("abs_total_methylation").diff().abs().alias("diff"))
-    functions = functions.filter(pl.col("diff").ge(0.05))
-    functions = functions.get_column("function").unique().to_list()
+    functions = functions.filter(pl.col("diff").ge(0.02))
+    functions = functions.sort(by="diff", descending=True).get_column("function").unique().to_list()
 
     # Determine the number of rows and columns for subplots
     num_functions = len(functions)
