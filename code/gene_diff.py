@@ -37,12 +37,6 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     methyl_data = normalize_data_by_pileup(methyl_data)
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
 
-    # Add gene relative position from start and from end
-    gene_positions = methyl_data.select("gene_callers_id", "name", "start", "strand", "end").unique()
-    gene_positions = gene_positions.with_columns((pl.col("start") - pl.col("start").min()).over("gene_callers_id").alias("gene_position"))
-    gene_positions = gene_positions.with_columns((pl.col("end").max() - pl.col("end")).over("gene_callers_id").alias("backwards_gene_position"))
-    gene_positions = methyl_data.join(gene_positions, on="name", how="inner", validate="m:1")
-
     # Add rao score - Doing this first prevents row duplication issues
     methyl_data = add_rao_score_by_gene(methyl_data, ["top", "bottom"], baseline=False)
 
@@ -56,6 +50,12 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     # Add functional annotation
     methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir).collect()
 
+# Add gene relative position from start and from end
+    gene_positions = methyl_data.select("gene_callers_id", "name", "start", "strand", "end").unique()
+    gene_positions = gene_positions.with_columns((pl.col("start") - pl.col("start").min()).over("gene_callers_id").alias("gene_position"))
+    gene_positions = gene_positions.with_columns((pl.col("end").max() - pl.col("end")).over("gene_callers_id").alias("backwards_gene_position"))
+    gene_positions = methyl_data.join(gene_positions, on="name", how="inner", validate="m:1").drop("start_right")
+
     # Write the dataframe to a CSV
     (methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result")
                .filter(pl.col("rao_score").is_not_nan())
@@ -64,15 +64,16 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
 
     # Get DFs
     table_df = make_table(methyl_data)
-    genes_df = get_top_dmr_genes(methyl_data)
-    gene_ids = genes_df.get_column("gene_callers_id").unique().to_list()
-    gene_abs = genes_df.filter(pl.col("gene_callers_id").eq(gene_ids)).get_column("abs_total_methylation").first()
-    gene_info = zip(gene_ids, gene_abs)
 
-    promoter_df = get_top_dmr_genes_promoter(gene_positions)
+    genes_df = get_top_dmr_genes(methyl_data).sort("gene_callers_id")
+    gene_ids = genes_df.get_column("gene_callers_id").unique().to_list()
+    gene_abs = genes_df.filter(pl.col("gene_callers_id").is_in(gene_ids)).get_column("abs_total_methylation").unique().to_list()
+    gene_info = list(zip(gene_ids, gene_abs))
+    
+    promoter_df = get_top_dmr_genes_promoter(gene_positions).sort("gene_callers_id")
     promoter_ids = promoter_df.get_column("gene_callers_id").unique().to_list()
-    promoter_abs = promoter_df.filter(pl.col("gene_callers_id").eq(promoter_ids)).get_column("abs_total_methylation").first()
-    promoter_info = zip(promoter_ids, promoter_abs)
+    promoter_abs = promoter_df.filter(pl.col("gene_callers_id").is_in(promoter_ids)).get_column("abs_total_methylation").unique().to_list()
+    promoter_info = list(zip(promoter_ids, promoter_abs))
 
     # Rename samples for plotting
     gene_positions = gene_positions.with_columns(pl.col('sample').replace(readable_sample_name))
@@ -84,24 +85,32 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     axes = axes.flatten()
 
     # Plot table
-    table_ax = axes[0]
-    table_ax.xaxis.set_visible(False)
-    table_ax.yaxis.set_visible(False)
-    table_ax.set_frame_on(False)
-    texts = [truncate_label(label, 70, 2) for label in table_df.values]
-    table = table_ax.table(cellText=texts, colLabels=table_df.columns, cellLoc='center', loc='center')
-    table.scale(1.2, 1.5)
-    table_ax.set_title(f"Top 20% differentially methylated pathways for {genome_name}")
+    if table_df is not None:
+        table_ax = axes[0]
+        table_ax.xaxis.set_visible(False)
+        table_ax.yaxis.set_visible(False)
+        table_ax.set_frame_on(False)
+    
+        texts = []
+        for text, value in table_df.values:
+            texts.append([truncate_label(text, 70, 2), value])
+
+        table = table_ax.table(cellText=texts, colLabels=table_df.columns, cellLoc='center', loc='center')
+        table.scale(1.2, 1.5)
+        table_ax.set_title(f"Top 20% differentially methylated pathways for {genome_name}")
 
     # Plot total methylation rolling mean - whole gene based
     for info in [gene_info, promoter_info]:
         for i, (gene_id, abs_meth) in enumerate(info):
-            ax = axes[i+1]
+            ax = axes[i] if table_df is None else axes[i+1]
             df = gene_positions.filter(pl.col("gene_callers_id").eq(gene_id)).select("sample", "gene_position", "total_methylation")
             df = df.group_by("sample", "gene_position").agg(pl.col("total_methylation").mean()).sort(["sample", "gene_position"]).with_columns(pl.col("total_methylation").rolling_mean(10, min_periods=1).over("sample").alias("total_methylation"))
 
             sns.lineplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=ax, hue_order=hue_order)
-            ax.set_title(f'Rolling average of total methylation of gene {gene_id} - #{i} DMRed genes with {abs_meth} methylation difference')
+            if info == promoter_info:
+                ax.set_title(f'Rolling average of total methylation  - {abs_meth} methylation difference - Gene by promoter')
+            else:
+                ax.set_title(f'Rolling average of total methylation  - {abs_meth} methylation difference')
 
     #  Save plot
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_meth_funcs.pdf", format='pdf', transparent=True)
