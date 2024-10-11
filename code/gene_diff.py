@@ -113,7 +113,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
                 ax.set_title(f'Rolling average of total methylation  - {abs_meth} methylation difference')
 
     #  Save plot
-    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_meth_funcs.pdf", format='pdf', transparent=True)
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_meth_funcs.pdf", format='pdf', transparent=False)
 
     print(f"Done writing genes for {genome_name}")
     return
