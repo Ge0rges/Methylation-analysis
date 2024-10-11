@@ -55,7 +55,6 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
 
     # Add functional annotation
     methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir).collect()
-    funcs = methyl_data.select("gene_callers_id", "function", "source")
 
     # Write the dataframe to a CSV
     (methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result")
@@ -66,13 +65,13 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     # Get DFs
     table_df = make_table(methyl_data)
     genes_df = get_top_dmr_genes(methyl_data)
-    gene_ids = genes_df.get_column("gene_caller_id").unique().to_list()
-    gene_abs = genes_df.filter(pl.col("gene_caller_id").eq(gene_ids)).get_column("abs_total_methylation").first()
+    gene_ids = genes_df.get_column("gene_callers_id").unique().to_list()
+    gene_abs = genes_df.filter(pl.col("gene_callers_id").eq(gene_ids)).get_column("abs_total_methylation").first()
     gene_info = zip(gene_ids, gene_abs)
 
     promoter_df = get_top_dmr_genes_promoter(gene_positions)
-    promoter_ids = promoter_df.get_column("gene_caller_id").unique().to_list()
-    promoter_abs = promoter_df.filter(pl.col("gene_caller_id").eq(promoter_ids)).get_column("abs_total_methylation").first()
+    promoter_ids = promoter_df.get_column("gene_callers_id").unique().to_list()
+    promoter_abs = promoter_df.filter(pl.col("gene_callers_id").eq(promoter_ids)).get_column("abs_total_methylation").first()
     promoter_info = zip(promoter_ids, promoter_abs)
 
     # Rename samples for plotting
@@ -134,13 +133,13 @@ def make_table(methyl_data, top=0.2):
 
 def get_top_dmr_genes(methyl_data, top=5, coverage=5):
     # Filter so that entire gene must be covered at least 5 times on every nucleotide in each sample
-    cov_genes = methyl_data.group_by("gene_caller_id", "sample").agg(pl.col("position_coverage").mean()).filter(pl.col("position_coverage").gt(coverage))
-    cov_genes = methyl_data.join(cov_genes, on=["gene_caller_id", "sample"], how="inner").unique()
-    methyl_data = methyl_data.filter(pl.col("gene_caller_id").is_in(cov_genes.get_column("gene_caller_id").unique().to_list()))
+    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage").mean()).filter(pl.col("position_coverage").gt(coverage))
+    cov_genes = methyl_data.join(cov_genes, on=["gene_callers_id", "sample"], how="inner").unique()
+    methyl_data = methyl_data.filter(pl.col("gene_callers_id").is_in(cov_genes.get_column("gene_callers_id").unique().to_list()))
 
     # Get the aboslute biggest differences
     genes = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation"))
-    genes = genes.group_by("gene_caller_id", "source", "function", "test_result").agg(pl.col("abs_total_methylation").mean(),
+    genes = genes.group_by("gene_callers_id", "source", "function", "test_result").agg(pl.col("abs_total_methylation").mean(),
                                                                           pl.col("total_methylation").mean())
 
     # Pick genes that have a KOfam, and positive DMR. And 5 coverage across all positions
@@ -156,15 +155,15 @@ def get_top_dmr_genes_promoter(gene_positions, top=5, coverage=5):
     methyl_data = gene_positions.filter(pl.col("gene_position").le(100))
 
     # Filter so that entire gene must be covered at least 5 times on every nucleotide in each sample
-    cov_genes = methyl_data.group_by("gene_caller_id", "sample").agg(pl.col("position_coverage").mean()).filter(
+    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage").mean()).filter(
         pl.col("position_coverage").gt(coverage))
-    cov_genes = methyl_data.join(cov_genes, on=["gene_caller_id", "sample"], how="inner").unique()
+    cov_genes = methyl_data.join(cov_genes, on=["gene_callers_id", "sample"], how="inner").unique()
     methyl_data = methyl_data.filter(
-        pl.col("gene_caller_id").is_in(cov_genes.get_column("gene_caller_id").unique().to_list()))
+        pl.col("gene_callers_id").is_in(cov_genes.get_column("gene_callers_id").unique().to_list()))
 
     # Get the aboslute biggest differences
     genes = methyl_data.with_columns(pl.col("total_methylation").abs().alias("abs_total_methylation"))
-    genes = genes.group_by("gene_caller_id", "source", "function", "test_result").agg(
+    genes = genes.group_by("gene_callers_id", "source", "function", "test_result").agg(
         pl.col("abs_total_methylation").mean(),
         pl.col("total_methylation").mean())
 
