@@ -69,15 +69,16 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
     functions = all_methyl_data.join(gen_count, on=["function"])
     functions = functions.filter(pl.col("n_genomes").eq(len(genome_names)))
     functions = functions.group_by("function", "genome_name").agg(pl.col("abs_total_methylation").mean())
-    functions = functions.with_columns(pl.col("abs_total_methylation").diff().abs().alias("diff"))
-    functions = functions.filter(pl.col("diff").ge(0.02))
+    functions = functions.group_by("function").agg(pl.col("abs_total_methylation").diff().abs().alias("diff")).with_columns(pl.col("diff").list.last()).filter(pl.col("diff").is_not_null())
+    functions = functions.filter(pl.col("diff").ge(0.05))
     functions = functions.sort(by="diff", descending=True).get_column("function").unique().to_list()
 
     # Determine the number of rows and columns for subplots
     num_functions = len(functions)
     cols = 3  # You can adjust this based on how wide you want the plot grid
     rows = math.ceil(num_functions / cols)
-
+    
+    all_methyl_data = all_methyl_data.filter(pl.col("function").is_in(functions))
     all_methyl_data.write_csv(f"../data/gene_level_data/{genome_names}_top_funcs_rao_filtered_common.csv")
     if functions == 0:
         print(f"No functions in common in {genome_names}")

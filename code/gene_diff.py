@@ -6,9 +6,10 @@ import os
 import matplotlib.pyplot as plt
 from pathlib import Path
 import seaborn as sns
-sns.set_theme(context="paper", style="white")
+sns.set_theme(context="talk", style="white")
 os.environ["POLARS_TEMP_DIR"] = str(Path("./polars_temp/"))
-#pl.Config.set_streaming_chunk_size(1000)
+pl.Config.set_streaming_chunk_size(1000)
+
 
 def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     """
@@ -54,6 +55,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
 
     # Add functional annotation
     methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir).collect()
+    funcs = methyl_data.select("gene_callers_id", "function", "source")
 
     # Write the dataframe to a CSV
     (methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result")
@@ -182,5 +184,11 @@ if __name__ == "__main__":
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs":
                 continue
+
+            if "metagenome" in genome:
+                continue
+                os.environ["POLARS_MAX_THREADS"] = "1"
+            else:
+                os.environ["POLARS_MAX_THREADS"] = "10"
 
             run_analysis(genome, data_dir, fig_savepath=f"../plots/plots_{coverage}")
