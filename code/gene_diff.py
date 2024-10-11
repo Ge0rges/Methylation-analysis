@@ -38,7 +38,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation")).collect(streaming=True)
 
     # Add gene relative position from start and from end
-    gene_positions = methyl_data.select("gene_callers_id", "name", "start", "strand", "end", "position_coverage", "total_methylation").unique()
+    gene_positions = methyl_data.select("gene_callers_id", "name", "start", "strand", "end").unique()
     gene_positions = gene_positions.with_columns((pl.col("start") - pl.col("start").min()).over("gene_callers_id").alias("gene_position"))
     gene_positions = gene_positions.with_columns((pl.col("end").max() - pl.col("end")).over("gene_callers_id").alias("backwards_gene_position"))
     gene_positions = methyl_data.join(gene_positions, on="name", how="inner", validate="m:1")
