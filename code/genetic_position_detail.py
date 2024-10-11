@@ -115,7 +115,7 @@ if __name__ == "__main__":
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
 
         for genome in os.listdir(data_dir):
-            if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs":
+            if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs" or "metagenome" in genome:
                 continue
 
             run_analysis(genome, coverage, data_dir, fig_savepath=f"../plots/plots_{coverage}")
