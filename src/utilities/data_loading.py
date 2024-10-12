@@ -2,7 +2,7 @@ import os
 import glob
 import polars as pl
 from Bio import SeqIO
-import utilities.utils as utils
+import src.utilities.utils as utils
 
 
 def get_pileup_polars(path) -> pl.LazyFrame:
@@ -16,7 +16,7 @@ def get_pileup_polars(path) -> pl.LazyFrame:
     """
     pileup = pl.scan_csv(path, separator="\t", has_header=False,
                          new_columns=["chrom", "inclusive start position", "exclusive end position",
-                                      "modified base code and motif", "score", "strand", "start position2",
+                                      "modified base src and motif", "score", "strand", "start position2",
                                       "end position2", "color", "Nvalid_cov", "fraction modified", "Nmod", "Ncanonical",
                                       "Nother_mod", "Ndelete", "Nfail", "Ndiff", "Nnocall"])
 

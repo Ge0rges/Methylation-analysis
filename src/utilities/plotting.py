@@ -71,7 +71,7 @@ def plot_heatmap(df: pl.DataFrame, ax, source, fig=None, composite=False):
 
         # Set title and axis labels
         if composite:
-            assert len(df.index) == 1, "Need to modify plotting code to support multiple heatmap rows"
+            assert len(df.index) == 1, "Need to modify plotting src to support multiple heatmap rows"
 
             # Set labels
             ax.set_xlabel("Gene function")

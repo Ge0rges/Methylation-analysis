@@ -2,7 +2,7 @@ import itertools
 import textwrap
 import random
 import polars as pl
-import utilities.data_loading as dl
+import src.utilities.data_loading as dl
 
 
 readable_methylation_name = {"21839": "4mC", "a": "6mA", "m": "5mC"}
@@ -146,20 +146,20 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame:
         'inclusive start position').cast(pl.Utf8) + '|' + pl.col('exclusive end position').cast(pl.Utf8)).alias('name'))
 
     # Keep only what we need
-    methyl_data = methyl_data.select(['name', 'modified base code and motif', 'Nvalid_cov', "Ndiff", "Nmod", "Ncanonical"])
+    methyl_data = methyl_data.select(['name', 'modified base src and motif', 'Nvalid_cov', "Ndiff", "Nmod", "Ncanonical"])
 
     # Ndiff is reads with a base other than the canonical base for this modification
     methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
 
     mod_base_map = {"a": "A", "m": "C", "21839": "C"}
     methyl_data = methyl_data.with_columns(
-        pl.col('modified base code and motif').replace(mod_base_map).alias('mod_group'))
+        pl.col('modified base src and motif').replace(mod_base_map).alias('mod_group'))
 
     grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov'))
 
     methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')
 
-    pivot_df = methyl_data.collect(streaming=True).pivot(index='name', columns='modified base code and motif',
+    pivot_df = methyl_data.collect(streaming=True).pivot(index='name', columns='modified base src and motif',
                                                          values='Nmod', aggregate_function='first').lazy()
 
     pivot_df = pivot_df.join(methyl_data.select(['name', 'Ncanonical']), on='name', how='left').unique().fill_null(0)

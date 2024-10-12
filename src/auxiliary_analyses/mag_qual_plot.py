@@ -1,8 +1,10 @@
 import pandas as pd
 import seaborn as sns
 import matplotlib.pylab as plt
-from code.Utilities.data_loading import get_coverage
-from code.Utilities.utils import readable_sample_name, read_counts
+
+from src.utilities.data_loading import get_coverage
+from src.utilities.utils import readable_sample_name, barcode_sample_map, read_counts
+from matplotlib.colors import LogNorm
 
 
 def plot_coverage():
@@ -13,7 +15,8 @@ def plot_coverage():
     """
 
     # Load data
-    coverage = get_coverage("../../data/")
+    coverage = get_coverage("../../data/").collect().to_pandas()
+    coverage.rename(inplace=True, columns=barcode_sample_map)
     coverage.rename(inplace=True, columns=readable_sample_name)
 
     # Clean the mag names
@@ -25,17 +28,20 @@ def plot_coverage():
     coverage.set_index(coverage['Genome'], inplace=True)
     coverage.drop(columns=['Genome'], inplace=True)
 
+    # Mean same samples
+    coverage = coverage.groupby(by=coverage.columns, axis=1).sum()
+
     # Makea plot
     fig, axes = plt.subplots(1, 1, figsize=(15, 15))
 
     # Heatmap with MAG name as rows, samples as columns, and coverage as numbers
-    sns.heatmap(coverage, annot=True, fmt=".2f",  cmap="viridis", ax=axes, square=True, cbar_kws={"shrink": 0.5})
+    sns.heatmap(coverage[coverage.mean().sort_values().index], annot=True, ax=axes, square=True, cbar_kws={"shrink": 0.5}, norm=LogNorm())
 
     axes.set_title("Coverage Heatmap", fontsize=20)
     axes.set_xlabel("Samples", fontsize=16)
     axes.set_ylabel("MAG names", fontsize=16)
 
-    plt.savefig("plots/mag_coverage.pdf", format='pdf', bbox_inches='tight')
+    plt.savefig("../../plots/mag_coverage.pdf", format='pdf', bbox_inches='tight')
 
 
 def plot_mag_eval():
@@ -105,7 +111,7 @@ def plot_mag_eval():
     # axes[2].axis('off')  # Hide the axes for the table
 
     # Display the figure
-    plt.savefig("plots/mag_eval.svg", format='svg', bbox_inches='tight')
+    plt.savefig("../../plots/mag_eval.svg", format='svg', bbox_inches='tight')
 
 
 def read_count_plot():
@@ -120,13 +126,12 @@ def read_count_plot():
     sns.catplot(data=df, x="Sample", y="Read Count", kind="bar", height=5, aspect=3.5)
     plt.title("Read counts per sample")
 
-    plt.savefig("plots/read_counts.svg", format='svg', bbox_inches='tight')
+    plt.savefig("../../plots/read_counts.svg", format='svg', bbox_inches='tight')
 
 
 if __name__ == "__main__":
-    plt.style.use('ggplot')
-    sns.set(style="whitegrid")
+    sns.set_theme(context="talk", style="white")
 
-    plot_mag_eval()
+    #plot_mag_eval()
     plot_coverage()
-    read_count_plot()
+    #read_count_plot()
