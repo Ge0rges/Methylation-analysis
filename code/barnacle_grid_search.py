@@ -186,7 +186,7 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
 
     # Define model grid search param
     model_params = {
-        'rank': [1, 5, 10, 15, 20],
+        'rank': [1, 5, 10, 15, 20, 25, 30],
         'lambdas': [[i, 0.0, 0.0] for i in [0]],
         # 'nonneg_modes': [[1, 2]],
         'tol': [1e-5],

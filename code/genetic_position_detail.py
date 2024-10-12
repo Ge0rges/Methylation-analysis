@@ -93,8 +93,8 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
             df = df.group_by("sample", "gene_position").agg(pl.col(meth_type).mean()).sort(
                 ["sample", "gene_position"]).with_columns(
                 pl.col(meth_type).rolling_mean(50, min_periods=1).over("sample").alias(meth_type))
-            sns.lineplot(df.to_pandas(), x="gene_position", y=meth_type, hue="sample", ax=axes[i][j], hue_order=hue_order)
-            axes[i][j].set_title(f"Rolling average of {meth_type} for genes in length range {min_limit}, {max_limit}")
+            sns.lineplot(df.to_pandas(), x="gene_position", y=meth_type, hue="sample", ax=axes[i*j], hue_order=hue_order)
+            axes[i*j].set_title(f"Rolling average of {meth_type} for genes in length range {min_limit}, {max_limit}")
 
     # Save the figure
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene_profiles.pdf", format='pdf', transparent=False)

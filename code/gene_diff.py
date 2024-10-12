@@ -80,8 +80,8 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
 
     # Plot table of top 20% DMRed pathways. Lineplot of top 5 DMRed genes positions.
-    rows = len(gene_ids+promoter_info) if table_df is None else len(gene_ids+promoter_info) + 1
-    fig, axes = plt.subplots(1, rows, figsize=(10, 10), layout="constrained")
+    num_plots = len(gene_ids+promoter_info) if table_df is None else len(gene_ids+promoter_info) + 1
+    fig, axes = plt.subplots(num_plots, 1, figsize=(15, 10*num_plots), layout="constrained")
     axes = axes.flatten()
 
     # Plot table
@@ -105,8 +105,11 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
             ax = axes[i] if table_df is None else axes[i+1]
             df = gene_positions.filter(pl.col("gene_callers_id").eq(gene_id)).select("sample", "gene_position", "total_methylation")
             df = df.group_by("sample", "gene_position").agg(pl.col("total_methylation").mean()).sort(["sample", "gene_position"]).with_columns(pl.col("total_methylation").rolling_mean(10, min_periods=1).over("sample").alias("total_methylation"))
-
-            sns.lineplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=ax, hue_order=hue_order)
+            
+            try:
+                sns.lineplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=ax, hue_order=hue_order)
+            except:
+                continue
             if info == promoter_info:
                 ax.set_title(f'Rolling average of total methylation  - {abs_meth} methylation difference - Gene by promoter')
             else:
