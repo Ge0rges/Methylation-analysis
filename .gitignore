@@ -19,3 +19,6 @@ data/mag_eval/._gtdbtk.tsv
 /code/__pycache__
 code/auxiliary_analyses/.cache.sqlite
 /data/models
+/src/__pycache__
+/src/utilities/__pycache__
+src/auxiliary_analyses/.cache.sqlite
