@@ -1,15 +1,12 @@
-# from _statistics import *
+from _statistics import *
 from utilities.data_loading import *
 from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name, barcode_sample_map, readable_sample_name, truncate_label
 import os
 import matplotlib.pyplot as plt
-from pathlib import Path
 import seaborn as sns
 import polars.selectors as cs
-sns.set_theme(context="talk", style="white")
-os.environ["POLARS_TEMP_DIR"] = str(Path("./polars_temp/"))
-pl.Config.set_streaming_chunk_size(1000)
+sns.set_theme(context="talk", style="white", font_scale=3)
 
 
 def run_analysis(genome_name, data_dir, fig_savepath="plots"):
@@ -67,21 +64,18 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     table_df = make_table(methyl_data)
 
     genes_df = get_top_dmr_genes(methyl_data)
-    gene_ids = genes_df.get_column("gene_callers_id").unique().to_list()
-    gene_info = list(zip(gene_ids, genes_df))
+    genes_ids = genes_df.get_column("gene_callers_id").unique().to_list()
 
     promoter_df = get_top_dmr_genes_promoter(gene_positions)
     promoter_ids = promoter_df.get_column("gene_callers_id").unique().to_list()
-    promoter_info = list(zip(promoter_ids, promoter_df))
 
     # Rename samples for plotting
     gene_positions = gene_positions.with_columns(pl.col('sample').replace(readable_sample_name))
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
 
     # Plot table of top 20% DMRed pathways. Lineplot of top 5 DMRed genes positions.
-    num_plots = len(gene_ids+promoter_info) if table_df is None else len(gene_ids+promoter_info) + 1
-    fig, axes = plt.subplots(num_plots, 2, figsize=(15, 10*num_plots), layout="constrained")
-    axes = axes.flatten()
+    num_plots = max(len(genes_ids+promoter_ids)//2, 1)
+    fig, axes = plt.subplots(num_plots, 3, figsize=(25, 10*num_plots), layout="constrained")
 
     # Plot table
     if table_df is not None:
@@ -96,28 +90,31 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
 
         table = table_ax.table(cellText=texts, colLabels=table_df.columns, cellLoc='center', loc='center')
         table.scale(1.2, 1.5)
-        table_ax.set_title(f"Top 20% differentially methylated pathways for {genome_name}")
+        table_ax.set_title(f"Top 20 differentially methylated pathways for {genome_name}")
 
     # Plot total methylation rolling mean - whole gene based
-    for j, info in enumerate([gene_info, promoter_info]):
-        for i, (gene_id, data_df) in enumerate(info):
-            ax = axes[i][j] if table_df is None else axes[i+1][j]
+    for j, info in enumerate([genes_ids, promoter_ids]):
+        data_df = genes_df if info == genes_ids else promoter_df
+        for i, gene_id in enumerate(info):
+            ax = axes[i][j+1]
 
-            meth = data_df.filter(pl.col("gene_callers_id").eq(gene_id)).get_column("abs_total_methylation").unique().to_list()[0]
-            func = data_df.filter(pl.col("gene_callers_id").eq(gene_id)).get_column("function").unique().to_list()
+            meth = data_df.filter(pl.col("gene_callers_id").eq(gene_id)).get_column("abs_total_methylation").to_list()[0]
+            func = data_df.filter(pl.col("gene_callers_id").eq(gene_id)).get_column("function").to_list()[0]
+            source = data_df.filter(pl.col("gene_callers_id").eq(gene_id)).get_column("source").to_list()[0]
 
             df = gene_positions.filter(pl.col("gene_callers_id").eq(gene_id)).select("sample", "gene_position", "total_methylation")
             df = df.group_by("sample", "gene_position").agg(pl.col("total_methylation").mean()).sort(["sample", "gene_position"]).with_columns(pl.col("total_methylation").rolling_mean(10, min_periods=1).over("sample").alias("total_methylation"))
 
             try:
                 sns.lineplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=ax, hue_order=hue_order)
+                ax.set_xlabel("Nucleotide position from start")
             except:
                 continue
 
-            if info == promoter_info:
-                ax.set_title(f'Rolling average of total methylation  - {meth} methylation difference - Gene by promoter')
+            if info == promoter_ids:
+                ax.set_title(f'Rolling average of total methylation  - {meth:0.2f} methylation difference - Promoter')
             else:
-                ax.set_title(f'Rolling average of total methylation  - {meth} methylation difference - {func}')
+                ax.set_title(f'Rolling average of total methylation  - {meth:0.2f} methylation difference - {source}:{func}')
 
     #  Save plot
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_meth_funcs.pdf", format='pdf', transparent=False)
@@ -136,7 +133,7 @@ def make_table(methyl_data, top=20):
     table_df = table_df.group_by("source", "function", "test_result").agg(pl.col("abs_total_methylation").mean(),
                                                                           pl.col("total_methylation").mean())
 
-    # Make a figure with a table of the top 20% DMRed pathways
+    # Make a figure with a table of the top DMRed pathways
     table_df = table_df.filter(
         pl.col("source").eq("KEGG_BRITE") & pl.col("test_result").eq(True)).top_k(top, by="abs_total_methylation")
     table_df = table_df.sort("abs_total_methylation", descending=False).drop("abs_total_methylation")

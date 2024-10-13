@@ -186,7 +186,7 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
 
     # Define model grid search param
     model_params = {
-        'rank': [1, 5, 10, 15, 20, 25, 30],
+        'rank': list(range(1, 11, 1)) + list(range(15, 100, 5)),
         'lambdas': [[i, 0.0, 0.0] for i in [0]],
         # 'nonneg_modes': [[1, 2]],
         'tol': [1e-5],
@@ -196,7 +196,7 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
 
     # Sort by rank to make parallelization more efficient
     param_grid = sorted(list(ParameterGrid(model_params)), key=lambda d: d['rank'])
-    
+
     results = {}
 
     # begin experiment
@@ -212,5 +212,5 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
 
         # Save all this to files
         results[boot_id] = (fitting_results, cv_result)
-        
+
     return results

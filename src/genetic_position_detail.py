@@ -2,7 +2,7 @@ from utilities.data_loading import *
 from utilities.utils import add_gene_caller_id, readable_methylation_name, readable_sample_name, barcode_sample_map, normalize_data_by_pileup
 import matplotlib.pyplot as plt
 import seaborn as sns
-sns.set_theme(context="talk", style="white")
+sns.set_theme(context="talk", style="white", font_scale=3)
 
 
 def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
@@ -53,24 +53,29 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Plot gene length distribution
     sns.histplot(gene_lengths.to_pandas(), x="gene_length", ax=axes[0])
+    axes[0].set_title(f'Gene length distribution')
+    axes[0].set_xlabel("Gene length")
 
     # Plot total methylation over everything
     df = methyl_data.select("sample", "gene_position", "total_methylation")
-    # df = df.select(pl.col("total_methylation").mean().over(pl.int_range(pl.len()) // 1000), "sample", "gene_position").with_columns(pl.col("gene_position") // 1000)
-    sns.lineplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[1], hue_order=hue_order)
-    axes[1].set_title(f'Total methylation by genic position and sample in 1000 length bins')
+    df = df.select(pl.col("total_methylation").mean().over(pl.int_range(pl.len()) // 1000), "sample", "gene_position").with_columns(pl.col("gene_position") // 1000)
+    sns.boxplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[1], hue_order=hue_order)
+    axes[1].set_title("Total methylation in 1000 nucleotide long bins")
+    axes[1].set_xlabel("Bin number")
 
     # Plot total methylation on first 100 positions - rolling mean
     df = methyl_data.select("sample", "gene_position", "total_methylation").filter(pl.col("gene_position").le(100))
     df = df.group_by("sample", "gene_position").agg(pl.col("total_methylation").mean()).sort(["sample", "gene_position"]).with_columns(pl.col("total_methylation").rolling_mean(10, min_periods=1).over("sample").alias("total_methylation"))
     sns.lineplot(x='gene_position', y="total_methylation",  hue="sample", data=df.to_pandas(), ax=axes[2], hue_order=hue_order)
-    axes[2].set_title(f'Rolling average of total methylation by genic position on first 100 positions of every gene')
+    axes[2].set_title("Rolling average of total methylation on first 100 positions of every gene")
+    axes[2].set_xlabel("Nucleotide position from gene start")
 
     # Plot total methylation on last 100 positions - rolling average
     df = methyl_data.select("sample", "backwards_gene_position", "total_methylation").filter(pl.col("backwards_gene_position").le(100))
     df = df.group_by("sample", "backwards_gene_position").agg(pl.col("total_methylation").mean()).sort(["sample", "backwards_gene_position"]).with_columns(pl.col("total_methylation").rolling_mean(10, min_periods=1).over("sample").alias("total_methylation"))
     sns.lineplot(x='backwards_gene_position', y="total_methylation",  hue="sample", data=df.to_pandas(), ax=axes[3], hue_order=hue_order)
-    axes[3].set_title(f'Rolling average of total methylation by genic position on last 100 positions of every gene')
+    axes[3].set_title("Rolling average of total methylation on last 100 positions of every gene")
+    axes[3].set_xlabel("Nucleotide position from gene end")
 
     # Save the figure
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene_detail.pdf", format='pdf', transparent=False)
@@ -78,8 +83,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     # Populate graphs
     n_types = len(methylation_types)
     bins = [(0, 500), (0, 1000), (1000, 2000), (2000, 3000)]
-    fig, axes = plt.subplots(n_types+1, len(bins), figsize=(100, 100), sharex=False, layout="constrained")
-    axes = axes.flatten()
+    fig, axes = plt.subplots(n_types+1, len(bins), figsize=(100, 100), sharex=True, layout="constrained")
 
     for j, (min_limit, max_limit) in enumerate(bins):
         # Filter out gene_lengths whose length isn't in the range
@@ -93,8 +97,9 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
             df = df.group_by("sample", "gene_position").agg(pl.col(meth_type).mean()).sort(
                 ["sample", "gene_position"]).with_columns(
                 pl.col(meth_type).rolling_mean(50, min_periods=1).over("sample").alias(meth_type))
-            sns.lineplot(df.to_pandas(), x="gene_position", y=meth_type, hue="sample", ax=axes[i*j], hue_order=hue_order)
-            axes[i*j].set_title(f"Rolling average of {meth_type} for genes in length range {min_limit}, {max_limit}")
+            sns.lineplot(df.to_pandas(), x="gene_position", y=meth_type, hue="sample", ax=axes[i][j], hue_order=hue_order)
+            axes[i][j].set_title(f"Rolling average of {meth_type} for genes of lengths [{min_limit}, {max_limit}]")
+            axes[i][j].set_xlabel("Nucleotide position from gene start")
 
     # Save the figure
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene_profiles.pdf", format='pdf', transparent=False)
