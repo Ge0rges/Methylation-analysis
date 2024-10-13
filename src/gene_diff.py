@@ -190,10 +190,8 @@ def get_top_dmr_genes_promoter(gene_positions, top=5, coverage=5):
 if __name__ == "__main__":
     for coverage in ["5"]:
         print(f"Running gene_detail analysis at coverage {coverage}")
-        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../data/methylation_data/methylation_{coverage}")
-        run_analysis("pelagibacter_r-contigs", data_dir, fig_savepath=f"../plots/plots_{coverage}")
+        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
 
-        exit(1)
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs":
                 continue
