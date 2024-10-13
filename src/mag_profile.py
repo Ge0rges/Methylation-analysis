@@ -1,7 +1,6 @@
 from utilities.plotting import *
-from _statistics import add_rao_score_by_gene
 from utilities.data_loading import *
-from utilities.utils import normalize_data_by_genome_coverage, add_gene_caller_id, \
+from utilities.utils import add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map, normalize_data_by_pileup
 from scipy.stats import rankdata
 sns.set_theme(context="talk", style="white")
@@ -46,7 +45,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     fig, axes = plt.subplots(3, 1, figsize=(20, 5 * n_types), sharex=False, layout="constrained")
 
     # Mean together all the different methylation types
-    mean_data = methyl_data.select('gene_id', 'sample', 'total_methylation')
+    total_meth_data = methyl_data.select('gene_id', 'sample', 'total_methylation')
 
     top = pl.col(*methylation_types).filter(pl.col('sample').eq('top'))
     middle = pl.col(*methylation_types).filter(pl.col('sample').eq('middle'))
@@ -58,21 +57,26 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     top_middle = top_middle.unpivot(index="gene_id", on=methylation_types, variable_name="methylation_type", value_name="methylation_level")
 
     # Rename samples
-    mean_data = mean_data.with_columns(pl.col('sample').replace(readable_sample_name))
+    total_meth_data = total_meth_data.with_columns(pl.col('sample').replace(readable_sample_name))
     top_middle = top_middle.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
     top_bottom = top_bottom.with_columns(pl.col('methylation_type').replace(readable_methylation_name))
 
     # Populate graphs
-    plot_mean_gene_methylation_level(axes[0], mean_data)
+    plot_mean_gene_methylation_level(axes[0], total_meth_data)
     plot_gene_methylation_level_diff(axes[1], top_middle, "Top – Middle")
     plot_gene_methylation_level_diff(axes[2], top_bottom, "Top – Bottom")
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
-    fig.suptitle(f"Mean gene methylation overview for {cleaned_genome_name}", fontsize=26)
+    fig.suptitle(f"{cleaned_genome_name} methylome", fontsize=26)
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_profile.pdf", format='pdf', transparent=False)
 
-    print(f"Done plotting composite for {genome_name}")
+    # Write CSV of the top methylated genes
+    top_methylated_genes = total_meth_data.sort("total_methylation", descending=True)
+    top_methylated_genes = add_functional_annotations_polars(top_methylated_genes.lazy(), data_dir).collect()
+    top_methylated_genes.write_csv(f"../data/gene_level_data/{genome_name}_top_meth_genes.csv")
+
+    print(f"Done plotting profile for {genome_name}")
     return
 
 
