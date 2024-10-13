@@ -32,7 +32,7 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
         methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
         # Add the gene_caller_id
-        methyl_data = add_gene_caller_id(methyl_data, genes, True)
+        methyl_data = add_gene_caller_id(methyl_data, genes)
 
         # Create the total methylation column and normalize values
         methyl_data = normalize_data_by_pileup(methyl_data)
@@ -77,7 +77,7 @@ def run_analysis(genome_names, data_dir, fig_savepath="plots"):
     num_functions = len(functions)
     cols = 3  # You can adjust this based on how wide you want the plot grid
     rows = math.ceil(num_functions / cols)
-    
+
     all_methyl_data = all_methyl_data.filter(pl.col("function").is_in(functions))
     all_methyl_data.write_csv(f"../data/gene_level_data/{genome_names}_top_funcs_rao_filtered_common.csv")
     if functions == 0:

@@ -24,7 +24,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Add the gene_caller_id
-    methyl_data = add_gene_caller_id(methyl_data, gene_lengths, True).collect(streaming=True)
+    methyl_data = add_gene_caller_id(methyl_data, gene_lengths).collect(streaming=True)
     if methyl_data.is_empty():
         print(f"{genome_name} had no viable data.")
         return

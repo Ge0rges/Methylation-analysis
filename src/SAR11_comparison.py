@@ -46,7 +46,7 @@ def run_comparison(genome_name, data_dir, coverage, fig_savepath="plots"):
 
     # Mean together all the different methylation types
     genes = get_genes_polars(data_dir, genome_name)
-    methyl_data = add_gene_caller_id(methyl_data.lazy(), genes, True).collect(streaming=True)
+    methyl_data = add_gene_caller_id(methyl_data.lazy(), genes).collect(streaming=True)
     all_ids = methyl_data.sort("strand", "contig",  "start").get_column("gene_callers_id").to_list()
     ids = dict(zip(all_ids, rankdata(all_ids, method='dense')))
     #methyl_data = methyl_data.with_columns(gene_id=pl.col("gene_callers_id").replace_strict(ids, default=np.NAN))

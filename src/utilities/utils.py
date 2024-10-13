@@ -167,7 +167,7 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame:
     return pivot_df.select('name', '21839', 'a', 'm', 'Ncanonical')
 
 
-def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> pl.LazyFrame:
+def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
     """
     Aggregate methylation data by genes.
 
@@ -181,48 +181,32 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, strand_aware) -> p
     :rtype: pd. Dataframe
     """
 
-    df = df.collect(streaming=True)
-    genes = genes.collect()
+    df_contigs = df.select('contig').unique().collect(streaming=True).get_column('contig').to_list()
+    gene_contigs = genes.select('contig').unique().collect().get_column('contig').to_list()
+    assert all(g in gene_contigs for g in df_contigs), "Not all contigs are in this genome_name."
 
-    assert all(g in genes.select('contig').unique().get_column('contig').to_list() for g in df.select('contig').unique().get_column('contig').to_list()), "Not all contigs are in this genome_name."
+    # Merge merged_df with ranges based on conditions
+    # Filter rows where merged_df start and end values are within range start and end.
+    # Gene range is inclusive of end, modkit bed is not.
+    og_columns = df.collect_schema().names()
+    result = df.join_where(genes,
+                           pl.col('start').ge(pl.col('start_right')),
+                           pl.col('end').le(pl.col('stop')),
+                           pl.col("contig").eq(pl.col("contig_right")),
+                           pl.col('direction').eq(pl.col('strand')))
 
-    result_df = pl.DataFrame()
-    sliced_chunks = 0
-    chunk_size = 500000
-    while (sliced_chunks-1)*chunk_size < df.height:
-        print(f"Doing {sliced_chunks} which is {sliced_chunks*chunk_size} with df height {df.height}")
-        temp_df = df.slice(sliced_chunks*chunk_size, chunk_size)
-        sliced_chunks += 1
+    # # Mark exons
+    # for col in og_columns:
+    #     exons = (df.filter(((pl.col('start') >= pl.col('start_right')) & (pl.col('end') <= pl.col('stop'))).not_())
+    #              .unique(subset=og_columns, keep="first").with_columns(pl.col(og_columns).not_().lit(None)))
 
-        # Get rid of any contigs not in df to limit join size
-        genes = genes.filter(pl.col("contig").is_in(temp_df.get_column("contig").unique().to_list()))
+    # If there are still multiple gene_callers_id for the same name, pick the first one
+    result = result.unique(subset=og_columns, keep="first")
 
-        # Merge merged_df with ranges based on conditions
-        # Filter rows where merged_df start and end values are within range start and end.
-        # Gene range is inclusive of end, modkit bed is not.
-        og_columns = temp_df.columns
-        temp_df = temp_df.join_where(genes, pl.col('start').ge(pl.col('start_right')), pl.col('end').le(pl.col('stop')), pl.col("contig").eq(pl.col("contig_right")))
+    # Clean
+    result = result.drop(['start_right', 'stop'])
 
-        # # Mark exons
-        # for col in og_columns:
-        #     exons = (df.filter(((pl.col('start') >= pl.col('start_right')) & (pl.col('end') <= pl.col('stop'))).not_())
-        #              .unique(subset=og_columns, keep="first").with_columns(pl.col(og_columns).not_().lit(None)))
-
-        if strand_aware:
-            temp_df = temp_df.filter(pl.col('direction') == pl.col('strand'))
-        else:
-            print("WARNING: Not filtering by strand. This may result in multiple gene_callers_id for the same name. Picking the first gene_callers_id.")
-
-        # If there are still multiple gene_callers_id for the same name, pick the first one
-        temp_df = temp_df.unique(subset=og_columns, keep="first")
-
-        # Clean
-        temp_df = temp_df.drop(['start_right', 'stop'])
-
-        # Stack
-        result_df = result_df.vstack(temp_df)
-
-    return result_df.lazy()
+    return result
 
 
 def normalize_data_by_genome_coverage(df: pl.LazyFrame, genome_name, aggregate=False) -> pl.LazyFrame:
@@ -256,7 +240,7 @@ def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str) -> pl.Laz
     genomic annotations to find overlaps. Drops the "partial" column from the merged DataFrame.
     """
     # Load functional annotations for the specified genome_name from a data directory
-    functions = dl.get_coordinated_functions_polars(data_dir)
+    functions = dl.get_coordinated_functions_polars(data_dir).select("gene_callers_id", "function", "source")
 
     # Merge DMR data with functional annotations based on contig name
     merged_df = df.join(functions, on="gene_callers_id", how="left")
@@ -265,16 +249,8 @@ def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str) -> pl.Laz
     merged_df = merged_df.with_columns(pl.col("function").fill_null("Unknown"), pl.col("source").fill_null("Unannotated"))
 
     # Remove duplicate entries from the merged DataFrame
-    merged_df = merged_df.unique()
+    return merged_df.unique()
 
-    # Ensure that all unique names from the DMRs are still present after merging
-    merged_df = merged_df.collect()
-    df = df.collect()
-    assert set(merged_df.get_column("name").unique()) == set(df.get_column("name").unique())
-
-    # Clean up by dropping columns that are no longer needed
-    merged_df = merged_df.sort(by=['contig', 'start_right']).lazy()
-    return merged_df.drop("contig", "start_right", "stop", "e_value")
 
 
 def generate_cross_validation_sets(df: pl.DataFrame, unique_col: str, treatmeant_col: str, sample_col: str, boot_id: int) -> pl.DataFrame:

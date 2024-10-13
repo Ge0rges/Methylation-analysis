@@ -28,7 +28,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Add the gene_caller_id
-    methyl_data = add_gene_caller_id(methyl_data, genes, True)
+    methyl_data = add_gene_caller_id(methyl_data, genes)
 
     # Create the total methylation column and normalize values
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types+["Ncanonical"]).list.sum().alias("position_coverage"))

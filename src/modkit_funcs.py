@@ -19,7 +19,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
 
     # Get genes and annotate the dmrs with the gene ID
     genes = get_genes_polars(data_dir)
-    dmr_data = add_gene_caller_id(dmr_data, genes, False)
+    dmr_data = add_gene_caller_id(dmr_data, genes)
 
     # Keep only statistically significant DMRs
     dmr_data = dmr_data.join(dmr_data.group_by('comparison').len().rename({"len": "num_tests"}), on="comparison")
@@ -54,7 +54,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     methyl_data = normalize_data_by_pileup(methyl_data)
 
     # Add gene caller id
-    methyl_data = add_gene_caller_id(methyl_data, genes, True).collect(streaming=True)
+    methyl_data = add_gene_caller_id(methyl_data, genes).collect(streaming=True)
 
     # Add a gene_id column, which is just a map from gene_callers_id
     all_ids = dmr_data.sort("strand", "chrom",  "start").get_column("gene_callers_id").to_list() + methyl_data.sort("strand", "contig",  "start").get_column("gene_callers_id").to_list()
