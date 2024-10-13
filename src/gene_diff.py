@@ -74,7 +74,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
 
     # Plot table of top 20% DMRed pathways. Lineplot of top 5 DMRed genes positions.
-    num_plots = max(len(genes_ids+promoter_ids)//2, 1)
+    num_plots = max(len(genes_ids+promoter_ids)//2, 2)
     fig, axes = plt.subplots(num_plots, 3, figsize=(25, 10*num_plots), layout="constrained")
 
     # Plot table
