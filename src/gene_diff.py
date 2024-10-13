@@ -46,7 +46,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
         methyl_data = methyl_data.join(methyl_data.select(type, "gene_callers_id", "sample").group_by('gene_callers_id').agg(top - bot), on="gene_callers_id").drop(type).rename({type+"_right": type}).unique()
 
     # Add functional annotation
-    methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir).drop(cs.ends_with("_right")).collect()
+    methyl_data = add_functional_annotations_polars(methyl_data.lazy(), data_dir).drop(cs.ends_with("_right")).unique().collect()
 
     # Add gene relative position from start and from end
     gene_positions = methyl_data.select("gene_callers_id", "name", "start", "strand", "end").unique()
@@ -57,7 +57,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     # Write the dataframe to a CSV
     (methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result")
                .filter(pl.col("rao_score").is_not_nan())
-               .sort("test_result", "total_methylation", descending=True)
+               .sort("test_result", "total_methylation", descending=True).unique()
                .write_csv(f"../data/gene_level_data/{genome_name}_rao-filtered_gene_level.csv"))
 
     # Get DFs
@@ -75,7 +75,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
 
     # Plot table of top 20% DMRed pathways. Lineplot of top 5 DMRed genes positions.
     num_plots = max(len(genes_ids+promoter_ids)//2, 2)
-    fig, axes = plt.subplots(num_plots, 3, figsize=(25, 10*num_plots), layout="constrained")
+    fig, axes = plt.subplots(num_plots, 3, figsize=(75, 25*num_plots), layout="constrained")
 
     # Plot table
     if table_df is not None:

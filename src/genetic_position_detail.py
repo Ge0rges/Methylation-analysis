@@ -83,7 +83,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     # Populate graphs
     n_types = len(methylation_types)
     bins = [(0, 500), (0, 1000), (1000, 2000), (2000, 3000)]
-    fig, axes = plt.subplots(n_types+1, len(bins), figsize=(100, 100), sharex=True, layout="constrained")
+    fig, axes = plt.subplots(n_types+1, len(bins), figsize=(100, 100), sharex=False, layout="constrained")
 
     for j, (min_limit, max_limit) in enumerate(bins):
         # Filter out gene_lengths whose length isn't in the range
