@@ -36,7 +36,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
 
     # Add rao score - Doing this first prevents row duplication issues
-    methyl_data = add_rao_score_by_gene(methyl_data, ["top", "bottom"], baseline=False)
+    methyl_data = add_rao_score_by_gene(methyl_data.collect(streaming=True), ["top", "bottom"], baseline=False).lazy()
 
     # Subtract methylation fractions: Top - Bottom
     for type in methylation_types+["total_methylation"]:
@@ -58,7 +58,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     (methyl_data.select("gene_callers_id", "source", "function", *methylation_types, "total_methylation", "rao_score", "test_result")
                .filter(pl.col("rao_score").is_not_nan())
                .sort("test_result", pl.col("total_methylation").abs(), descending=True).unique()
-               .sink_csv(f"../data/gene_level_data/{genome_name}_rao-sorted_gene_level.csv"))
+               .collect(streaming=True).write_csv(f"../data/gene_level_data/{genome_name}_rao-sorted_gene_level.csv"))
 
     # Get DFs
     table_df = make_table(methyl_data)
@@ -143,7 +143,7 @@ def make_table(methyl_data, top=20):
 def get_top_dmr_genes(methyl_data, top=5, coverage=5):
     # Filter so that entire gene must be covered at least 5 times on every nucleotide in each sample
     cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage").mean()).filter(pl.col("position_coverage").gt(coverage))
-    cov_genes = cov_genes.group_by("gene_callers_id").agg(pl.col("sample").n_unique()).filter(pl.col("sample").eq(3))
+    cov_genes = cov_genes.group_by("gene_callers_id").agg(pl.col("sample").n_unique()).filter(pl.col("sample").eq(3)).collect(streaming=True)
     methyl_data = methyl_data.filter(pl.col("gene_callers_id").is_in(cov_genes.get_column("gene_callers_id").to_list()))
 
     # Get the aboslute biggest differences
@@ -164,7 +164,7 @@ def get_top_dmr_genes_promoter(methyl_data, top=5, coverage=5):
     # Filter so that entire gene must be covered at least 5 times on every nucleotide in each sample
     cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage").mean()).filter(
         pl.col("position_coverage").gt(coverage))
-    cov_genes = cov_genes.group_by("gene_callers_id").agg(pl.col("sample").n_unique()).filter(pl.col("sample").eq(3))
+    cov_genes = cov_genes.group_by("gene_callers_id").agg(pl.col("sample").n_unique()).filter(pl.col("sample").eq(3)).collect(streaming=True)
     methyl_data = methyl_data.filter(pl.col("gene_callers_id").is_in(cov_genes.get_column("gene_callers_id").to_list()))
 
     # Take just the first 100 positions
@@ -191,7 +191,7 @@ if __name__ == "__main__":
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
 
         for genome in os.listdir(data_dir):
-            if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs":
+            if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs" or "metagenome" in genome:
                 continue
 
             run_analysis(genome, data_dir, fig_savepath=f"../plots/plots_{coverage}")
