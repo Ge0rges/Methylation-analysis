@@ -181,13 +181,13 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
 
     # Output directory and experiment parameters
     output_dir = Path(output_dir)
-    n_bootstraps = 1
+    n_bootstraps = 10
     max_cpus = 30
 
     # Define model grid search param
     model_params = {
-        'rank': list(range(1, 11, 1)) + list(range(15, 100, 5)),
-        'lambdas': [[i, 0.0, 0.0] for i in [0]],
+        'rank': [3],
+        'lambdas': [[i, 0.0, 0.0] for i in [0, 0.001, 0.01, 0.1, 1, 10]],
         # 'nonneg_modes': [[1, 2]],
         'tol': [1e-5],
         'n_iter_max': [2000],

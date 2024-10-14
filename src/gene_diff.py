@@ -73,6 +73,11 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     gene_positions = gene_positions.with_columns(pl.col('sample').replace(readable_sample_name)).collect(streaming=True)
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
 
+    print(f"Gene position column: {gene_positions.columns}")
+    print(f"Promoter IDs: {promoter_ids}")
+    print(f"Gene IDs: {genes_ids}")
+    print(f"Sample DF of first promoter: {gene_positions.filter(pl.col('gene_callers_id').eq(gene_ids[0])).select('gene_position', 'total_methylation', 'sample')}")
+
     # Plot table of top 20% DMRed pathways. Lineplot of top 5 DMRed genes positions.
     num_plots = max(len(genes_ids+promoter_ids)//2, 2)
     fig, axes = plt.subplots(num_plots, 3, figsize=(75, 25*num_plots), layout="constrained")
@@ -103,7 +108,8 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
             source = data_df.filter(pl.col("gene_callers_id").eq(gene_id)).get_column("source").to_list()[0]
 
             df = gene_positions.filter(pl.col("gene_callers_id").eq(gene_id)).select("sample", "gene_position", "total_methylation")
-            df = df.group_by("sample", "gene_position").agg(pl.col("total_methylation").mean()).sort(["sample", "gene_position"]).with_columns(pl.col("total_methylation").rolling_mean(10, min_periods=1).over("sample").alias("total_methylation"))
+            df = df.group_by("sample", "gene_position").agg(pl.col("total_methylation").mean())
+            #df = df.sort(["sample", "gene_position"]).with_columns(pl.col("total_methylation").rolling_mean(10, min_periods=1).over("sample").alias("total_methylation"))
 
             sns.lineplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=ax, hue_order=hue_order)
             ax.set_xlabel("Nucleotide position from start")
@@ -142,7 +148,7 @@ def make_table(methyl_data, top=20):
 
 def get_top_dmr_genes(methyl_data, top=5, coverage=5):
     # Filter so that entire gene must be covered at least 5 times on every nucleotide in each sample
-    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage").mean()).filter(pl.col("position_coverage").gt(coverage))
+    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage")).filter(pl.col("position_coverage").quantile(0.1).gt(coverage))
     cov_genes = cov_genes.group_by("gene_callers_id").agg(pl.col("sample").n_unique()).filter(pl.col("sample").eq(3)).collect(streaming=True)
     methyl_data = methyl_data.filter(pl.col("gene_callers_id").is_in(cov_genes.get_column("gene_callers_id").to_list()))
 
@@ -162,8 +168,7 @@ def get_top_dmr_genes(methyl_data, top=5, coverage=5):
 
 def get_top_dmr_genes_promoter(methyl_data, top=5, coverage=5):
     # Filter so that entire gene must be covered at least 5 times on every nucleotide in each sample
-    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage").mean()).filter(
-        pl.col("position_coverage").gt(coverage))
+    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage")).filter(pl.col("position_coverage").quantile(0.1).gt(coverage))
     cov_genes = cov_genes.group_by("gene_callers_id").agg(pl.col("sample").n_unique()).filter(pl.col("sample").eq(3)).collect(streaming=True)
     methyl_data = methyl_data.filter(pl.col("gene_callers_id").is_in(cov_genes.get_column("gene_callers_id").to_list()))
 
@@ -189,6 +194,9 @@ if __name__ == "__main__":
     for coverage in ["5"]:
         print(f"Running gene_detail analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
+
+        run_analysis("Pelagibacter_r-contigs", data_dir, fig_savepath=f"../plots/plots_{coverage}")
+        exit(1)
 
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs" or "metagenome" in genome:
