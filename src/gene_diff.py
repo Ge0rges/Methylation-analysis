@@ -35,6 +35,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     methyl_data = normalize_data_by_pileup(methyl_data)
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
 
+
     # Add rao score - Doing this first prevents row duplication issues
     methyl_data = add_rao_score_by_gene(methyl_data.collect(streaming=True), ["top", "bottom"], baseline=False).lazy()
 
@@ -72,11 +73,6 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     # Rename samples for plotting
     gene_positions = gene_positions.with_columns(pl.col('sample').replace(readable_sample_name)).collect(streaming=True)
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-
-    print(f"Gene position column: {gene_positions.columns}")
-    print(f"Promoter IDs: {promoter_ids}")
-    print(f"Gene IDs: {genes_ids}")
-    print(f"Sample DF of first promoter: {gene_positions.filter(pl.col('gene_callers_id').eq(gene_ids[0])).select('gene_position', 'total_methylation', 'sample')}")
 
     # Plot table of top 20% DMRed pathways. Lineplot of top 5 DMRed genes positions.
     num_plots = max(len(genes_ids+promoter_ids)//2, 2)
@@ -148,7 +144,7 @@ def make_table(methyl_data, top=20):
 
 def get_top_dmr_genes(methyl_data, top=5, coverage=5):
     # Filter so that entire gene must be covered at least 5 times on every nucleotide in each sample
-    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage")).filter(pl.col("position_coverage").quantile(0.1).gt(coverage))
+    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage").quantile(0.1)).filter(pl.col("position_coverage").ge(coverage))
     cov_genes = cov_genes.group_by("gene_callers_id").agg(pl.col("sample").n_unique()).filter(pl.col("sample").eq(3)).collect(streaming=True)
     methyl_data = methyl_data.filter(pl.col("gene_callers_id").is_in(cov_genes.get_column("gene_callers_id").to_list()))
 
@@ -168,7 +164,7 @@ def get_top_dmr_genes(methyl_data, top=5, coverage=5):
 
 def get_top_dmr_genes_promoter(methyl_data, top=5, coverage=5):
     # Filter so that entire gene must be covered at least 5 times on every nucleotide in each sample
-    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage")).filter(pl.col("position_coverage").quantile(0.1).gt(coverage))
+    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage").quantile(0.1)).filter(pl.col("position_coverage").ge(coverage))
     cov_genes = cov_genes.group_by("gene_callers_id").agg(pl.col("sample").n_unique()).filter(pl.col("sample").eq(3)).collect(streaming=True)
     methyl_data = methyl_data.filter(pl.col("gene_callers_id").is_in(cov_genes.get_column("gene_callers_id").to_list()))
 
