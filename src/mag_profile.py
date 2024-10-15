@@ -3,7 +3,7 @@ from utilities.data_loading import *
 from utilities.utils import add_gene_caller_id, \
     add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map, normalize_data_by_pileup
 from scipy.stats import rankdata
-sns.set_theme(context="talk", style="white")
+sns.set_theme(context="talk", style="white", font_scale=3)
 
 
 def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
@@ -68,7 +68,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Save the figure
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
-    fig.suptitle(f"{cleaned_genome_name} methylome", fontsize=26)
+    fig.suptitle(f"{cleaned_genome_name} methylome")
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_profile.pdf", format='pdf', transparent=False)
 
     # Write CSV of the top methylated genes

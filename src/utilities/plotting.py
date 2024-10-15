@@ -190,7 +190,7 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composi
 def plot_mean_gene_methylation_level(ax, df):
     plot = sns.lineplot(data=df, x="gene_id", y="total_methylation", hue="sample", style="sample", ax=ax,
                         palette=["#3982b8", "#6abce2", "#235284"], alpha=0.5)
-    ax.set_title(f"Total methylation level by brine horizon", fontsize=18)
+    ax.set_title(f"Total methylation level by brine horizon")
     plot.legend().set_title("Sample")
 
     ax.set(xlabel='Gene ID', ylabel=f"Normalized methylation fraction")
@@ -211,7 +211,7 @@ def plot_gene_methylation_level_diff(ax, df, diff_string):
                         palette=sns.color_palette("colorblind", n_colors=df.get_column("methylation_type").n_unique()),
                         alpha=0.5)
 
-    ax.set_title(f"Mean methylation difference by methylation type: {diff_string}", fontsize=18)
+    ax.set_title(f"Mean methylation difference by methylation type: {diff_string}")
     plot.legend().set_title("Methylation type")
 
     ax.set(xlabel='Gene ID', ylabel=f"Normalized methylation fraction")

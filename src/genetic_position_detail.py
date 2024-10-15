@@ -2,7 +2,6 @@ from utilities.data_loading import *
 from utilities.utils import add_gene_caller_id, readable_methylation_name, readable_sample_name, barcode_sample_map, normalize_data_by_pileup
 import matplotlib.pyplot as plt
 import seaborn as sns
-sns.set_theme(context="talk", style="white", font_scale=3)
 
 
 def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
@@ -47,7 +46,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     gene_lengths = methyl_data.select("gene_position", "gene_callers_id").group_by("gene_callers_id").max().rename({"gene_position": "gene_length"})
 
     # Create figure
-    n_types = len(methylation_types)
+    sns.set_theme(context="talk", style="white", font_scale=4)
     fig, axes = plt.subplots(2, 2, figsize=(100, 100), sharex=False, layout="constrained")
     axes = axes.flatten()
 
@@ -81,6 +80,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene_detail.pdf", format='pdf', transparent=False)
 
     # Populate graphs
+    sns.set_theme(context="talk", style="white", font_scale=3)
     n_types = len(methylation_types)
     bins = [(0, 500), (0, 1000), (1000, 2000), (2000, 3000)]
     fig, axes = plt.subplots(n_types+1, len(bins), figsize=(100, 100), sharex=False, layout="constrained")

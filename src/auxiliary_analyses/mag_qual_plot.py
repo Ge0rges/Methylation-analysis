@@ -1,10 +1,12 @@
 import pandas as pd
+import polars as pl
 import seaborn as sns
 import matplotlib.pylab as plt
 
 from src.utilities.data_loading import get_coverage
 from src.utilities.utils import readable_sample_name, barcode_sample_map, read_counts
 from matplotlib.colors import LogNorm
+sns.set_theme(context="talk", style="white")
 
 
 def plot_coverage():
@@ -35,7 +37,7 @@ def plot_coverage():
     fig, axes = plt.subplots(1, 1, figsize=(15, 15))
 
     # Heatmap with MAG name as rows, samples as columns, and coverage as numbers
-    sns.heatmap(coverage[coverage.mean().sort_values().index], annot=True, ax=axes, square=True, cbar_kws={"shrink": 0.5}, norm=LogNorm())
+    sns.heatmap(coverage[coverage.mean().sort_values().index], annot=True, ax=axes, square=True, cbar_kws={"shrink": 0.5}, fmt=".2f", norm=LogNorm())
 
     axes.set_title("Coverage Heatmap", fontsize=20)
     axes.set_xlabel("Samples", fontsize=16)
@@ -118,15 +120,40 @@ def read_count_plot():
     """
     Barplot of read counts
     """
+    # Some modifications for cores
+    barcode_sample_map["barcode11"] = "top"
+    barcode_sample_map["barcode12"] = "bottom"
+    barcode_sample_map["barcode13"] = "interface"
+    barcode_sample_map["barcode14"] = "middle"
+
+    readable_sample_name["barcode11"] = "IC3-1"
+    readable_sample_name["barcode12"] = "IC3-2"
+    readable_sample_name["barcode13"] = "IC3-3"
+    readable_sample_name["barcode14"] = "IC3-4"
+
+    for key, value in readable_sample_name.items():
+        readable_sample_name[key] = value.split("-")[0]
 
     # Replace the key in read_counts with the value in readable_sample_name
-    read_counts_renamed = {readable_sample_name[key]: value for key, value in read_counts.items()}
+    df = pl.from_dict({"barcode": read_counts.keys(), "Read count": read_counts.values()})
+    df = df.with_columns(pl.col("barcode").replace(readable_sample_name).alias("Sample"))
 
-    df = pd.DataFrame(read_counts_renamed.items(), columns=["Sample", "Read Count"])
-    sns.catplot(data=df, x="Sample", y="Read Count", kind="bar", height=5, aspect=3.5)
+    df = df.with_columns(pl.col("barcode").replace(barcode_sample_map).alias("Sea-ice horizon"))
+    df = df.sort("Sample")
+    df = df.to_pandas()
+
+    hue_order = ["top", "middle", "bottom", "interface", "control"]
+
+    fig, axes = plt.subplots(figsize=(20, 10))
+
+    g = sns.barplot(data=df, x="Sample", y="Read count", hue="Sea-ice horizon", hue_order=hue_order, ax=axes)
     plt.title("Read counts per sample")
 
-    plt.savefig("../../plots/read_counts.svg", format='svg', bbox_inches='tight')
+    new_labels = ['Top', 'Middle', "Bottom", "Interface", "Control"]
+    for t, l in zip(g.legend().texts, new_labels):
+        t.set_text(l)
+
+    plt.savefig("../../plots/read_counts.pdf", format='pdf', bbox_inches="tight")
 
 
 if __name__ == "__main__":
