@@ -5,6 +5,7 @@ import polars as pl
 import src.utilities.data_loading as dl
 
 
+readable_modification_name = {"21839": "4mC", "a": "6mA", "m": "5mC", "Ncanonical": "Canonical"}
 readable_methylation_name = {"21839": "4mC", "a": "6mA", "m": "5mC"}
 
 readable_sample_name = {"barcode01": "S2-1",
@@ -159,9 +160,11 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame:
 
     methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')
 
-    pivot_df = methyl_data.collect(streaming=True).pivot(index='name', columns='modified base src and motif',
-                                                         values='Nmod', aggregate_function='first').lazy()
+    pivot_df = methyl_data.collect(streaming=True)
+    if pivot_df.height == 0:
+        return None
 
+    pivot_df = pivot_df.pivot(index='name', columns='modified base src and motif', values='Nmod', aggregate_function='first').lazy()
     pivot_df = pivot_df.join(methyl_data.select(['name', 'Ncanonical']), on='name', how='left').unique().fill_null(0)
 
     return pivot_df.select('name', '21839', 'a', 'm', 'Ncanonical')
@@ -228,7 +231,7 @@ def normalize_data_by_genome_coverage(df: pl.LazyFrame, genome_name, aggregate=F
 
 
 def normalize_data_by_pileup(df: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame:
-    methylation_types = list(readable_methylation_name.keys()) + ["Ncanonical"]
+    methylation_types = list(readable_modification_name.keys())
     df = df.with_columns(pl.col(methylation_types) / pl.concat_list(methylation_types).list.sum())
 
     return df

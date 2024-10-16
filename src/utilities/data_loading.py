@@ -51,7 +51,6 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
     for i, bed_file in enumerate(bed_files):
         methyl_data = get_pileup_polars(bed_file)
 
-        print(f"Got {bed_file} bed file loaded and now reshaping")
         methyl_data = utils.reshape_pileup_to_matrix_polars(methyl_data)
 
         # Add sample column
@@ -59,10 +58,8 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
         methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
 
         dfs.append(methyl_data)
-        print(f"Added {i} bed file to array")
 
     # Concat everything together
-    print("Concating...")
     dfs = pl.concat(dfs)
 
     # Split name
@@ -227,12 +224,10 @@ def get_coordinated_functions_polars(data_dir) -> pl.LazyFrame:
     # Merge using efficient indexing
     coordinated_functions = gene_calls.join(function_calls, on='gene_callers_id')
 
-    assert gene_calls.collect().select('gene_callers_id').n_unique() >= coordinated_functions.collect().select('gene_callers_id').n_unique(), "Not all genes were conserved"
-
     return coordinated_functions
 
 
-def get_genomic_sequence(genome_name) -> dict:
+def get_genomic_sequence(genome_name, reverse=False) -> dict:
     """
     Read genomic sequence data from a file.
 
@@ -245,6 +240,9 @@ def get_genomic_sequence(genome_name) -> dict:
     fasta_file = SeqIO.parse(path, "fasta")
     fasta_dict = {}
     for record in fasta_file:
-        fasta_dict[record.id] = str(record.seq)
+        if reverse:
+            fasta_dict[record.id] = record.seq.reverse_complement
+        else:
+            fasta_dict[record.id] = record.seq
 
     return fasta_dict
