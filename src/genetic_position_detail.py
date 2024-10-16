@@ -57,7 +57,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Plot total methylation over everything
     df = methyl_data.select("sample", "gene_position", "total_methylation")
-    df = df.select(pl.col("total_methylation").mean().over(pl.int_range(pl.len()) // 1000), "sample", "gene_position").with_columns(pl.col("gene_position") // 1000)
+    df = df.group_by("sample", "gene_position").agg(pl.col("total_methylation").mean()).with_columns(pl.col("gene_position") // 1000)
     sns.boxplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=axes[1], hue_order=hue_order)
     axes[1].set_title("Total methylation in 1000 nucleotide long bins")
     axes[1].set_xlabel("Bin number")

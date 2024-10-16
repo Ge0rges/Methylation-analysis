@@ -42,7 +42,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
 
     # Create figure
     n_types = len(methylation_types)
-    fig, axes = plt.subplots(3, 1, figsize=(20, 5 * n_types), sharex=False, layout="constrained")
+    fig, axes = plt.subplots(3, 1, figsize=(40, 20 * n_types), sharex=False, layout="constrained")
 
     # Mean together all the different methylation types
     total_meth_data = methyl_data.select('gene_id', 'sample', 'total_methylation')
@@ -72,9 +72,9 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_profile.pdf", format='pdf', transparent=False)
 
     # Write CSV of the top methylated genes
-    total_meth_data = methyl_data.select('gene_id', 'sample', 'total_methylation', "gene_callers_id")
-    top_methylated_genes = total_meth_data.sort("total_methylation", descending=True)
-    top_methylated_genes = add_functional_annotations_polars(top_methylated_genes.lazy(), data_dir).collect()
+    total_meth_data = methyl_data.group_by('gene_id', 'sample', "gene_callers_id").agg(pl.col("total_methylation").mean())
+    top_methylated_genes = add_functional_annotations_polars(total_meth_data.lazy(), data_dir).collect()
+    top_methylated_genes = top_methylated_genes.sort("total_methylation", descending=True)
     top_methylated_genes.write_csv(f"../data/gene_level_data/{genome_name}_top_meth_genes.csv")
 
     print(f"Done plotting profile for {genome_name}")

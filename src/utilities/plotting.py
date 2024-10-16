@@ -134,7 +134,7 @@ def plot_gene_methylation_level_figure(df: pl.DataFrame, genome_name, coverage, 
         plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type)
 
     cleaned_genome_name = genome_name.title().replace("_R-Contigs", " sp.")
-    fig.suptitle(f"Mean gene methylation by type for {cleaned_genome_name}", fontsize=26)
+    fig.suptitle(f"Mean gene methylation by type for {cleaned_genome_name}")
 
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene.svg", format='svg')
 
@@ -144,13 +144,13 @@ def plot_gene_methylation_level(ax_top, ax_bottom, df, methylation_type, composi
                                    palette=sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True))
 
     if composite:
-        ax_bottom.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
+        ax_bottom.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}")
         sns_plot_bottom.legend().set_title("Sample")
 
     else:
         sns_plot_top = sns.lineplot(data=df, x="gene_id", y=methylation_type, hue="sample", ax=ax_top,
                                     palette=sns.cubehelix_palette(start=.5, rot=-.5, as_cmap=True))
-        ax_top.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}", fontsize=20)
+        ax_top.set_title(f"Methylation type: {readable_methylation_name[methylation_type]}")
         ax_top.set(xlabel="", ylabel="")
         sns_plot_top.legend().set_title("Sample")
         sns_plot_bottom.legend().remove()
@@ -216,7 +216,7 @@ def plot_gene_methylation_level_diff(ax, df, diff_string):
 
     ax.set(xlabel='Gene ID', ylabel=f"Normalized methylation fraction")
 
-    ax.set_ylim(-0.5, 0.5)
+    ax.set_ylim(-0.25, 0.25)
 
 
 def annotate_meth_level_with_score_function_table(annotate_ax, table_ax, df: pl.DataFrame, function_source: str, score_col: str, comparison: str):
