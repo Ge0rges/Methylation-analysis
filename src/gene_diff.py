@@ -28,7 +28,15 @@ def plot_genes(genome_name, data_dir, gene_ids, fig_savepath="plots"):
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Add the gene_caller_id
+    old_len = len(gene_ids)
     methyl_data = add_gene_caller_id(methyl_data, genes).filter(pl.col("gene_callers_id").is_in(gene_ids))
+    gene_ids = methyl_data.collect().get_column("gene_callers_id").unique().to_list()
+
+    if old_len != len(gene_ids):
+        print(f"WARNING: {old_len-len(gene_ids)} gene ids were not found in this genome {genome_name}")
+    if len(gene_ids) == 0:
+        print("ERROR: No genes remaining.")
+        return
 
     # Create the total methylation column and normalize values
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types+["Ncanonical"]).list.sum().alias("position_coverage"))
@@ -73,7 +81,7 @@ def plot_genes(genome_name, data_dir, gene_ids, fig_savepath="plots"):
         ax = axes[i] if len(gene_ids) > 1 else axes
 
         # Get gene data
-        data = gene_positions.filter(pl.col("gene_callers_id").eq(gene_id))
+        data = gene_positions.filter(pl.col("gene_callers_id").eq(gene_id) & pl.col("source").is_in(["COG20_FUNCTION", "KOfam", "Unannotated"]))
         meth = data.get_column("total_methylation_diff").to_list()[0]
         func = data.get_column("function").to_list()[0]
         source = data.get_column("source").to_list()[0]
@@ -87,7 +95,8 @@ def plot_genes(genome_name, data_dir, gene_ids, fig_savepath="plots"):
         # Plot
         sns.lineplot(x='gene_position', y="total_methylation", hue="sample", data=data.to_pandas(), ax=ax, hue_order=hue_order)
         ax.set_xlabel("Nucleotide position from start")
-        ax.set_title(f'Gene: {gene_id} - Methylation difference {meth:0.2f} - {source}:{func} - Significant: {test_result}')
+        title = f'Gene: {gene_id} - Methylation difference {meth:0.4f} - {source}:{func} - Significant: {test_result}'
+        ax.set_title(truncate_label(title, 80, 4))
 
     #  Save plot
     plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene_detail.pdf", format='pdf', transparent=False)
@@ -101,9 +110,7 @@ if __name__ == "__main__":
         print(f"Running gene_detail analysis at coverage {coverage}")
         data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                 f"../../methylation_data/methylation_{coverage}")
+        gene_ids = {"Pelagibacter_r-contigs": [2195033]}
 
-        for genome in os.listdir(data_dir):
-            if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs" or "metagenome" in genome:
-                continue
-
-            plot_genes(genome, data_dir, fig_savepath=f"../plots/plots_{coverage}")
+        for genome, values in gene_ids.items():
+            plot_genes(genome, data_dir, values, fig_savepath=f"../plots/plots_{coverage}")
