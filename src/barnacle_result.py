@@ -98,6 +98,8 @@ def analyze_result(result):
     axis2.tick_params(axis='y', colors=color)
     axis2.spines['right'].set_color(color)
 
+    print(plot_df.groupby("lambda")['relative_sse'].mean())
+
     # put defaults back where you found them
     mpl.rcParams['axes.spines.right'] = True
     mpl.rcParams['axes.spines.left'] = True

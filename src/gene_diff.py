@@ -9,7 +9,7 @@ import polars.selectors as cs
 sns.set_theme(context="talk", style="white", font_scale=3)
 
 
-def run_analysis(genome_name, data_dir, fig_savepath="plots"):
+def plot_genes(genome_name, data_dir, gene_ids, fig_savepath="plots"):
     """
     Run the DMR analysis for a specific genome_name, DMR type, and function_source.
     """
@@ -28,28 +28,30 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Add the gene_caller_id
-    methyl_data = add_gene_caller_id(methyl_data, genes)
+    methyl_data = add_gene_caller_id(methyl_data, genes).filter(pl.col("gene_callers_id").is_in(gene_ids))
 
     # Create the total methylation column and normalize values
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types+["Ncanonical"]).list.sum().alias("position_coverage"))
     methyl_data = normalize_data_by_pileup(methyl_data)
     methyl_data = methyl_data.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
 
-
     # Add rao score - Doing this first prevents row duplication issues
     methyl_data = add_rao_score_by_gene(methyl_data.collect(streaming=True), ["top", "bottom"], baseline=False).lazy()
 
-    # Subtract methylation fractions: Top - Bottom
-    for type in methylation_types + ["total_methylation"]:
-        # Mean together all the different methylation types
-        top = pl.col(type).filter(pl.col('sample').eq('top')).mean()
-        bot = pl.col(type).filter(pl.col('sample').eq('bottom')).mean()
-        diff = methyl_data.select(type, "gene_callers_id", "sample").group_by('gene_callers_id').agg(top - bot)
-        diff = diff.rename({type: type + "_diff"})
-        methyl_data = methyl_data.join(diff, on="gene_callers_id").unique()
-
     # Add functional annotation
     methyl_data = add_functional_annotations_polars(methyl_data, data_dir).drop(cs.ends_with("_right")).unique()
+
+    # Subtract methylation fractions: Top - Bottom
+    top = pl.col("total_methylation").filter(pl.col('sample').eq('top')).mean()
+    bot = pl.col("total_methylation").filter(pl.col('sample').eq('bottom')).mean()
+    diff = methyl_data.select("total_methylation", "gene_callers_id", "sample").group_by('gene_callers_id').agg(top - bot)
+    diff = diff.rename({"total_methylation": "total_methylation" + "_diff"})
+    methyl_data = methyl_data.join(diff, on="gene_callers_id").unique()
+
+    # Get the aboslute biggest differences
+    gene_diffs = methyl_data.with_columns(pl.col("total_methylation_diff").abs().alias("abs_total_methylation_diff"))
+    gene_diffs = gene_diffs.group_by("gene_callers_id").agg(pl.col("abs_total_methylation_diff").mean(), pl.col("total_methylation_diff").mean())
+    methyl_data = methyl_data.join(gene_diffs, on="gene_callers_id").drop(cs.ends_with("_right")).unique()
 
     # Add gene relative position from start and from end
     gene_positions = methyl_data.select("gene_callers_id", "name", "start", "strand", "end").unique()
@@ -60,141 +62,38 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     gene_positions = methyl_data.join(gene_positions, on="name", how="inner", validate="m:1").drop(
         cs.ends_with("_right"))
 
-    # Write the dataframe to a CSV
-    methylation_types_diff = [x + "_diff" for x in methylation_types]
-    (methyl_data.select("gene_callers_id", "source", "function", *methylation_types_diff, "total_methylation_diff",
-                        "rao_score", "test_result")
-     .filter(pl.col("rao_score").is_not_nan()).unique()
-     .sort("test_result", pl.col("total_methylation_diff").abs(), descending=True)
-     .collect(streaming=True).write_csv(f"../data/gene_level_data/{genome_name}_rao-sorted_gene_level.csv"))
-
-    # Get pathway DF
-    top_diff_pathway(methyl_data).write_csv(f"../data/pathway_level_data/{genome_name}_top_diff_meth_pathway.csv")
-    
-    # Get DFs
-    genes_df = get_top_dmr_genes(methyl_data).collect(streaming=True)
-    genes_ids = genes_df.get_column("gene_callers_id").unique().to_list()
-
-    promoter_df = get_top_dmr_genes_promoter(gene_positions).collect(streaming=True)
-    promoter_ids = promoter_df.get_column("gene_callers_id").unique().to_list()
-
     # Rename samples for plotting
     gene_positions = gene_positions.with_columns(pl.col('sample').replace(readable_sample_name)).collect(streaming=True)
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
 
-    # Plot table of top 20% DMRed pathways. Lineplot of top 5 DMRed genes positions.
-    num_plots = max(len(genes_ids), len(promoter_ids))
-    if num_plots == 0:
-        print(f"No interesting genes for {genome_name}")
-        return
-    fig, axes = plt.subplots(num_plots, 2, figsize=(80, 25 * num_plots), layout="constrained")
+    # Create figure
+    fig, axes = plt.subplots(len(gene_ids), 1, figsize=(40, 20*len(gene_ids)), layout="constrained")
 
-    # Plot total methylation rolling mean - whole gene based
-    for j, info in enumerate([genes_ids, promoter_ids]):
-        data_df = genes_df if info is genes_ids else promoter_df
-        for i, gene_id in enumerate(info):
-            ax = axes[i][j]
+    for i, gene_id in enumerate(gene_ids):
+        ax = axes[i] if len(gene_ids) > 1 else axes
 
-            meth = data_df.filter(pl.col("gene_callers_id").eq(gene_id)).get_column("total_methylation_diff").to_list()[
-                0]
-            func = data_df.filter(pl.col("gene_callers_id").eq(gene_id)).get_column("function").to_list()[0]
-            source = data_df.filter(pl.col("gene_callers_id").eq(gene_id)).get_column("source").to_list()[0]
+        # Get gene data
+        data = gene_positions.filter(pl.col("gene_callers_id").eq(gene_id))
+        meth = data.get_column("total_methylation_diff").to_list()[0]
+        func = data.get_column("function").to_list()[0]
+        source = data.get_column("source").to_list()[0]
+        test_result = data.get_column("test_result").to_list()[0]
 
-            df = gene_positions.filter(pl.col("gene_callers_id").eq(gene_id)).select("sample", "gene_position",
-                                                                                     "total_methylation")
-            df = df.group_by("sample", "gene_position").agg(pl.col("total_methylation").mean())
-            df = df.sort(["sample", "gene_position"]).with_columns(pl.col("total_methylation").rolling_mean(20, min_periods=1).over("sample").alias("total_methylation"))
+        # Do rolling average
+        data = data.select("sample", "gene_position", "total_methylation")
+        data = data.group_by("sample", "gene_position").agg(pl.col("total_methylation").mean())
+        data = data.sort(["sample", "gene_position"]).with_columns(pl.col("total_methylation").rolling_mean(20, min_periods=1).over("sample").alias("total_methylation"))
 
-            sns.lineplot(x='gene_position', y="total_methylation", hue="sample", data=df.to_pandas(), ax=ax,
-                         hue_order=hue_order)
-            ax.set_xlabel("Nucleotide position from start")
-
-            if info is promoter_ids:
-                ax.set_title(f'Rolling average of total methylation  - {meth:0.2f} methylation difference - {source}:{func} - Promoter')
-            else:
-                ax.set_title(f'Rolling average of total methylation  - {meth:0.2f} methylation difference - {source}:{func}')
+        # Plot
+        sns.lineplot(x='gene_position', y="total_methylation", hue="sample", data=data.to_pandas(), ax=ax, hue_order=hue_order)
+        ax.set_xlabel("Nucleotide position from start")
+        ax.set_title(f'Gene: {gene_id} - Methylation difference {meth:0.2f} - {source}:{func} - Significant: {test_result}')
 
     #  Save plot
-    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_meth_funcs.pdf", format='pdf', transparent=False)
+    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene_detail.pdf", format='pdf', transparent=False)
 
     print(f"Done writing genes for {genome_name}")
     return
-
-
-def top_diff_pathway(methyl_data, top=20):
-    # Make table
-    # Split and explode functions
-    table_df = methyl_data.with_columns(pl.col("function").str.split("!!!")).explode("function")
-
-    # Get the aboslute biggest differences
-    table_df = table_df.with_columns(pl.col("total_methylation_diff").abs().alias("abs_total_methylation_diff"))
-    table_df = table_df.group_by("source", "function", "test_result").agg(pl.col("abs_total_methylation_diff").mean(),
-                                                                          pl.col("total_methylation_diff").mean())
-
-    # Make a figure with a table of the top DMRed pathways
-    table_df = table_df.filter(
-        pl.col("source").eq("KEGG_BRITE") & pl.col("test_result").eq(True)).unique().top_k(top, by="abs_total_methylation_diff")
-    table_df = table_df.sort("abs_total_methylation_diff", descending=False).drop("abs_total_methylation_diff")
-    table_df = table_df.select("function", "total_methylation_diff").collect(streaming=True)
-
-    return table_df
-
-
-def get_top_dmr_genes(methyl_data, top=5, coverage=5):
-    # Filter so that entire gene must be covered at least 5 times on every nucleotide in each sample
-    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage").quantile(0.05)).filter(
-        pl.col("position_coverage").ge(coverage))
-    cov_genes = cov_genes.group_by("gene_callers_id").agg(pl.col("sample").n_unique()).filter(
-        pl.col("sample").eq(3)).collect(streaming=True)
-    methyl_data = methyl_data.filter(pl.col("gene_callers_id").is_in(cov_genes.get_column("gene_callers_id").to_list()))
-
-    # Get the aboslute biggest differences
-    genes = methyl_data.with_columns(pl.col("total_methylation_diff").abs().alias("abs_total_methylation_diff"))
-    genes = genes.group_by("gene_callers_id", "source", "function", "test_result").agg(
-        pl.col("abs_total_methylation_diff").mean(),
-        pl.col("total_methylation_diff").mean())
-
-    # Pick genes that have a KOfam, and positive DMR. And 5 coverage across all positions
-    genes = genes.filter(pl.col("source").eq("KOfam") & pl.col("test_result").eq(True))
-
-    # Pick the top 5 differently methylated genes
-    genes = genes.top_k(top, by="abs_total_methylation_diff")
-
-    return genes.select("gene_callers_id", "source", "function", "total_methylation_diff", "abs_total_methylation_diff")
-
-
-def get_top_dmr_genes_promoter(methyl_data, top=5, coverage=5):
-    # Filter so that entire gene must be covered at least 5 times on every nucleotide in each sample
-    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage").quantile(0.05)).filter(
-        pl.col("position_coverage").ge(coverage))
-    cov_genes = cov_genes.group_by("gene_callers_id").agg(pl.col("sample").n_unique()).filter(
-        pl.col("sample").eq(3)).collect(streaming=True)
-    methyl_data = methyl_data.filter(pl.col("gene_callers_id").is_in(cov_genes.get_column("gene_callers_id").to_list()))
-
-    # Take just the first 100 positions
-    methyl_data = methyl_data.filter(pl.col("gene_position").le(100))
-
-    # Filter so that entire gene must be covered at least 5 times on every nucleotide in each sample
-    cov_genes = methyl_data.group_by("gene_callers_id", "sample").agg(pl.col("position_coverage").min()).filter(
-        pl.col("position_coverage").ge(coverage))
-    cov_genes = cov_genes.group_by("gene_callers_id").agg(pl.col("sample").n_unique()).filter(
-        pl.col("sample").eq(3)).collect(streaming=True)
-    methyl_data = methyl_data.filter(pl.col("gene_callers_id").is_in(cov_genes.get_column("gene_callers_id").to_list()))
-
-
-    # Get the aboslute biggest differences
-    genes = methyl_data.with_columns(pl.col("total_methylation_diff").abs().alias("abs_total_methylation_diff"))
-    genes = genes.group_by("gene_callers_id", "source", "function", "test_result").agg(
-        pl.col("abs_total_methylation_diff").mean(),
-        pl.col("total_methylation_diff").mean())
-
-    # Pick genes that have a KOfam, and positive DMR. And 5 coverage across all positions
-    genes = genes.filter(pl.col("source").eq("KOfam") & pl.col("test_result").eq(True))
-
-    # Pick the top 5 differently methylated genes
-    genes = genes.top_k(top, by="abs_total_methylation_diff")
-
-    return genes.select("gene_callers_id", "source", "function", "total_methylation_diff", "abs_total_methylation_diff")
 
 
 if __name__ == "__main__":
@@ -207,4 +106,4 @@ if __name__ == "__main__":
             if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs" or "metagenome" in genome:
                 continue
 
-            run_analysis(genome, data_dir, fig_savepath=f"../plots/plots_{coverage}")
+            plot_genes(genome, data_dir, fig_savepath=f"../plots/plots_{coverage}")
