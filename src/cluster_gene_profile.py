@@ -1,17 +1,12 @@
 from utilities.plotting import *
 from utilities.data_loading import *
 from utilities.utils import add_gene_caller_id, readable_methylation_name, readable_sample_name, barcode_sample_map, normalize_data_by_pileup
-from sklearn.cluster import DBSCAN
-from sklearn.metrics import silhouette_score
-from scipy.spatial.distance import pdist, squareform
+import scipy
 import matplotlib.pyplot as plt
 import seaborn as sns
-import scipy.cluster.hierarchy as hac
 from sklearn.cluster import KMeans
 import pandas as pd
-import matplotlib.gridspec as gridspec
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
+
 
 
 
@@ -52,69 +47,40 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     # Rename samples
     df = methyl_data.with_columns(pl.col('sample').replace(readable_sample_name)).select("gene_position", "total_methylation", "gene_callers_id", "sample").group_by("gene_callers_id", "gene_position", "sample").agg(pl.col("total_methylation").mean()).to_pandas()
 
-    # Step 1: Reshape the Data
-    # Pivot the data to get one row per (gene_id, sample) combination with position as columns
-    pivot_df = df.pivot_table(index=['sample', 'gene_callers_id'], columns='gene_position', values='total_methylation').reset_index().fillna(0)
+    centroid_data, df['cluster_label'] = scipy.cluster.vq.kmeans2(
+        data=df[['gene_position', 'total_methylation']], k=4, seed=0,
+    )
+    centroids = pd.DataFrame(
+        index=pd.RangeIndex(name='cluster_label', stop=len(centroid_data)),
+        columns=('gene_position', 'total_methylation'),
+        data=centroid_data,
+    )
+    print(df)
+    print(centroids)
 
-    # Perform K-means clustering
-    n_clusters = 3
-    kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+    fig, ax = plt.subplots()
+    sns.scatterplot(ax=ax, data=df, x='gene_position', y='total_methylation', hue='sample', style='gene_callers_id')
 
-    profiles = pivot_df.drop(columns=['sample', 'gene_callers_id'])
-    kmeans.fit(profiles)
+    cmap = plt.cm.rainbow(np.linspace(0, 1, len(centroids)))
+    for (label, cluster), color in zip(df.groupby('cluster_label'), cmap):
+        ax.scatter(
+            [centroids.loc[label, 'gene_position']],
+            [centroids.loc[label, 'total_methylation']], s=60, color=color, marker='+',
+        )
+        ax.scatter(
+            cluster['gene_position'], cluster['total_methylation'], s=120, color=color, marker='o', facecolors='none',
+        )
 
-    pivot_df['cluster'] = kmeans.labels_
-
-    # Reduce dimensions using PCA
-    pca = PCA(n_components=10)
-    profiles_pca = pca.fit_transform(profiles)
-
-    plot_df = pd.DataFrame(profiles_pca, columns=['PC1', 'PC2'])
-    plot_df['cluster'] = kmeans.labels_
-    plot_df['sample'] = pivot_df['sample']
-    plot_df['gene_callers_id'] = pivot_df['gene_callers_id']
-
-    # Build the plot
-    plt.figure(figsize=(8, 6), layout="constrained")
-    sns.scatterplot(data=plot_df, x='PC1', y='PC2', style="sample", hue="cluster", alpha=0.7)
-
-    plt.title('KMeans Clustering of Gene Profiles with Sample Distribution (PCA Reduced)')
-    plt.xlabel('PC1')
-    plt.ylabel('PC2')
-    plt.legend()
-    plt.savefig(f"{fig_savepath}/{genome_name}_{coverage}_gene_cluster.pdf", format='pdf', transparent=True)
-
-    sample_cluster_distribution = pivot_df.groupby(['cluster', 'sample']).size().unstack().fillna(0)
-    print(sample_cluster_distribution)
+    plt.show()
 
     print(f"Done plotting detail gene cluster for {genome_name}")
     return
 
 
-def do_elbow(X):
-    # Step 2: Calculate WCSS for a range of k values
-    wcss = []
-    k_range = range(1, 100)  # You can adjust the range based on your data
-
-    for k in k_range:
-        kmeans = KMeans(n_clusters=k, random_state=42)
-        kmeans.fit(X)
-        wcss.append(kmeans.inertia_)
-
-    # Step 3: Plot the WCSS values to visualize the Elbow
-    plt.figure(figsize=(10, 6))
-    plt.plot(k_range, wcss, marker='o', linestyle='--')
-    plt.title('Elbow Method for Optimal K')
-    plt.xlabel('Number of clusters (k)')
-    plt.ylabel('Within-Cluster Sum of Squares (WCSS)')
-    plt.xticks(k_range)
-    plt.show()
-
-
 if __name__ == "__main__":
     for coverage in ["5"]:
         print(f"Running genetic position  analysis at coverage {coverage}")
-        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../methylation_data/methylation_{coverage}")
+        data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../data/methylation_data/methylation_{coverage}")
 
         for genome in os.listdir(data_dir):
             if genome == ".DS_Store" or ".txt" in genome or genome == "Octadecabacter_r-contigs":
