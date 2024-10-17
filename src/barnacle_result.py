@@ -109,6 +109,25 @@ def analyze_result(result):
     plt.title('model scores vs. sparsity (R={})'.format(rank))
     plt.show()
 
+    # Max FMS
+    summary_df = results_df[results_df['comparison'] == 'cross-validation']
+    summary_df = summary_df[summary_df['rank'].isin([3])]
+    summary_df = summary_df.groupby(['rank', 'lambda'])[['mean_gene_sparsity', 'relative_sse', 'fms_cv']].agg(
+        mean_gene_sparsity=('mean_gene_sparsity', 'mean'),
+        relative_sse=('relative_sse', 'mean'),
+        fms_cv=('fms_cv', 'mean'),
+        fms_sem=('fms_cv', 'sem'),
+        bootstraps=('fms_cv', 'count')
+    ).reset_index()
+
+    best_FMS = summary_df.loc[summary_df.fms_cv.idxmax(), :]
+    print('max CV FMS: \n\n{}\n'.format(best_FMS))
+    se_fms = best_FMS['fms_cv'] - best_FMS['fms_sem']
+    print('max CV FMS - 1SE: {}\n'.format(se_fms))
+
+    # show all models with at least the minimum FMS, sorted from sparsest to least sparse
+    print(summary_df[summary_df.fms_cv.ge(se_fms)].sort_values('lambda', ascending=False))
+
 
 if __name__ == "__main__":
     # For each folder in ../data/models/*/, load result.pickle
