@@ -2,7 +2,7 @@ from utilities.plotting import *
 from _statistics import *
 from utilities.data_loading import *
 from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
-    add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_sample_map
+    add_functional_annotations_polars, readable_methylation_name, readable_sample_name, barcode_replicate_map
 from scipy.stats import rankdata
 
 
@@ -46,7 +46,7 @@ def run_dmr_analysis(genome_name, dmr_type, coverage, data_dir, fig_savepath="pl
     methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=5)
 
     # Filter samples
-    methyl_data = methyl_data.with_columns(pl.col("sample").alias("norm_sample"), pl.col("sample").replace_strict(barcode_sample_map))
+    methyl_data = methyl_data.with_columns(pl.col("sample").alias("norm_sample"), pl.col("sample").replace_strict(barcode_replicate_map))
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"])).collect().lazy()
 
     # Create the total methylation column and normalize

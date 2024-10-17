@@ -1,5 +1,5 @@
 from utilities.data_loading import *
-from utilities.utils import readable_methylation_name, barcode_sample_map, add_gene_caller_id, normalize_data_by_pileup
+from utilities.utils import readable_methylation_name, barcode_replicate_map, add_gene_caller_id, normalize_data_by_pileup
 from barnacle_grid_search import barnacle_grid_search
 import pickle
 
@@ -36,7 +36,7 @@ def run_barnacle(genome_name, data_dir):
 
     # Filter samples
     methyl_data = methyl_data.with_columns(
-        treatment=pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
+        treatment=pl.col("sample").replace_strict(barcode_replicate_map, default=pl.first()))
     methyl_data = methyl_data.filter(pl.col("treatment").is_in(["top", "middle", "bottom"]))
     # methyl_data = methyl_data.with_columns(
     #     replicate=pl.col("sample").replace_strict(replicate_map, default=pl.first()))

@@ -4,7 +4,7 @@ import seaborn as sns
 import matplotlib.pylab as plt
 
 from src.utilities.data_loading import get_coverage
-from src.utilities.utils import readable_sample_name, barcode_sample_map, read_counts
+from src.utilities.utils import readable_sample_name, barcode_replicate_map, read_counts
 from matplotlib.colors import LogNorm
 sns.set_theme(context="talk", style="white")
 
@@ -18,7 +18,7 @@ def plot_coverage():
 
     # Load data
     coverage = get_coverage("../../data/").collect().to_pandas()
-    coverage.rename(inplace=True, columns=barcode_sample_map)
+    coverage.rename(inplace=True, columns=barcode_replicate_map)
     coverage.rename(inplace=True, columns=readable_sample_name)
 
     # Clean the mag names
@@ -121,10 +121,10 @@ def read_count_plot():
     Barplot of read counts
     """
     # Some modifications for cores
-    barcode_sample_map["barcode11"] = "top"
-    barcode_sample_map["barcode12"] = "bottom"
-    barcode_sample_map["barcode13"] = "interface"
-    barcode_sample_map["barcode14"] = "middle"
+    barcode_replicate_map["barcode11"] = "top"
+    barcode_replicate_map["barcode12"] = "bottom"
+    barcode_replicate_map["barcode13"] = "interface"
+    barcode_replicate_map["barcode14"] = "middle"
 
     readable_sample_name["barcode11"] = "IC3-1"
     readable_sample_name["barcode12"] = "IC3-2"
@@ -138,7 +138,7 @@ def read_count_plot():
     df = pl.from_dict({"barcode": read_counts.keys(), "Read count": read_counts.values()})
     df = df.with_columns(pl.col("barcode").replace(readable_sample_name).alias("Sample"))
 
-    df = df.with_columns(pl.col("barcode").replace(barcode_sample_map).alias("Sea-ice horizon"))
+    df = df.with_columns(pl.col("barcode").replace(barcode_replicate_map).alias("Sea-ice horizon"))
     df = df.sort("Sample")
     df = df.to_pandas()
 

@@ -79,7 +79,7 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
     return dfs
 
 
-def get_genes_polars(data_dir, drop_extras=True) -> pl.LazyFrame:
+def get_genes_polars(data_dir) -> pl.LazyFrame:
     """
     Parameters:
     data_dir (str): The path to the data directory.
@@ -89,8 +89,6 @@ def get_genes_polars(data_dir, drop_extras=True) -> pl.LazyFrame:
     pandas.DataFrame: DataFrame with gene functions.
     """
     gene_calls = pl.scan_csv(f"{data_dir}/gene-calls.txt", separator="\t")
-    if drop_extras:
-        gene_calls = gene_calls.drop("source", "version", "partial", "call_type")
 
     # Map direction to +/-
     gene_calls = gene_calls.with_columns(pl.col("direction").str.replace_many(["f", "r"],["+", "-"]))
@@ -128,8 +126,8 @@ def get_dmrs_from_file_polars(path) -> (pl.LazyFrame, bool):
 
     # Add a column to note the comparison done in this DMR
     sample_a_name, sample_b_name = os.path.basename(path).replace('.bed', '').split('_')
-    sample_a_name = utils.barcode_sample_map[sample_a_name]
-    sample_b_name = utils.barcode_sample_map[sample_b_name]
+    sample_a_name = utils.barcode_replicate_map[sample_a_name]
+    sample_b_name = utils.barcode_replicate_map[sample_b_name]
     dmrs = dmrs.with_columns(comparison=pl.lit(f"{sample_a_name}_vs_{sample_b_name}"))
 
     return dmrs, False
@@ -188,7 +186,7 @@ def get_coverage(data_dir, genome_name=None, agg=False) -> pl.LazyFrame:
         # Create a dictionary to map sample groups to barcodes
         sample_group_barcodes = {}
 
-        for barcode, group in utils.barcode_sample_map.items():
+        for barcode, group in utils.barcode_replicate_map.items():
             if barcode not in coverage.collect_schema().names():
                 continue
 
@@ -241,7 +239,7 @@ def get_genomic_sequence(genome_name, reverse=False) -> dict:
     fasta_dict = {}
     for record in fasta_file:
         if reverse:
-            fasta_dict[record.id] = record.seq.reverse_complement
+            fasta_dict[record.id] = record.seq.reverse_complement()
         else:
             fasta_dict[record.id] = record.seq
 

@@ -1,7 +1,7 @@
 from _statistics import *
 from utilities.data_loading import *
 from utilities.utils import normalize_data_by_pileup, add_gene_caller_id, \
-    add_functional_annotations_polars, readable_methylation_name, barcode_sample_map, readable_sample_name, truncate_label
+    add_functional_annotations_polars, readable_methylation_name, barcode_replicate_map, readable_sample_name, truncate_label
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -24,7 +24,7 @@ def plot_genes(genome_name, data_dir, gene_ids, fig_savepath="plots"):
     methyl_data = load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=5)
 
     # Filter samples
-    methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_sample_map, default=pl.first()))
+    methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map, default=pl.first()))
     methyl_data = methyl_data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
 
     # Add the gene_caller_id
