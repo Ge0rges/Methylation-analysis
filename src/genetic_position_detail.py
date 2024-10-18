@@ -86,7 +86,7 @@ def run_analysis(genome_name, coverage, data_dir, fig_savepath="plots"):
     fig, axes = plt.subplots(n_types+1, len(bins), figsize=(100, 100), sharex=False, layout="constrained")
 
     for j, (min_limit, max_limit) in enumerate(bins):
-        # Filter out gene_lengths whose length isn't in the range
+        # Filter out gene_lengths whose length isn't in the sequence_range
         gene_ids = gene_lengths.filter(pl.col("gene_length").ge(min_limit) & pl.col("gene_length").le(max_limit)).get_column("gene_callers_id").to_list()
         gene_df = methyl_data.filter(pl.col("gene_callers_id").is_in(gene_ids))
 

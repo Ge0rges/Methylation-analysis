@@ -140,7 +140,7 @@ def truncate_label(label, max_length, max_lines):
     return result
 
 
-def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame:
+def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     # Add a name column
     methyl_data = methyl_data.with_columns((pl.col('chrom') + '|' + pl.col('strand') + '|' + pl.col(
         'inclusive start position').cast(pl.Utf8) + '|' + pl.col('exclusive end position').cast(pl.Utf8)).alias('name'))
@@ -190,19 +190,14 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
     assert all(g in gene_contigs for g in df_contigs), "Not all contigs are in this genome_name."
 
     # Merge merged_df with ranges based on conditions
-    # Filter rows where merged_df start and end values are within range start and end.
-    # Gene range is inclusive of end, modkit bed is not.
+    # Filter rows where merged_df start and end values are within sequence_range start and end.
+    # Gene sequence_range is inclusive of end, modkit bed is not.
     og_columns = df.collect_schema().names()
     result = df.join_where(genes,
                            pl.col('start').ge(pl.col('start_right')),
                            pl.col('end').le(pl.col('stop')),
                            pl.col("contig").eq(pl.col("contig_right")),
                            pl.col('direction').eq(pl.col('strand')))
-
-    # # Mark exons
-    # for col in og_columns:
-    #     exons = (df.filter(((pl.col('start') >= pl.col('start_right')) & (pl.col('end') <= pl.col('stop'))).not_())
-    #              .unique(subset=og_columns, keep="first").with_columns(pl.col(og_columns).not_().lit(None)))
 
     # If there are still multiple gene_callers_id for the same name, pick the first one
     result = result.unique(subset=og_columns, keep="first")
@@ -233,7 +228,7 @@ def normalize_data_by_genome_coverage(df: pl.LazyFrame, genome_name, aggregate=F
     return df
 
 
-def normalize_data_by_pileup(df: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame:
+def normalize_data_by_pileup(df: pl.DataFrame | pl.LazyFrame) -> pl.LazyFrame | pl.DataFrame:
     methylation_types = list(readable_modification_name.keys())
     df = df.with_columns(pl.col(methylation_types) / pl.concat_list(methylation_types).list.sum())
 

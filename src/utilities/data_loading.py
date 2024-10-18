@@ -26,7 +26,7 @@ def get_pileup_polars(path) -> pl.LazyFrame:
     return pileup
 
 
-def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=None) -> pl.LazyFrame:
+def load_combined_methyl_data_for_genome_polars(genome_name: str, data_dir: str, coverage: int =None) -> pl.LazyFrame | None:
     """
     Load the methyl data from every sample into a matrix.
 
@@ -34,8 +34,8 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
     :type genome_name: str
     :param data_dir: Path to the data directory.
     :type data_dir: str
-    :param common_locations: Exclude locations that are not common to all samples
-    :type common_locations: bool
+    :param coverage: Minimum coverage to include
+    :type coverage: int
     :return: Dataframe of the combined methyl data.
     :rtype: pd.DataFrame
     """
@@ -79,7 +79,7 @@ def load_combined_methyl_data_for_genome_polars(genome_name, data_dir, coverage=
     return dfs
 
 
-def get_genes_polars(data_dir) -> pl.LazyFrame:
+def get_genes_polars(data_dir: str) -> pl.LazyFrame:
     """
     Parameters:
     data_dir (str): The path to the data directory.
@@ -225,7 +225,7 @@ def get_coordinated_functions_polars(data_dir) -> pl.LazyFrame:
     return coordinated_functions
 
 
-def get_genomic_sequence(genome_name, reverse=False) -> dict:
+def get_genomic_sequence(genome_name) -> dict:
     """
     Read genomic sequence data from a file.
 
@@ -235,12 +235,6 @@ def get_genomic_sequence(genome_name, reverse=False) -> dict:
     :rtype: pandas.DataFrame
     """
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{genome_name}.fna")
-    fasta_file = SeqIO.parse(path, "fasta")
-    fasta_dict = {}
-    for record in fasta_file:
-        if reverse:
-            fasta_dict[record.id] = record.seq.reverse_complement()
-        else:
-            fasta_dict[record.id] = record.seq
+    fasta_dict = SeqIO.index(path, "fasta")
 
     return fasta_dict
