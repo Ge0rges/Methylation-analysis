@@ -1,4 +1,6 @@
 import numpy as np
+from Bio.SeqRecord import SeqRecord
+from Cython.Compiler.Nodes import relative_position
 
 from data_manager import *
 import seaborn as sns
@@ -8,65 +10,118 @@ from utilities.utils import *
 sns.set_theme(context="talk", style="white", font_scale=3)
 
 
-def run_analysis():
+def plot_all_promoters():
     genome = Genome("Pelagibacter_r-contigs")
-    gene = Gene(2538688, genome)  # 2195033
+    gene_collection = GeneCollection(genome.gene_ids, genome)
+    methyl_data = gene_collection.load_flanking_methylation_data(0, (-25, 25))
 
+    # Plot whole gene
+    data = methyl_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
+    data = data.rename(readable_methylation_name)
+    data = data.rename({"sample": "Sample", "position": "Position"})
+    data = data.with_columns(pl.col('Sample').replace(readable_sample_name)).collect(streaming=True)
+
+    hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
+    fig, axes = plt.subplots(5, 1, figsize=(40, 50), layout="constrained")
+
+    # Promoter position distribution plot
+    promoter_positions = gene_collection.rbs_motif_and_position.drop("gene_callers_id").to_pandas()
+    sns.histplot(promoter_positions, ax=axes[0], bins=50, kde=True)
+
+    # Add text on plot which shows proportion of genes with RBS motif
+    total_genes = len(genome.gene_ids)
+    rbs_genes = len(promoter_positions)
+    axes[0].text(0.5, 0.5, f"Proportion of genes with RBS motif: {rbs_genes} / {total_genes}")
+
+    # Per type plot
+    for i, meth_type in enumerate(readable_methylation_name.values()):
+        i += 1
+        df = data.filter(pl.col(meth_type).gt(0))
+        sns.lineplot(df.to_pandas(), x="Position", y=meth_type, hue="Sample", ax=axes[i],
+                     hue_order=hue_order)  #, s=81 * 4)
+
+    # All types plot
+    long_form = data.unpivot(on=list(readable_methylation_name.values()),
+                             index=["Sample", "Position"],
+                             variable_name="Methylation type",
+                             value_name="Normalized methylation fraction")
+    long_form = long_form.filter(pl.col("Normalized methylation fraction").gt(0))
+
+    sns.lineplot(long_form.to_pandas(), x="Position", y="Normalized methylation fraction", hue="Sample",
+                 style="Methylation type", ax=axes[4], hue_order=hue_order)  #, s=81 * 4)
+
+    plt.savefig("../plots_5/all_genes.pdf", format="pdf")
+
+    return
+
+
+def plot_gene_promoter_start():
+    genome = Genome("Pelagibacter_r-contigs")
+    gene = Gene(2538688, genome)  # 2538688
+    print(f"Gene is {gene.contig} at {gene.start} with length {gene.length} and strand {gene.strand}")
     print(f"RBS is {gene.rbs_motif} located at {gene.rbs_motif_position} and start is {gene.start_codon}")
     print(f"Gene start {gene.sequence[:13]}")
-    plot_gene_promoter_start(gene)
 
-
-def plot_gene_promoter_start(gene):
     # Build filter for the region of interest
-    region_start = gene.start - (gene.rbs_motif_position + len(gene.rbs_motif)*2) if gene.rbs_motif else gene.start - (
-                gene.rbs_spacer_length + 12)
-    region_end = gene.start + 10
-    strand = "+" if gene.strand else "-"
-    promoter_start_filter = (pl.col("chrom").eq(gene.contig) &
-                             pl.col("inclusive start position").ge(region_start) &
-                             pl.col("exclusive end position").le(region_end) &
-                             pl.col("strand").eq(strand))
+    relative_start = gene.rbs_motif_position - len(gene.rbs_motif) * 2 if gene.rbs_motif else -(gene.rbs_spacer_length[1] + 12)
+    relative_end = 10
 
-    methyl_data = gene.genome.load_region_methylation_data(region_filter=promoter_start_filter)
-    methyl_data = methyl_data.with_columns(
-        pl.col('name').str.split(by='|').list.get(2).cast(pl.Int64).sub(gene.start).alias("position")).drop("name")
+    methyl_data = gene.load_flanking_methylation_data(0, (relative_start, relative_end))
+    sequence = gene.get_flanking_sequence(0, (relative_start, relative_end))
 
-    sequence = gene.get_flanking_sequence(0, (gene.start - region_end, gene.start - region_start))
-    print(f"Got sequence {sequence}")
-    plot_whole_gene(methyl_data, sequence, (region_start - gene.start, region_end - gene.start))
-
-
-def plot_whole_gene(gene_data, sequence, sequence_range):
     # Plot whole gene
-    data = gene_data.with_columns(pl.col('sample').replace(barcode_replicate_map)).collect(streaming=True)
-    # data = data.sort(["sample", "position"]).with_columns(
-    #     pl.col("total_methylation").rolling_mean(20, min_periods=1).over("sample").alias("total_methylation"))
+    data = methyl_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
+    data = data.rename(readable_methylation_name)
+    data = data.rename({"sample": "Sample", "position": "Position"})
+    data = data.with_columns(pl.col('Sample').replace(readable_sample_name)).collect(streaming=True)
 
-    hue_order = ["top", "middle", "bottom"]
+    hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
+    ticks = np.linspace(relative_start, relative_end, len(sequence))
     fig, axes = plt.subplots(4, 1, figsize=(40, 50), layout="constrained")
 
-    # Plot methylation
-    long_form = data.unpivot(on=list(readable_methylation_name.keys()),
-                             index=["sample", "position"],
-                             variable_name="methylation_type",
-                             value_name="methylation_fraction").filter(pl.col("methylation_fraction").gt(0))
-
-    sns.scatterplot(long_form.to_pandas(), x="position", y="methylation_fraction", hue="sample", style="methylation_type", ax=axes[3], hue_order=hue_order)
-    # Plot the sequence as X ticks
-    axes[3].set_xticks(np.linspace(sequence_range[0], sequence_range[1], len(sequence)))
-    axes[3].set_xticklabels(sequence)
-
-    for i, meth_type in enumerate(readable_methylation_name.keys()):
+    # Per type plot
+    for i, meth_type in enumerate(readable_methylation_name.values()):
         df = data.filter(pl.col(meth_type).gt(0))
-        sns.scatterplot(df.to_pandas(), x="position", y=meth_type, hue="sample", ax=axes[i], hue_order=hue_order)
+        sns.scatterplot(df.to_pandas(), x="Position", y=meth_type, hue="Sample", ax=axes[i], hue_order=hue_order,
+                        s=81 * 4)
 
         # Plot the sequence as X ticks
-        axes[i].set_xticks(np.linspace(sequence_range[0], sequence_range[1], len(sequence)))
+        axes[i].set_xticks(ticks)
         axes[i].set_xticklabels(sequence)
 
-    plt.show()
+        # Set different colors for certain characters
+        for j, label in enumerate(axes[i].get_xticklabels()):
+            if 0 <= ticks[j] < 3:  # Start codon
+                label.set_color('green')
+            elif gene.rbs_motif_position - len(gene.rbs_motif) < ticks[j] <= gene.rbs_motif_position:  # RBS motif
+                label.set_color('orange')
+
+    # All types plot
+    long_form = data.unpivot(on=list(readable_methylation_name.values()),
+                             index=["Sample", "Position"],
+                             variable_name="Methylation type",
+                             value_name="Normalized methylation fraction").filter(
+        pl.col("Normalized methylation fraction").gt(0))
+
+    sns.scatterplot(long_form.to_pandas(), x="Position", y="Normalized methylation fraction", hue="Sample",
+                    style="Methylation type", ax=axes[3], hue_order=hue_order, s=81 * 4)
+
+    # Plot the sequence as X ticks
+    axes[3].set_xticks(ticks)
+    axes[3].set_xticklabels(sequence)
+
+    # Set different colors for certain characters
+    for i, label in enumerate(axes[3].get_xticklabels()):
+        if 0 <= ticks[i] < 3:  # Start codon
+            label.set_color('green')
+        elif gene.rbs_motif_position - len(gene.rbs_motif) < ticks[i] <= gene.rbs_motif_position:  # RBS motif
+            label.set_color('orange')
+
+    plt.savefig("../plots_5/gene_promoter_methylation.pdf", format="pdf")
+
+    return
 
 
 if __name__ == "__main__":
-    run_analysis()
+    plot_gene_promoter_start()
+    plot_all_promoters()

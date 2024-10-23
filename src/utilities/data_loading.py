@@ -225,7 +225,7 @@ def get_coordinated_functions_polars(data_dir) -> pl.LazyFrame:
     return coordinated_functions
 
 
-def get_genomic_sequence(genome_name) -> dict:
+def get_genomic_sequence(genome_name) -> dict[str, SeqIO.SeqRecord]:
     """
     Read genomic sequence data from a file.
 
