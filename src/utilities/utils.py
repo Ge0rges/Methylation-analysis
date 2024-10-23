@@ -152,13 +152,13 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     # Ndiff is reads with a base other than the canonical base for this modification
     methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
 
-    mod_base_map = {"a": "A", "m": "C", "21839": "C"}
-    methyl_data = methyl_data.with_columns(
-        pl.col('modified base src and motif').replace(mod_base_map).alias('mod_group'))
-
-    grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov'))
-
-    methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')
+    # mod_base_map = {"a": "A", "m": "C", "21839": "C"}
+    # methyl_data = methyl_data.with_columns(
+    #     pl.col('modified base src and motif').replace(mod_base_map).alias('mod_group'))
+    #
+    # grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov'))
+    #
+    # methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')
 
     pivot_df = methyl_data.collect(streaming=True)
     if pivot_df.height == 0:
@@ -166,29 +166,20 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
 
     pivot_df = pivot_df.pivot(index='name', columns='modified base src and motif', values='Nmod',
                               aggregate_function='first').lazy()
-    pivot_df = pivot_df.join(methyl_data.select(['name', 'Ncanonical']), on='name', how='left').unique().fill_null(0)
+    pivot_df = pivot_df.join(methyl_data.select(['name', 'Ncanonical']), on='name', how='left').fill_null(0)
 
-    return pivot_df.select('name', '21839', 'a', 'm', 'Ncanonical')
+    # If there was no methylation of one type add 0s
+    for meth_type in readable_modification_name.keys():
+        if meth_type not in pivot_df.collect_schema().names():
+            pivot_df = pivot_df.with_columns(pl.lit(0).cast(pl.Int64).alias(meth_type))
+
+    return pivot_df.select("name", *readable_modification_name.keys())  # Select is needed to ensure order for vstack
 
 
 def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
     """
-    Aggregate methylation data by genes.
-
-    :param df: The methylation data as a count table
-    :type df: pd.Dataframe
-    :param genes: The genes as a list of ranges
-    :type genes: pd.Dataframe
-    :param aggregate: A list of aggregation functions to apply to the columns e.g. [pl.min, pl.max, pl.mean, pl.sum]
-    :type aggregate: list
-    :return: The aggregated methylation data.
-    :rtype: pd. Dataframe
+    Add the gene caller id.
     """
-
-    df_contigs = df.select('contig').unique().collect(streaming=True).get_column('contig').to_list()
-    gene_contigs = genes.select('contig').unique().collect().get_column('contig').to_list()
-    assert all(g in gene_contigs for g in df_contigs), "Not all contigs are in this genome_name."
-
     # Merge merged_df with ranges based on conditions
     # Filter rows where merged_df start and end values are within sequence_range start and end.
     # Gene sequence_range is inclusive of end, modkit bed is not.
@@ -197,13 +188,13 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
                            pl.col('start').ge(pl.col('start_right')),
                            pl.col('end').le(pl.col('stop')),
                            pl.col("contig").eq(pl.col("contig_right")),
-                           pl.col('direction').eq(pl.col('strand')))
+                           pl.col('strand').eq(pl.col('direction')))
 
     # If there are still multiple gene_callers_id for the same name, pick the first one
     result = result.unique(subset=og_columns, keep="first")
 
-    # Clean
-    result = result.drop(['start_right', 'stop'])
+    # Toss superfluous columns
+    result = result.select(*og_columns, "gene_callers_id")
 
     return result
 
