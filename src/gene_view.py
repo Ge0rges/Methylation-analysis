@@ -50,7 +50,10 @@ def plot_all_promoters():
     sns.lineplot(long_form.to_pandas(), x="Position", y="Normalized methylation fraction", hue="Sample",
                  style="Methylation type", ax=axes[4], hue_order=hue_order)  #, s=81 * 4)
 
-    plt.savefig("../plots/plots_5/all_genes.pdf", format="pdf")
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig("../plots/plots_5/all_genes.pdf", format="pdf")
 
     return
 
@@ -117,8 +120,10 @@ def plot_gene_promoter_start():
         elif gene.rbs_motif_position - len(gene.rbs_motif) < ticks[i] <= gene.rbs_motif_position:  # RBS motif
             label.set_color('orange')
 
-    # plt.savefig("../plots/plots_5/gene_promoter_methylation.pdf", format="pdf")
-    plt.show()
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig("../plots/plots_5/gene_promoter_methylation.pdf", format="pdf")
 
     return
 
