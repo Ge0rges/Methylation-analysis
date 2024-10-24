@@ -25,13 +25,13 @@ def plot_all_promoters():
     fig, axes = plt.subplots(5, 1, figsize=(40, 50), layout="constrained")
 
     # Promoter position distribution plot
-    promoter_positions = gene_collection.rbs_motif_and_position.drop("gene_callers_id").to_pandas()
+    promoter_positions = gene_collection.rbs_motif_and_relative_position.drop("gene_callers_id").to_pandas()
     sns.histplot(promoter_positions, ax=axes[0], bins=50, kde=True)
 
     # Add text on plot which shows proportion of genes with RBS motif
     total_genes = len(genome.gene_ids)
     rbs_genes = len(promoter_positions)
-    axes[0].text(0.5, 0.5, f"Proportion of genes with RBS motif: {rbs_genes} / {total_genes}")
+    axes[0].text(0, 0, f"Proportion of genes with RBS motif: {rbs_genes} / {total_genes}")
 
     # Per type plot
     for i, meth_type in enumerate(readable_methylation_name.values()):
@@ -50,16 +50,16 @@ def plot_all_promoters():
     sns.lineplot(long_form.to_pandas(), x="Position", y="Normalized methylation fraction", hue="Sample",
                  style="Methylation type", ax=axes[4], hue_order=hue_order)  #, s=81 * 4)
 
-    plt.savefig("../plots_5/all_genes.pdf", format="pdf")
+    plt.savefig("../plots/plots_5/all_genes.pdf", format="pdf")
 
     return
 
 
 def plot_gene_promoter_start():
     genome = Genome("Pelagibacter_r-contigs")
-    gene = Gene(2538688, genome)  # 2538688
+    gene = Gene(2538688, genome)
     print(f"Gene is {gene.contig} at {gene.start} with length {gene.length} and strand {gene.strand}")
-    print(f"RBS is {gene.rbs_motif} located at {gene.rbs_motif_position} and start is {gene.start_codon}")
+    print(f"RBS is {gene.rbs_motif} located at {gene.rbs_motif_position} and start is {gene.start_codon_sequence}")
     print(f"Gene start {gene.sequence[:13]}")
 
     # Build filter for the region of interest
@@ -117,7 +117,8 @@ def plot_gene_promoter_start():
         elif gene.rbs_motif_position - len(gene.rbs_motif) < ticks[i] <= gene.rbs_motif_position:  # RBS motif
             label.set_color('orange')
 
-    plt.savefig("../plots_5/gene_promoter_methylation.pdf", format="pdf")
+    # plt.savefig("../plots/plots_5/gene_promoter_methylation.pdf", format="pdf")
+    plt.show()
 
     return
 
