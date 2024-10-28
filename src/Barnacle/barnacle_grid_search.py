@@ -81,7 +81,7 @@ def fit_models_to_replicates(replicates_labels, replicates_gen_param, param_grid
     replicate_data = {}
 
     # Make Xarray from df
-    df = generate_cross_validation_sets(*replicates_gen_param, boot_id).collect(streaming=True).to_pandas()
+    df = generate_cross_validation_sets(*replicates_gen_param, boot_id).to_pandas()
     tensor = xr.DataArray.from_series(
         df[abundance_cols].reset_index().drop_duplicates().set_index(abundance_cols[:-1])[abundance_cols[-1]]
     )
