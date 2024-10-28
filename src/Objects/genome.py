@@ -120,7 +120,7 @@ class Genome(object):
             cum_sum += len(sequences[key])
 
         # Convert position to absolute
-        return df.with_columns(pl.col("position").add(pl.col("contig").replace_strict(offsets)).alias("genome_position"))
+        return df.with_columns(pl.col("position").add(pl.col("contig").replace_strict(offsets, return_dtype=pl.UInt64)).alias("genome_position"))
 
 
     def add_gene_caller_id(self, df: pl.LazyFrame) -> pl.LazyFrame:
