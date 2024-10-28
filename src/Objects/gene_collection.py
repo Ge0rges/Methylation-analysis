@@ -82,16 +82,8 @@ class GeneCollection(object):
         # That would require building a regional filter for each gene, and then concatenate those expressions
         methylation_data: pl.LazyFrame = self.genome.load_all_methylation_data()
 
-        # Split name into coordinates
-        methylation_data = methylation_data.with_columns(
-            contig=pl.col('name').str.split(by='|').list.get(0),
-            strand=pl.col('name').str.split(by='|').list.get(1),
-            start=pl.col('name').str.split(by='|').list.get(2).cast(pl.Int64),
-            end=pl.col('name').str.split(by='|').list.get(3).cast(pl.Int64)
-        )
-
         methylation_data = add_gene_caller_id(methylation_data, self.gene_caller_df)
-        methylation_data = methylation_data.drop("start", "end", "strand", "contig")
+        methylation_data = methylation_data.drop("position", "strand", "contig")
         methylation_data = methylation_data.filter(pl.col("gene_callers_id").is_in(self.ids))
 
         # Do a group by gene_callers_id and then do a subtraction of the start position
@@ -363,11 +355,7 @@ class GeneCollection(object):
                              .otherwise(pl.col("stop").sub(relative_position + start_offset + 1)).alias("region_end"))
 
         # Get methylation data
-        methyl_data = self.genome.load_all_methylation_data().with_columns(
-            contig=pl.col('name').str.split(by='|').list.get(0),
-            strand=pl.col('name').str.split(by='|').list.get(1).eq("+"),
-            position=pl.col('name').str.split(by='|').list.get(2).cast(pl.Int64),
-        )
+        methyl_data = self.genome.load_all_methylation_data()
 
         # Filter methylation data
         methyl_data = methyl_data.join_where(df,

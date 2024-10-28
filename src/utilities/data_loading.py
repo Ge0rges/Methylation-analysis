@@ -23,10 +23,15 @@ def get_pileup_polars(path) -> pl.LazyFrame:
     # Drop redundant columns
     pileup = pileup.drop("score", "start position2", "end position2", "color")
 
+    # assert that there is always 1 between start and end
+    test = pileup.with_columns((pl.col("exclusive end position") - pl.col("inclusive start position")).alias("length"))
+    test = test.filter(pl.col("length") != 1)
+    assert test.collect().is_empty(), "There are rows for data more than 1 nucleotide long"
+
     return pileup
 
 
-def load_combined_methyl_data_for_genome_polars(genome_name: str, data_dir: str, coverage: int =None) -> pl.LazyFrame | None:
+def load_combined_methyl_data_for_genome_polars(genome_name: str, data_dir: str, coverage: int = None) -> pl.LazyFrame | None:
     """
     Load the methyl data from every sample into a matrix.
 

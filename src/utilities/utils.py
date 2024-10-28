@@ -185,8 +185,8 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
     # Gene sequence_range is inclusive of end, modkit bed is not.
     og_columns = df.collect_schema().names()
     result = df.join_where(genes,
-                           pl.col('start').ge(pl.col('start_right')),
-                           pl.col('end').le(pl.col('stop')),
+                           pl.col('position').ge(pl.col('start_right')),
+                           pl.col('position').lt(pl.col('stop')),
                            pl.col("contig").eq(pl.col("contig_right")),
                            pl.col('strand').eq(pl.col('direction')))
 

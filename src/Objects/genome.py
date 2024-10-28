@@ -55,13 +55,13 @@ class Genome(object):
 
 
     @lru_cache
-    def load_all_methylation_data(self, coverage: int = __min_coverage_default) -> pl.LazyFrame:
-        return self.load_region_methylation_data(coverage, None)
+    def load_all_methylation_data(self, coverage: int = __min_coverage_default, normalize: bool = True) -> pl.LazyFrame:
+        return self.load_region_methylation_data(coverage, None, normalize)
 
 
     @lru_cache
     def load_region_methylation_data(self, coverage: int = __min_coverage_default,
-                                     region_filter: pl.Expr | None = None) -> pl.LazyFrame:
+                                     region_filter: pl.Expr | None = None, normalize: bool = True) -> pl.LazyFrame:
         # Get all the bed files for this genome
         bed_files = [f for f in glob.glob(os.path.join(self._data_dir, self.name, "*.bed")) if
                      '-bedgraph' not in os.path.basename(f)]
@@ -92,10 +92,37 @@ class Genome(object):
             pl.concat_list(modification_types).list.sum().ge(coverage)))
 
         # Normalize to fraction
-        result = normalize_data_by_pileup(result)
+        if normalize:
+            result = normalize_data_by_pileup(result)
 
         # Create total methylation column
         methylation_types = list(readable_methylation_name.keys())
         result = result.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
 
+        # Seperate name
+        result = result.with_columns(
+            contig=pl.col('name').str.split(by='|').list.get(0),
+            strand=pl.col('name').str.split(by='|').list.get(1).eq("+"),
+            position=pl.col('name').str.split(by='|').list.get(2).cast(pl.Int64),
+        ).drop("name")
         return result
+
+
+    def add_genome_relative_position(self, df: pl.LazyFrame) -> pl.LazyFrame:
+        # Get contigs cumsum
+        sequences = get_genomic_sequence(self.name)
+        contigs = list(sequences.keys())
+        contigs.sort()
+        cum_sum = 0
+        offsets = {}
+        for key in contigs:
+            offsets[key] = cum_sum
+            cum_sum += len(sequences[key])
+
+        # Convert position to absolute
+        return df.with_columns(pl.col("position").add(pl.col("contig").replace_strict(offsets)).alias("genome_position"))
+
+
+    def add_gene_caller_id(self, df: pl.LazyFrame) -> pl.LazyFrame:
+        genes = get_genes_polars(self._data_dir)
+        return add_gene_caller_id(df, genes)
