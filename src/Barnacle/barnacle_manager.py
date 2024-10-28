@@ -83,7 +83,7 @@ class BarnacleManager(object):
         methyl_data = self.genome.add_genome_relative_position(methyl_data).drop("position").rename({"genome_position": "position"})
 
         # Pivot the dataframe
-        methyl_data = methyl_data.unpivot(index=["position", "treatment"],
+        methyl_data = methyl_data.unpivot(index=["position", "treatment", "sample"],
                                           on=list(readable_methylation_name.keys()),
                                           value_name="value",
                                           variable_name="methylation_type")
@@ -91,7 +91,7 @@ class BarnacleManager(object):
         # Filter out NaNs
         methyl_data = methyl_data.filter(pl.col("value").is_not_nan())
 
-        return methyl_data.select("position", "treatment", "methylation_type", "value")
+        return methyl_data.select("position", "treatment", "methylation_type", "sample", "value")
 
 
     def get_genome_barnacle_format_by_gene(self) -> pl.LazyFrame:
@@ -104,7 +104,7 @@ class BarnacleManager(object):
         methyl_data = methyl_data.filter(pl.col("treatment").is_in(["top", "middle", "bottom"]))
 
         # Pivot the dataframe
-        methyl_data = methyl_data.unpivot(index=["position", "treatment", "gene_callers_id"],
+        methyl_data = methyl_data.unpivot(index=["position", "treatment", "gene_callers_id", "sample"],
                                           on=list(readable_methylation_name.keys()),
                                           value_name="value",
                                           variable_name="methylation_type")
@@ -112,7 +112,7 @@ class BarnacleManager(object):
         # Filter out NaNs
         methyl_data = methyl_data.filter(pl.col("value").is_not_nan())
 
-        return methyl_data.select("position", "treatment", "methylation_type", "gene_callers_id", "value")
+        return methyl_data.select("position", "treatment", "methylation_type", "sample", "gene_callers_id", "value")
 
 
 def generate_cross_validation_sets(df: pl.DataFrame, unique_cols: list[str], treatmeant_col: str, sample_col: str,
