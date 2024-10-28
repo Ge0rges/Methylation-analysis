@@ -80,16 +80,19 @@ def fit_models_to_replicates(replicates_labels, replicates_gen_param, param_grid
     fitting_results = {}
     replicate_data = {}
 
+    # Make Xarray from df
+    df = generate_cross_validation_sets(*replicates_gen_param, boot_id).collect(streaming=True).to_pandas()
+    tensor = xr.DataArray.from_series(
+        df[abundance_cols].reset_index().drop_duplicates().set_index(abundance_cols[:-1])[abundance_cols[-1]]
+    )
+    tensor = tensor.fillna(0)
+
+    tensor.to_netcdf(model_out / f"dataset_bootstrap_{boot_id}.nc")
+
+
     for i, rep in enumerate(replicates_labels):
         print(f"Fitting replicate {rep} models")
         models = [SparseCP(**params, random_state=model_seed) for params in param_grid]
-
-        # Make Xarray from df
-        df = generate_cross_validation_sets(*replicates_gen_param, boot_id).to_pandas()
-        tensor = xr.DataArray.from_series(
-            df[abundance_cols].reset_index().drop_duplicates().set_index(abundance_cols[:-1])[abundance_cols[-1]]
-        )
-        tensor = tensor.fillna(0)
 
         # Assemble job parameters and run jobs
         job_params = (models, [tensor.data]*len(models), [model_out]*len(models), [rep]*len(models), [{'threads': 1, 'verbose': 3}]*len(models))
@@ -204,7 +207,7 @@ def barnacle_grid_search(cross_df_gen_params, replicate_labels, abundance_cols, 
         print(f"Running bootstrap {boot_id}/{n_bootstraps}")
         # Make the output directory with parents
         model_out = output_dir / f"models_{boot_id}"
-        model_out.mkdir(parents=True, exist_ok=True)
+        model_out.mkdir(parents=True, exist_ok=False)
 
         # Fit models to replicate_labels and cross validate
         models, fitting_results, replicate_data = fit_models_to_replicates(replicate_labels, cross_df_gen_params, param_grid, boot_id, rns, abundance_cols, model_out, max_cpus)
