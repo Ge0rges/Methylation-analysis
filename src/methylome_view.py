@@ -1,0 +1,91 @@
+from unicodedata import normalize
+
+from src.Objects import Genome
+import polars as pl
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from src.utilities.data_loading import get_genomic_sequence
+from src.utilities.utils import readable_modification_name, normalize_data_by_pileup
+from utilities.utils import readable_methylation_name, barcode_replicate_map, readable_sample_name
+
+
+sns.set_theme(context="poster", style="white")
+
+
+def plot_methylome(genome):
+
+    data = genome.load_all_methylation_data()
+
+    # Preprocess the data. Sort, rename, filter, and make position absolute to genome.
+    data = data.sort("strand", "contig", "position", descending=False)
+    data = data.with_columns(pl.col('sample').replace(barcode_replicate_map))
+    data = data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+
+    # Make it presentable
+    data = data.with_columns(pl.col('sample').replace(readable_sample_name))
+    data = data.rename(readable_methylation_name).rename({"sample": "Sample", "strand": "Strand"}).collect(streaming=True)
+
+    # Get contigs cumsum
+    contigs = data.get_column("contig").unique().to_list()
+    cum_sum = 0
+    offsets = {}
+    sequences = get_genomic_sequence(genome.name)
+    for key in contigs:
+        offsets[key] = cum_sum
+        cum_sum += len(sequences[key])
+
+    # Convert positiont to absolute
+    data = data.with_columns(pl.col("position").add(pl.col("contig").replace_strict(offsets)).alias("Position"))
+
+    # Long form the data
+    data = (data.unpivot(on=list(readable_methylation_name.values()),
+                         index=["Sample", "Position", "Strand"],
+                         variable_name="Methylation type",
+                         value_name="Normalized methylation fraction")
+                .filter(pl.col("Normalized methylation fraction").gt(0))).to_pandas()
+
+    # Plot the strand in two seperate columns, one row per methylation type
+    hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
+    sns.relplot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand",
+                hue="Sample", height=8, aspect=2, row_order=[True, False], hue_order=hue_order)
+
+    plt.show()
+
+
+def plot_methylation_by_coverage(genome):
+    data = genome.load_all_methylation_data(normalize=False)
+
+    # Filter to sample we want
+    data = data.with_columns(pl.col('sample').replace(barcode_replicate_map).alias("Sample"))
+    data = data.filter(pl.col("Sample").is_in(["top", "middle", "bottom"]))
+    data = data.with_columns(pl.col('Sample').replace(readable_sample_name))
+
+    # Coverage column
+    data = data.with_columns(pl.concat_list(list(readable_modification_name.keys())).list.sum().alias("Coverage"))
+
+    # Now normalize to fraction
+    data = normalize_data_by_pileup(data)
+    data = data.drop("Ncanonical")
+
+    # Long form it
+    data = data.unpivot(on=list(readable_methylation_name.keys()),
+                        index=["Sample", "Coverage"],
+                        variable_name="Methylation type",
+                        value_name="Fraction methylated").collect(streaming=True)
+
+    # Scatter plot, by methylation type of coverage over methylation
+    hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
+
+    for meth_type in readable_methylation_name.keys():
+        df = data.filter(pl.col("Methylation type").eq(meth_type)).to_pandas()
+        g = sns.jointplot(df, x="Fraction methylated", y="Coverage", hue="Sample", hue_order=hue_order, height=16, kind="kde")
+        g.fig.suptitle(f"{readable_methylation_name[meth_type]}")
+
+        plt.show()
+
+
+if __name__ == "__main__":
+    genome = Genome("Pelagibacter_r-contigs")
+    plot_methylome(genome)
+    plot_methylation_by_coverage(genome)

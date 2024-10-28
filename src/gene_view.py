@@ -70,9 +70,9 @@ def plot_gene_promoter_start():
     sequence = gene.get_flanking_sequence(0, (relative_start, relative_end))
 
     # Plot whole gene
-    data = methyl_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
+    data = methyl_data.with_columns(pl.col('sample').replace(barcode_replicate_map).replace(readable_sample_name))
     data = data.rename(readable_methylation_name).rename({"sample": "Sample", "position": "Position"})
-    data = data.with_columns(pl.col('Sample').replace(readable_sample_name)).collect(streaming=True)
+    data = data.collect(streaming=True)
 
     long_form = (data.unpivot(on=list(readable_methylation_name.values()),
                              index=["Sample", "Position"],
