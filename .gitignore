@@ -24,3 +24,4 @@ src/auxiliary_analyses/.cache.sqlite
 src/auxiliary_analyses/.cache.sqlite
 /data/gene_level_data
 *.pyc
+/src/Objects/__pycache__
