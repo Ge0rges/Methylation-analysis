@@ -1,6 +1,5 @@
 from src.Barnacle.barnacle_manager import BarnacleManager
 from src.utilities.data_loading import *
-from src.utilities.utils import readable_methylation_name, barcode_replicate_map, normalize_data_by_pileup
 from src.Barnacle.barnacle_grid_search import barnacle_grid_search
 import pickle
 from src.Objects.genome import Genome
@@ -21,7 +20,7 @@ replicate_map = {"barcode01": "A",
                  "barcode14": "D"}
 
 
-def run_barnacle(genome_name, data_dir):
+def run_barnacle(genome_name):
     """
     Run the barnacle analysis for a specific genome_name, DMR type, and function_source.
     """
@@ -46,6 +45,4 @@ def run_barnacle(genome_name, data_dir):
 
 
 if __name__ == "__main__":
-    data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                            f"../../methylation_data/methylation_5")
-    run_barnacle("Pelagibacter_r-contigs", data_dir)
+    run_barnacle("Pelagibacter_r-contigs")
