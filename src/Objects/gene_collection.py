@@ -1,7 +1,6 @@
 from __future__ import annotations
-
 from functools import lru_cache, cached_property
-from src.utilities.utils import add_gene_caller_id, readable_methylation_name
+from src.utilities.utils import add_gene_caller_id, readable_modification_name
 from Bio import SeqRecord
 from src.utilities.data_loading import get_genomic_sequence, get_genes_polars
 import polars as pl
@@ -13,7 +12,7 @@ if TYPE_CHECKING:  # Only for type hints
     from genome import Genome
 
 try:
-    from _statistics import add_rao_score_by_gene
+    from src.raobust import add_rao_score_by_gene
 except:
     pass
 
@@ -56,6 +55,7 @@ class GeneCollection(object):
     def __init__(self, ids: list[int], genome: Genome):
         self.ids: list[int] = ids
         self.genome: Genome = genome
+        self._index = 0
 
         self._load_data()
 
@@ -67,8 +67,10 @@ class GeneCollection(object):
             pl.col("gene_callers_id").is_in(self.ids))
 
 
-    def __getitem__(self, item) -> Gene:
-        from gene import Gene
+    def __getitem__(self, item) -> Gene | list[Gene]:
+        from src.Objects.gene import Gene
+        if isinstance(item, slice):
+            return [Gene(self.ids[i], self) for i in self.ids[item]]
         return Gene(self.ids[item], self)
 
 
@@ -111,8 +113,7 @@ class GeneCollection(object):
 
     @cached_property
     def strand(self) -> pl.LazyFrame:
-        df = self.gene_caller_df.select("gene_callers_id", "direction").with_columns(pl.col("direction").eq("+"))
-        df = df.rename({"direction": "strand"})
+        df = self.gene_caller_df.select("gene_callers_id", "strand").with_columns(pl.col("strand").eq("+"))
         return df
 
 
@@ -237,22 +238,50 @@ class GeneCollection(object):
 
 
     @cached_property
+    def pribnow_box_position_and_sequence(self) -> pl.LazyFrame:
+        search_window_length = 20
+        search_sequence = "TATAAT"
+        seqs = self.get_flanking_sequence(0, (-search_window_length, 0))
+        df = seqs.with_columns(pl.col('sequence').str.find(search_sequence, literal=True).add(-search_window_length + len(search_sequence) - 1).alias("pribnow_box_position"))
+        df = df.with_columns(pl.when(pl.col("pribnow_box_position").is_not_null())
+                             .then(pl.lit(search_sequence))
+                             .otherwise(pl.lit(None)).alias("pribnow_box_sequence"))
+
+        return df.select("gene_callers_id", "pribnow_box_position", "pribnow_box_sequence")
+
+
+    @cached_property
+    def minus_35_position_and_sequence(self) -> pl.LazyFrame:
+        search_window_length = 40
+        search_sequence = "TTGACA"
+        seqs = self.get_flanking_sequence(0, (-search_window_length, 0))
+        df = seqs.with_columns(pl.col('sequence').str.find(search_sequence, literal=True).add(
+            -search_window_length + len(search_sequence) - 1).alias("minus_35_position"))
+        df = df.with_columns(pl.when(pl.col("minus_35_position").is_not_null())
+                             .then(pl.lit(search_sequence))
+                             .otherwise(pl.lit(None)).alias("minus_35_sequence"))
+
+        return df.select("gene_callers_id", "minus_35_position", "minus_35_sequence")
+
+
+    @cached_property
     def gc_content(self) -> pl.LazyFrame:
         return self.gene_caller_df.select("gene_callers_id", "gc_cont")
 
 
-    @lru_cache
-    def is_significantly_different_between_samples(self, samples: list[str] = None,
-                                                   baseline: str | bool = False) -> pl.DataFrame:
-        if samples is None:
-            samples = ["top", "bottom"]
-        return add_rao_score_by_gene(self.methylation_data.collect(streaming=True), samples, baseline)
+    def is_significantly_different_between_samples(self, df: pl.LazyFrame, samples: list[str], baseline: str | bool) -> pl.DataFrame:
+        df = df.collect(streaming=True)
+        assert samples in df.get_column("sample").unique().to_list()
+
+        df = add_rao_score_by_gene(df, samples, baseline)
+
+        return df.select("gene_callers_id", "test_result", "comparison", "rao_score")
 
 
     @lru_cache
     def get_function(self, source: str | list[str] | None = None) -> pl.LazyFrame:
         if source is None:
-            return self.functional_df.select("gene_callers_id", "function")
+            return self.functional_df.select("gene_callers_id", "function", "source")
         elif type(source) is list:
             return self.functional_df.filter(pl.col("source").is_in(source)).select("gene_callers_id", "function")
         else:
@@ -264,22 +293,22 @@ class GeneCollection(object):
                                   int, pl.Expr]) -> pl.LazyFrame:
         """
         Extracts the sequence from the contig around a relative position in the gene.
-        All coordinates are relative to the gene's translation direction.
+        All coordinates are relative to the gene's transcription direction.
 
         Parameters:
             relative_position (int): Position relative to the gene start (zero-based).
             seq_range (Tuple[int, int]): (start_offset, end_offset) around the relative position.
 
         Returns:
-            pl.LazyFrame: A dataframe with the sequence in the "sequence" column
+            pl.LazyFrame: A dataframe with the sequence in the "sequence" column, reverse complemented when needed.
         """
         start_offset, end_offset = seq_range
         if type(start_offset) is int and type(end_offset) is int:
-            assert start_offset <= end_offset, "Give a gene slice sequence_range in order"
+            assert start_offset <= end_offset, "Give a gene slice seq_range in order"
 
         # Get the Df we need
-        df = self.gene_caller_df.select("contig", "start", "stop", "direction", "gene_callers_id")
-        df = df.with_columns(pl.col("direction").eq("+")).rename({"direction": "strand"})
+        df = self.gene_caller_df.select("contig", "start", "stop", "strand", "gene_callers_id")
+        df = df.with_columns(pl.col("strand").eq("+"))
 
         # Add RBS if needed, filter for RBS spacer length non-null
         if type(start_offset) is pl.Expr or type(end_offset) is pl.Expr:
@@ -325,10 +354,10 @@ class GeneCollection(object):
 
 
     @lru_cache
-    def load_flanking_methylation_data(self, relative_position: int = 0, meth_range: (int, int) = (-10, 10)) -> pl.LazyFrame:
+    def load_flanking_methylation_data(self, relative_position: int, meth_range: tuple[int, int] | tuple[pl.Expr, int] | tuple[pl.Expr, pl.Expr] | tuple[int, pl.Expr]) -> pl.LazyFrame:
         """
         Extracts the methylationd data from the contig around a relative position in the gene.
-        All coordinates are relative to the gene's translation direction.
+        All coordinates are relative to the gene's tran direction.
 
         Parameters:
             relative_position (int): Position relative to the gene start (zero-based).
@@ -339,11 +368,17 @@ class GeneCollection(object):
         """
 
         start_offset, end_offset = meth_range
-        assert start_offset <= end_offset, "Give a gene slice sequence_range in order"
+        if type(start_offset) is int and type(end_offset) is int:
+            assert start_offset <= end_offset, "Give a gene slice meth-range in order"
 
         # Get the gene information we need
-        df = self.gene_caller_df.select("gene_callers_id", "contig", "start", "stop", "direction")
-        df = df.with_columns(pl.col("direction").eq("+")).rename({"direction": "strand"})
+        df = self.gene_caller_df.select("gene_callers_id", "contig", "start", "stop", "strand")
+        df = df.with_columns(pl.col("strand").eq("+"))
+
+        # Add RBS if needed, filter for RBS spacer length non-null
+        if type(start_offset) is pl.Expr or type(end_offset) is pl.Expr:
+            df = df.join(self.rbs_motif_and_relative_position.lazy(), on="gene_callers_id")  # In case, expr uses RBS spacer length
+            df = df.filter(pl.col("rbs_motif_position").is_not_null())
 
         # Figure out coordinates for each gene. The + 1's are needed because stop is exclusive, and we want inclusive.u
         df = df.with_columns(pl.when(pl.col("strand"))
@@ -369,5 +404,5 @@ class GeneCollection(object):
                                                .then(pl.col("position").sub(pl.col("start") + relative_position))
                                                .otherwise(pl.col("stop") - relative_position - 1 - pl.col("position")).alias("position"))
 
-        return methyl_data.select("gene_callers_id", "position", "total_methylation", "sample", *readable_methylation_name.keys())
+        return methyl_data.select("gene_callers_id", "position", "sample", *readable_modification_name.keys())
 

@@ -97,6 +97,7 @@ def get_genes_polars(data_dir: str) -> pl.LazyFrame:
 
     # Map direction to +/-
     gene_calls = gene_calls.with_columns(pl.col("direction").str.replace_many(["f", "r"],["+", "-"]))
+    gene_calls = gene_calls.rename({"direction": "strand"})
 
     return gene_calls
 

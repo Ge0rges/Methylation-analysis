@@ -185,10 +185,10 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
     # Gene sequence_range is inclusive of end, modkit bed is not.
     og_columns = df.collect_schema().names()
     result = df.join_where(genes,
-                           pl.col('position').ge(pl.col('start_right')),
+                           pl.col('position').ge(pl.col('start')),
                            pl.col('position').lt(pl.col('stop')),
                            pl.col("contig").eq(pl.col("contig_right")),
-                           pl.col('strand').eq(pl.col('direction')))
+                           pl.col('strand').eq(pl.col('strand_right')))
 
     # If there are still multiple gene_callers_id for the same name, pick the first one
     result = result.unique(subset=og_columns, keep="first")

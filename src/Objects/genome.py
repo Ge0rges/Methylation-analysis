@@ -1,25 +1,32 @@
 import polars as pl
 import os
-from src.utilities.utils import normalize_data_by_pileup, add_gene_caller_id, readable_methylation_name, readable_modification_name, reshape_pileup_to_matrix_polars
+from src.utilities.utils import normalize_data_by_pileup, add_gene_caller_id, readable_modification_name, reshape_pileup_to_matrix_polars
 from src.utilities.data_loading import get_pileup_polars, get_genomic_sequence, get_genes_polars
 from platform import system
 from functools import lru_cache, cached_property
 import glob
 from Bio import SeqRecord
-
+from src.Objects.gene_collection import GeneCollection
+from pathlib import Path
 
 class Genome(object):
     __min_coverage_default = 5
-    __data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../../methylation_data/methylation_5")
+    __data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../methylation_data/methylation_5"))
     if system() == "Darwin":
-        __data_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../data/methylation_data/methylation_5")
+        __data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
 
     def __init__(self, name: str):
-        self._data_dir: str = Genome.__data_dir
+        self._data_dir: Path = Genome.__data_dir
         if not self._is_valid_genome_name(name):
             raise ValueError(f"Genome {name} not found in the data directory.")
 
         self.name: str = name
+        self.readable_name: str = name.capitalize().replace("_r-contigs", " sp.")
+
+    @classmethod
+    def valid_genome_names(cls) -> list[str]:
+        # Check if genome exists in the data directory
+        return [name for name in os.listdir(cls.__data_dir) if os.path.isdir(cls.__data_dir / name)]
 
 
     def _is_valid_genome_name(self, name: str) -> bool:
@@ -42,12 +49,13 @@ class Genome(object):
             # Load the data for the positions that overlap only
             methyl_data = get_pileup_polars(bed_file).select("chrom", "inclusive start position",
                                                              "exclusive end position", "strand")
-            methyl_data = methyl_data.rename({"chrom": "contig", "inclusive start position": "start",
-                                              "exclusive end position": "end", })
+            methyl_data = methyl_data.rename({"chrom": "contig", "inclusive start position": "position",
+                                              "exclusive end position": "end"})
 
             all_data.append(methyl_data)
 
         all_data = pl.concat(all_data)
+
         all_genes = get_genes_polars(self._data_dir)
         gene_ids = add_gene_caller_id(all_data, all_genes).select("gene_callers_id").unique().collect(
             streaming=True).get_column("gene_callers_id").to_list()
@@ -95,10 +103,6 @@ class Genome(object):
         if normalize:
             result = normalize_data_by_pileup(result)
 
-        # Create total methylation column
-        methylation_types = list(readable_methylation_name.keys())
-        result = result.with_columns(pl.concat_list(methylation_types).list.sum().alias("total_methylation"))
-
         # Seperate name
         result = result.with_columns(
             contig=pl.col('name').str.split(by='|').list.get(0),
@@ -126,3 +130,39 @@ class Genome(object):
     def add_gene_caller_id(self, df: pl.LazyFrame) -> pl.LazyFrame:
         genes = get_genes_polars(self._data_dir)
         return add_gene_caller_id(df, genes)
+
+
+    @cached_property
+    def gene_cassettes(self) -> list[GeneCollection]:
+        # Get genes with a pribnow box
+        gene_collection = GeneCollection(self.gene_ids, self)
+        all_genes = gene_collection.gene_caller_df.select("gene_callers_id", "contig", "start", "strand")
+
+        # Get genes with promoters
+        promoter_genes = self.genes_with_promoter.pribnow_box_position_and_sequence.select("pribnow_box_position", "gene_callers_id")
+        promoter_genes = promoter_genes.with_columns(pl.col("gene_callers_id").alias("operon_id"))
+
+        # Merge to know which gene has a promoter
+        df = all_genes.join(promoter_genes, on="gene_callers_id", how="left")
+
+        # Group by strand, and contig, then sort by start position and foward the operon ID
+        df = df.sort("strand", "contig", "start", descending=False)
+        df = (df.group_by("strand", "contig", maintain_order=True)
+              .agg(pl.col("operon_id").forward_fill(), pl.col("gene_callers_id"))
+              .explode("gene_callers_id", "operon_id"))
+        df = (df.filter(pl.col("operon_id").is_not_null())  # Aggregation happens on null also
+              .group_by("operon_id")
+              .agg(pl.col("gene_callers_id"))
+              .filter(pl.col("gene_callers_id").list.len().gt(1)))
+
+        gcs = [GeneCollection(ids, self) for ids in df.collect(streaming=True).get_column("gene_callers_id").to_list()]
+
+        return gcs
+
+
+    @cached_property
+    def genes_with_promoter(self) -> GeneCollection:
+        gene_collection = GeneCollection(self.gene_ids, self)
+        return GeneCollection(gene_collection.pribnow_box_position_and_sequence
+                              .filter(pl.col("pribnow_box_position").is_not_null())
+                              .collect(streaming=True).get_column("gene_callers_id").to_list(), self)

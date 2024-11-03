@@ -1,5 +1,3 @@
-from unicodedata import normalize
-
 from src.Objects import Genome
 import polars as pl
 import matplotlib.pyplot as plt
@@ -47,8 +45,21 @@ def plot_methylome(genome):
 
     # Plot the strand in two seperate columns, one row per methylation type
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-    sns.relplot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand",
-                hue="Sample", height=8, aspect=2, row_order=[True, False], hue_order=hue_order)
+    # g = sns.relplot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand",
+    #             hue="Sample", height=8, aspect=2, row_order=[True, False], hue_order=hue_order)
+
+    # # Add vertical lines marking contigs
+    # for ax in g.axes.flatten():
+    #     for contig in offsets.keys():
+    #         ax.axvline(x=offsets[contig], color='black', linestyle='--', alpha=0.7)
+
+
+    sns.catplot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand", height=8, hue="Sample", aspect=2, row_order=[True, False], hue_order=hue_order, kind="violin")
+
+    sns.catplot(data, x="Sample", y="Normalized methylation fraction", col="Methylation type", height=8, aspect=2, row_order=[True, False], order=hue_order, kind="violin")
+
+    sns.displot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand", height=8, hue="Sample", aspect=2, row_order=[True, False], hue_order=hue_order, kind="kde")
+
 
     plt.show()
 
@@ -74,18 +85,22 @@ def plot_methylation_by_coverage(genome):
                         variable_name="Methylation type",
                         value_name="Fraction methylated").collect(streaming=True)
 
+    # Show only coverage that is in the 90% percentile (filter outliers)
+    data = data.filter(pl.col("Coverage").lt(data.get_column("Coverage").quantile(0.9)))
+
     # Scatter plot, by methylation type of coverage over methylation
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
 
     for meth_type in readable_methylation_name.keys():
         df = data.filter(pl.col("Methylation type").eq(meth_type)).to_pandas()
-        g = sns.jointplot(df, x="Fraction methylated", y="Coverage", hue="Sample", hue_order=hue_order, height=16, kind="kde")
+        g = sns.jointplot(df, x="Fraction methylated", y="Coverage", hue="Sample", hue_order=hue_order, height=16, kind="hex")
         g.fig.suptitle(f"{readable_methylation_name[meth_type]}")
 
         plt.show()
 
 
 if __name__ == "__main__":
-    genome = Genome("Pelagibacter_r-contigs")
-    plot_methylome(genome)
-    plot_methylation_by_coverage(genome)
+    for name in Genome.valid_genome_names():
+        genome = Genome(name)
+        plot_methylome(genome)
+        # plot_methylation_by_coverage(genome)

@@ -4,11 +4,6 @@ from functools import lru_cache, cached_property
 from src.Objects.genome import Genome
 from src.Objects.gene_collection import GeneCollection
 
-try:
-    from _statistics import get_rao_score
-except:
-    pass
-
 
 class Gene(object):
 
@@ -78,45 +73,74 @@ class Gene(object):
 
     @cached_property
     def start_codon_sequence(self) -> str | None:
-        return self.gene_collection.start_codon_sequence.select("start_type").collect(
-            streaming=True).item()
+        df = self.gene_collection.start_codon_sequence.select("start_type").collect(streaming=True)
+        return None if df.height == 0 else df.item()
 
 
     @cached_property
     def start_codon_position(self) -> int | None:
-        return self.gene_collection.start_codon_sequence.select("start_codon_position").collect(
-            streaming=True).item()
+        df = self.gene_collection.start_codon_sequence.select("start_codon_position").collect(streaming=True)
+        return None if df.height == 0 else df.item()
 
 
     @cached_property
     def stop_codon_sequence(self) -> str | None:
-        return self.gene_collection.stop_codon_sequence.select("stop_codon_sequence").collect(
-            streaming=True).item()
+        df = self.gene_collection.stop_codon_sequence.select("stop_codon_sequence").collect(streaming=True)
+        return None if df.height == 0 else df.item()
+
 
     @cached_property
     def stop_codon_position(self) -> int | None:
-        return self.gene_collection.stop_codon_position.select("stop_codon_position").collect(
-            streaming=True).item()
+        df = self.gene_collection.stop_codon_position.select("stop_codon_position").collect(streaming=True)
+        return None if df.height == 0 else df.item()
 
 
     @cached_property
     def candidate_rbs_motifs(self) -> list[str] | None:
-        return self.gene_collection.candidate_rbs_motifs.select("candidate_rbs_motifs").collect(streaming=True).item()
+        df = self.gene_collection.candidate_rbs_motifs.select("candidate_rbs_motifs").collect(streaming=True)
+        return None if df.height == 0 else df.item()
 
 
     @cached_property
     def rbs_motif_position(self) -> int | None:
-        return self.gene_collection.rbs_motif_and_relative_position.select("rbs_motif_position").item()
+        df = self.gene_collection.rbs_motif_and_relative_position.select("rbs_motif_position")
+        return None if df.height == 0 else df.item()
 
 
     @cached_property
     def rbs_motif(self) -> str | None:
-        return self.gene_collection.rbs_motif_and_relative_position.select("rbs_motif").item()
+        df = self.gene_collection.rbs_motif_and_relative_position.select("rbs_motif")
+        return None if df.height == 0 else df.item()
 
 
     @cached_property
     def rbs_spacer_length(self) -> tuple | None:
-        return self.gene_collection.rbs_spacer_length.select("rbs_spacer_length").collect(streaming=True).item()
+        df = self.gene_collection.rbs_spacer_length.select("rbs_spacer_length").collect(streaming=True)
+        return None if df.height == 0 else df.item()
+
+
+    @cached_property
+    def pribnow_box_position(self) -> int | None:
+        df = self.gene_collection.pribnow_box_position_and_sequence.select("pribnow_box_position").collect(streaming=True)
+        return None if df.height == 0 else df.item()
+
+
+    @cached_property
+    def pribnow_box_sequence(self) -> str | None:
+        df = self.gene_collection.pribnow_box_position_and_sequence.select("pribnow_box_sequence").collect(streaming=True)
+        return None if df.height == 0 else df.item()
+
+
+    @cached_property
+    def minus_35_position(self) -> int | None:
+        df = self.gene_collection.minus_35_position_and_sequence.select("minus_35_position").collect(streaming=True)
+        return None if df.height == 0 else df.item()
+
+
+    @cached_property
+    def minus_35_sequence(self) -> str | None:
+        df = self.gene_collection.minus_35_position_and_sequence.select("minus_35_sequence").collect(streaming=True)
+        return None if df.height == 0 else df.item()
 
 
     @cached_property
@@ -125,13 +149,11 @@ class Gene(object):
 
 
     @lru_cache
-    def is_significantly_different_between_samples(self, samples: list[str] = None,
-                                                   baseline: str | bool = False) -> bool:
+    def is_significantly_different_between_samples(self, df: pl.LazyFrame, samples: list[str], baseline: str | bool) -> (bool, float):
+
         # More efficient than calling the gene collection level function
-        if samples is None:
-            samples = ["top", "bottom"]
-        _, is_diff, _ = get_rao_score(self.methylation_data, samples, baseline)
-        return is_diff
+        result = self.gene_collection.is_significantly_different_between_samples(df, samples, baseline)
+        return result.get_column("test_result").item(), result.get_column("rao_score").item()
 
 
     @lru_cache
@@ -146,4 +168,5 @@ class Gene(object):
 
     @lru_cache
     def load_flanking_methylation_data(self, relative_position: int, meth_range: (int, int)) -> pl.LazyFrame:
-        return self.gene_collection.load_flanking_methylation_data(relative_position, meth_range).drop("gene_callers_id")
+        return self.gene_collection.load_flanking_methylation_data(relative_position,
+                                                                   meth_range).drop("gene_callers_id")
