@@ -105,8 +105,8 @@ def plot_gene_start(genome: Genome, gene_id):
 
 
     # All types plot
-    sns.pointplot(long_form.to_pandas(), x="Position", y="Normalized methylation fraction", hue="Sample",
-                  style="Methylation type", ax=axes[3], hue_order=hue_order, native_scale=True, linestyles="None")
+    sns.scatterplot(long_form.to_pandas(), x="Position", y="Normalized methylation fraction", hue="Sample",
+                    style="Methylation type", ax=axes[3], hue_order=hue_order)
 
     # Plot the sequence as X ticks
     axes[3].set_xticks(ticks)
@@ -132,7 +132,7 @@ def plot_gene_start(genome: Genome, gene_id):
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig("../plots/plots_5/gene_promoter_methylation.pdf", format="pdf")
+        plt.savefig(f"../plots/{genome.name}/gene_promoter_methylation.pdf", format="pdf")
 
     return
 
@@ -179,7 +179,7 @@ def identify_interesting_genes(genome: Genome):
     meth_sum = meth_sum.filter(pl.col("sample").is_in(samples_to_compare))
     meth_sum = meth_sum.sort("gene_callers_id", "sample")
 
-    meth_diffs = []
+    meth_diffs: list[GeneCollection] = []
     for mod_name in mod_names:
         diff = meth_sum.group_by("gene_callers_id", maintain_order=True).agg(pl.col(mod_name).diff()).collect()
         diff = diff.top_k(5, by=pl.col(mod_name).list.last().abs())
@@ -191,10 +191,14 @@ def identify_interesting_genes(genome: Genome):
     print([operon.ids for operon in operon_of_interest])
 
     # Return ids present in more than one list
-    return set([d.ids for d in meth_diffs[0]]).intersection(*[d.ids for d in meth_diffs[1:]])
+    return set(meth_diffs[0].ids).intersection(*[d.ids for d in meth_diffs[1:]])
 
 
 if __name__ == "__main__":
+    genome = Genome("polaribacter_r-contigs")
+    plot_all_gene_starts(genome)
+    exit()
+
     for name in Genome.valid_genome_names():
         genome = Genome(name)
 

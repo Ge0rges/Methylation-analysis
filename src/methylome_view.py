@@ -2,7 +2,7 @@ from src.Objects import Genome
 import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+from platform import system
 from src.utilities.data_loading import get_genomic_sequence
 from src.utilities.utils import readable_modification_name, normalize_data_by_pileup
 from utilities.utils import readable_methylation_name, barcode_replicate_map, readable_sample_name
@@ -54,14 +54,16 @@ def plot_methylome(genome):
     #         ax.axvline(x=offsets[contig], color='black', linestyle='--', alpha=0.7)
 
 
-    sns.catplot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand", height=8, hue="Sample", aspect=2, row_order=[True, False], hue_order=hue_order, kind="violin")
+    g = sns.catplot(data, x="Sample", y="Normalized methylation fraction", col="Methylation type", height=8, aspect=2, row_order=[True, False], order=hue_order, hue="Sample", kind="violin")
+    g.fig.suptitle(f"{genome.readable_name} methylome violin")
 
-    sns.catplot(data, x="Sample", y="Normalized methylation fraction", col="Methylation type", height=8, aspect=2, row_order=[True, False], order=hue_order, kind="violin")
+    g = sns.displot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand", height=8, hue="Sample", aspect=2, row_order=[True, False], hue_order=hue_order, kind="kde")
+    g.fig.suptitle(f"{genome.readable_name} methylome KDE")
 
-    sns.displot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand", height=8, hue="Sample", aspect=2, row_order=[True, False], hue_order=hue_order, kind="kde")
-
-
-    plt.show()
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(f"../plots/{genome.name}/methylome.pdf", format="pdf")
 
 
 def plot_methylation_by_coverage(genome):
@@ -96,7 +98,10 @@ def plot_methylation_by_coverage(genome):
         g = sns.jointplot(df, x="Fraction methylated", y="Coverage", hue="Sample", hue_order=hue_order, height=16, kind="hex")
         g.fig.suptitle(f"{readable_methylation_name[meth_type]}")
 
-        plt.show()
+        if system() == "Darwin":
+            plt.show()
+        else:
+            plt.savefig(f"../plots/{genome.name}/coverage_{readable_methylation_name[meth_type]}.pdf", format="pdf")
 
 
 if __name__ == "__main__":
