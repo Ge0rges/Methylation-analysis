@@ -22,6 +22,8 @@ class Genome(object):
 
         self.name: str = name
         self.readable_name: str = name.capitalize().replace("_r-contigs", " sp.")
+        self.plot_dir: Path = Path(f"../plots/{self.name}")
+        self.plot_dir.mkdir(exist_ok=True, parents=True)
 
     @classmethod
     def valid_genome_names(cls) -> list[str]:

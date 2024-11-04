@@ -57,13 +57,18 @@ def plot_methylome(genome):
     g = sns.catplot(data, x="Sample", y="Normalized methylation fraction", col="Methylation type", height=8, aspect=2, row_order=[True, False], order=hue_order, hue="Sample", kind="violin")
     g.fig.suptitle(f"{genome.readable_name} methylome violin")
 
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "methylome.pdf", format="pdf")
+
     g = sns.displot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand", height=8, hue="Sample", aspect=2, row_order=[True, False], hue_order=hue_order, kind="kde")
     g.fig.suptitle(f"{genome.readable_name} methylome KDE")
 
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(f"../plots/{genome.name}/methylome.pdf", format="pdf")
+        plt.savefig(genome.plot_dir / "methylome.pdf", format="pdf")
 
 
 def plot_methylation_by_coverage(genome):
@@ -101,7 +106,7 @@ def plot_methylation_by_coverage(genome):
         if system() == "Darwin":
             plt.show()
         else:
-            plt.savefig(f"../plots/{genome.name}/coverage_{readable_methylation_name[meth_type]}.pdf", format="pdf")
+            plt.savefig(genome.plot_dir / "coverage_{readable_methylation_name[meth_type]}.pdf", format="pdf")
 
 
 if __name__ == "__main__":

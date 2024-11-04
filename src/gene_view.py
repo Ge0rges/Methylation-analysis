@@ -48,13 +48,13 @@ def plot_all_gene_starts(genome: Genome):
         axes[i].axvline(x=0, color='black', linestyle='--', alpha=0.7)
 
     sns.lineplot(long_form.to_pandas(), x="Position", y="Normalized methylation fraction", hue="Sample",
-                    style="Methylation type", ax=axes[4], hue_order=hue_order)
+                 style="Methylation type", ax=axes[4], hue_order=hue_order)
     axes[4].axvline(x=0, color='black', linestyle='--', alpha=0.7)
 
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig("../plots/plots_5/all_genes.pdf", format="pdf")
+        plt.savefig(genome.plot_dir / "all_genes.pdf", format="pdf")
 
     return
 
@@ -132,7 +132,7 @@ def plot_gene_start(genome: Genome, gene_id):
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(f"../plots/{genome.name}/gene_promoter_methylation.pdf", format="pdf")
+        plt.savefig(genome.plot_dir / "gene_promoter_methylation.pdf", format="pdf")
 
     return
 
@@ -195,10 +195,6 @@ def identify_interesting_genes(genome: Genome):
 
 
 if __name__ == "__main__":
-    genome = Genome("polaribacter_r-contigs")
-    plot_all_gene_starts(genome)
-    exit()
-
     for name in Genome.valid_genome_names():
         genome = Genome(name)
 
