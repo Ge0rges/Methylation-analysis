@@ -14,8 +14,6 @@ from tlviz.factor_tools import factor_match_score, cosine_similarity, degeneracy
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from concurrent.futures import ProcessPoolExecutor
-import multiprocessing
 import datetime
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -137,16 +135,20 @@ class BarnacleModelManager:
         all_models, fitting_results, replicate_data = {}, {}, {}
 
         for rep in replicate_labels:
+            print(f"Fitting models for replicate {rep} with boot_id {boot_id}...")
             models = [SparseCP(**params, random_state=model_seed) for params in param_grid]
-            job_params = (
-            models, [tensor.data] * len(models), [model_out] * len(models), [rep] * len(models), [{}] * len(models))
+            job_params = (models, [tensor.data] * len(models), [model_out] * len(models), [rep] * len(models), [{"verbose": 2, "threads": max_cpus}] * len(models))
 
-            with ProcessPoolExecutor(max_workers=max_cpus) as executor:
-                fit_models = executor.map(self.fit_save_model, *job_params)
+            fit_models = []
+            for i in range(len(models)):
+                result = self.fit_save_model(*[x[i] for x in job_params])
+                fit_models.append(result)
 
             all_models[rep] = list(fit_models)
             fitting_results[rep] = [self._extract_metrics(model, boot_id, rep, tensor) for model in all_models[rep]]
             replicate_data[rep] = tensor
+
+            print(f"Done with replicate {rep} with boot_id {boot_id}.")
 
         return all_models, fitting_results, replicate_data
 
@@ -383,9 +385,8 @@ class BarnacleManager:
 
         # Initialize ProcessPoolExecutor
         results = {}
-        max_child_cpus = 3
         job_params = [range(n_bootstraps), [self.model_manager] * n_bootstraps, [self.data_manager] * n_bootstraps, [dataset] * n_bootstraps, [replicate_labels] * n_bootstraps,
-                      [param_grid] * n_bootstraps, [max_child_cpus] * n_bootstraps]
+                      [param_grid] * n_bootstraps, [max_cpus] * n_bootstraps]
 
         # Load the data on this thread first
         if dataset == "position":
@@ -396,12 +397,8 @@ class BarnacleManager:
             raise ValueError(f"Invalid dataset: {dataset}. Must be 'position' or 'gene'")
 
         # Run bootstraps in parallel
-        ctx = multiprocessing.get_context("spawn")
-        with ProcessPoolExecutor(max_workers=max_cpus//3, mp_context=ctx) as executor:
-            job_results = executor.map(process_bootstrap, *job_params)
-
-        # As each future completes, store its result in the results dictionary
-        for boot_id, result in job_results:
+        for i in range(n_bootstraps):
+            boot_id, result = execute_bootstrap(*[x[i] for x in job_params])
             results[boot_id] = result
 
         return results
@@ -420,7 +417,7 @@ def nonzero_components(cp):
         return (accumulator != 0.0).sum()
 
 
-def process_bootstrap(boot_id, model_manager, data_manager, dataset, replicate_labels, param_grid, max_child_cpus):
+def execute_bootstrap(boot_id, model_manager, data_manager, dataset, replicate_labels, param_grid, max_cpus) -> (int, (dict, dict)):
     model_out = model_manager.output_dir / f"models_{boot_id}"
 
     if dataset == "position":
@@ -433,8 +430,10 @@ def process_bootstrap(boot_id, model_manager, data_manager, dataset, replicate_l
     print(f"Fitting models for bootstrap {boot_id}...")
 
     # Call model and store CV
-    models, fitting_results, replicate_data = model_manager.fit_models_to_replicates(replicate_labels, tensor, param_grid, boot_id, model_out, max_child_cpus)
+    models, fitting_results, replicate_data = model_manager.fit_models_to_replicates(replicate_labels, tensor, param_grid, boot_id, model_out, max_cpus)
     cv_result = model_manager.cross_validate_models(param_grid, boot_id, replicate_labels, models, replicate_data)
+
+    print(f"Done with bootstrap {boot_id}.")
     return boot_id, (fitting_results, cv_result)
 
 
@@ -442,7 +441,7 @@ if __name__ == "__main__":
     # Paramaters
     GENOME_NAME = "Pelagibacter_r-contigs"
     LAMBDAS = [0]  # Adjust lambdas as needed
-    RANKS = [1, 2, 3, 4, 5, 6, 7, 8,9 ,10]  # Adjust ranks as needed
+    RANKS = [1, 2, 3, 4, 5, 6, 7, 8, 9,10]  # Adjust ranks as needed
     N_BOOTSTRAPS = 10
     OUTPUT_DIR = Path(f'../../data/models/{GENOME_NAME}/')
 
@@ -456,7 +455,7 @@ if __name__ == "__main__":
         lambdas=LAMBDAS,
         ranks=RANKS,
         n_bootstraps=N_BOOTSTRAPS,
-        max_cpus=30
+        max_cpus=12
     )
 
     # Save the results to a pickle file
