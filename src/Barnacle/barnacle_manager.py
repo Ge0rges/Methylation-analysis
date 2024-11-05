@@ -8,7 +8,7 @@ from src.Objects import GeneCollection, Genome
 from src.utilities.utils import barcode_replicate_map, readable_methylation_name
 from tensorly import check_random_state
 from barnacle import SparseCP
-from tlab.cp_tensor import store_cp_tensor
+from tlab.cp_tensor import store_cp_tensor, load_cp_tensor
 from tlviz.model_evaluation import relative_sse, core_consistency
 from tlviz.factor_tools import factor_match_score, cosine_similarity, degeneracy_score
 from pathlib import Path
@@ -53,7 +53,7 @@ class BarnacleDataManager:
 
         methyl_data = self.position_df
         if boot_id is not None:
-            methyl_data = self.generate_cross_validation_sets(methyl_data, "treatment", "sample", boot_id)
+            methyl_data = self.generate_cross_validation_sets(methyl_data, ["position"], "treatment", "sample", boot_id)
 
         # Mean
         methyl_data = methyl_data.group_by(["position", "treatment", "methylation_type"]).agg(pl.col("value").mean())
@@ -85,7 +85,7 @@ class BarnacleDataManager:
 
         methyl_data = self.gene_df
         if boot_id is not None:
-            methyl_data = self.generate_cross_validation_sets(methyl_data, "treatment", "sample", boot_id)
+            methyl_data = self.generate_cross_validation_sets(methyl_data, ["gene_callers_id", "position"], "treatment", "sample", boot_id)
 
         # Mean
         methyl_data = methyl_data.group_by(["position", "treatment", "methylation_type", "gene_callers_id"]).agg(pl.col("value").mean())
@@ -95,12 +95,14 @@ class BarnacleDataManager:
 
 
     @staticmethod
-    def generate_cross_validation_sets(df: pl.DataFrame, treatmeant_col: str, sample_col: str,
-                                       boot_id: int) -> pl.DataFrame:
+    def generate_cross_validation_sets(df: pl.DataFrame, unique_cols: list[str], treatmeant_col: str, sample_col: str, boot_id: int) -> pl.DataFrame:
+        og_df = df
+
         # Get all possible combinations of replicate_labels and treatments
         all_permutations = list(product(
-            *[df.filter(pl.col(treatmeant_col).eq(group)).get_column(sample_col).unique().to_list() for group in
-              df.get_column(treatmeant_col).unique().to_list()]))
+            *[df.filter(pl.col(treatmeant_col).eq(group))
+                .get_column(sample_col)
+                .unique().to_list() for group in df.get_column(treatmeant_col).unique().to_list()]))
 
         if boot_id >= len(all_permutations):
             print(f"Max bootstraps is {len(all_permutations)}")
@@ -109,6 +111,17 @@ class BarnacleDataManager:
         # Get the combination of samples for this bootstrap
         combination = all_permutations[boot_id]
         df = df.filter(pl.col(sample_col).is_in(combination))
+
+        # Get a list of values in unique_col that are common to all samples
+        filter_common_samples = pl.col("n_unique").eq(og_df.select(sample_col).n_unique())
+        t_df = (og_df.group_by(*unique_cols).agg(pl.col(sample_col).n_unique().alias("n_unique"))
+                .filter(filter_common_samples))
+
+        # Filter to keep common samples
+        for unique_col in unique_cols:
+            uniques = t_df.get_column(unique_col).to_list()
+            df = df.filter(pl.col(unique_col).is_in(uniques))
+
         return df
 
 
@@ -135,66 +148,69 @@ class BarnacleModelManager:
         all_models, fitting_results, replicate_data = {}, {}, {}
 
         for rep in replicate_labels:
-            print(f"Fitting models for replicate {rep} with boot_id {boot_id}...")
             models = [SparseCP(**params, random_state=model_seed) for params in param_grid]
             job_params = (models, [tensor.data] * len(models), [model_out] * len(models), [rep] * len(models), [{"verbose": 2, "threads": max_cpus}] * len(models))
 
             fit_models = []
             for i in range(len(models)):
-                result = self.fit_save_model(*[x[i] for x in job_params])
-                fit_models.append(result)
+                print(f"Fitting model for replicate {rep}, boot_id {boot_id} rank: {models[i].rank}, lambda: {models[i].lambdas}")
+                fitted_model = self.fit_save_model(*[x[i] for x in job_params])
+                fit_models.append(fitted_model)
 
-            all_models[rep] = list(fit_models)
-            fitting_results[rep] = [self._extract_metrics(model, boot_id, rep, tensor) for model in all_models[rep]]
+            # all_models[rep] = list(fit_models)
+            # fitting_results[rep] = [self._extract_metrics(model, boot_id, rep, tensor) for model in all_models[rep]]
             replicate_data[rep] = tensor
 
             print(f"Done with replicate {rep} with boot_id {boot_id}.")
 
-        return all_models, fitting_results, replicate_data
+        return replicate_data
 
 
     def fit_save_model(self, model: SparseCP, data: np.ndarray, path: Path, rep: str, fit_params: dict) -> SparseCP:
+        model_out = path / f"fitted_model_{rep}_r{model.rank}_l{model.lambdas}.h5"
         if not path.exists():
             path.mkdir(parents=True)
+
+        elif model_out.exists():
+            print(f"Model {model_out} already exists. Skipping.")
+            return load_cp_tensor(model_out)
 
         with open(path / 'model_parameters.txt', 'w') as f:
             f.write(json.dumps(model.__dict__, indent=4))
 
         model.fit_transform(data, return_losses=False, **fit_params)
-        model_out = path / f"fitted_model_{rep}_r{model.rank}_l{model.lambdas}.h5"
-        print(model_out)
         store_cp_tensor(model.decomposition_, model_out)
         return model
 
 
-    def cross_validate_models(self, param_grid, boot_id, replicate_labels, all_models, all_tensors) -> list:
+    def cross_validate_models(self, param_grid, boot_id, replicate_labels, all_tensors) -> list:
         cv_results = []
         for params in param_grid:
 
             # Keep only models that have the right params
             cps = {}
-            for key, value_list in all_models.items():
-                # Filter the list based on the 'rank' property
-                for item in value_list:
-                    if item.rank == params["rank"] and item.lambdas == params["lambdas"]:
-                        cps[key] = item.decomposition_
+            for rep in replicate_labels:
+                model_path = self.output_dir / f"models_{boot_id}" / f"fitted_model_{rep}_r{params['rank']}_l{params['lambdas']}.h5"
+                cps[rep] = load_cp_tensor(model_path)
 
             for modeled_rep in replicate_labels:
                 for comparison_rep in replicate_labels:
-                    fms, css, scss = self._calculate_cv_metrics(all_models, modeled_rep, comparison_rep)
+                    fms, css, scss = self._calculate_cv_metrics(cps, modeled_rep, comparison_rep)
                     cv_results.append({
                         'bootstrap_id': boot_id,
                         'rank': params['rank'],
                         'lambda': params['lambdas'][0],
                         'modeled_replicate': modeled_rep,
                         'comparison_replicate': comparison_rep,
-                        'n_components': nonzero_components(all_models[modeled_rep]),
-                        'mean_gene_sparsity': (all_models[modeled_rep].factors[0] != 0).sum(axis=0).mean(),
-                        'relative_sse': relative_sse(all_models[modeled_rep], all_tensors[comparison_rep]),
+                        'replicate_pair': f'{modeled_rep}, {comparison_rep}',
+                        'n_components': nonzero_components(cps[modeled_rep]),
+                        'mean_sparsity': (cps[modeled_rep].factors[0] != 0).sum(axis=0).mean(),
+                        'relative_sse': relative_sse(cps[modeled_rep], all_tensors[comparison_rep]),
                         'fms_cv': fms,
                         'css_cv_factor0': css,
                         'scss_cv_factor0': scss
                     })
+
         return cv_results
 
 
@@ -239,7 +255,7 @@ class BarnacleVisualizer:
     def plot_grid_search(result, rank_detail=None):
         cv_results = []
         for vals in result.values():
-            cv_results.extend(vals[1])
+            cv_results.extend(vals)
 
         results_df = pd.DataFrame(cv_results)
 
@@ -336,7 +352,7 @@ class BarnacleVisualizer:
     def report_suggested_fms(result, rank):
         cv_results = []
         for vals in result.values():
-            cv_results.extend(vals[1])
+            cv_results.extend(vals)
 
         results_df = pd.DataFrame(cv_results)
 
@@ -387,14 +403,15 @@ class BarnacleManager:
 
         # Initialize ProcessPoolExecutor
         results = {}
-        job_params = [range(n_bootstraps), [self.model_manager] * n_bootstraps, [self.data_manager] * n_bootstraps, [dataset] * n_bootstraps, [replicate_labels] * n_bootstraps,
+        job_params = [range(n_bootstraps), [self.model_manager] * n_bootstraps, [self.data_manager] * n_bootstraps,
+                      [dataset] * n_bootstraps, [replicate_labels] * n_bootstraps,
                       [param_grid] * n_bootstraps, [max_cpus] * n_bootstraps]
 
         # Load the data on this thread first
         if dataset == "position":
-             _ = self.data_manager.get_position_based_data(0)
+            _ = self.data_manager.get_position_based_data(0)
         elif dataset == "gene":
-             _ = self.data_manager.get_gene_based_data(0)
+            _ = self.data_manager.get_gene_based_data(0)
         else:
             raise ValueError(f"Invalid dataset: {dataset}. Must be 'position' or 'gene'")
 
@@ -432,11 +449,11 @@ def execute_bootstrap(boot_id, model_manager, data_manager, dataset, replicate_l
     print(f"Fitting models for bootstrap {boot_id}...")
 
     # Call model and store CV
-    models, fitting_results, replicate_data = model_manager.fit_models_to_replicates(replicate_labels, tensor, param_grid, boot_id, model_out, max_cpus)
-    cv_result = model_manager.cross_validate_models(param_grid, boot_id, replicate_labels, models, replicate_data)
+    replicate_data = model_manager.fit_models_to_replicates(replicate_labels, tensor, param_grid, boot_id, model_out, max_cpus)
+    cv_result = model_manager.cross_validate_models(param_grid, boot_id, replicate_labels, replicate_data)
 
     print(f"Done with bootstrap {boot_id}.")
-    return boot_id, (fitting_results, cv_result)
+    return boot_id, cv_result
 
 
 if __name__ == "__main__":
@@ -444,8 +461,8 @@ if __name__ == "__main__":
     GENOME_NAME = "Pelagibacter_r-contigs"
     LAMBDAS = [0]  # Adjust lambdas as needed
     RANKS = [1, 2, 3, 4, 5, 6, 7]  # Adjust ranks as needed
-    N_BOOTSTRAPS = 7
-    OUTPUT_DIR = Path(f'../data/models/{GENOME_NAME}/')
+    N_BOOTSTRAPS = 1
+    OUTPUT_DIR = Path(__file__).parent.resolve() / Path(f'../../data/models/{GENOME_NAME}/')
 
     # Initialize genome and manager
     genome = Genome(GENOME_NAME)
