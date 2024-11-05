@@ -161,7 +161,9 @@ class BarnacleModelManager:
             f.write(json.dumps(model.__dict__, indent=4))
 
         model.fit_transform(data, return_losses=False, **fit_params)
-        store_cp_tensor(model.decomposition_, path / f"fitted_model_{rep}_r{model.rank}_l{model.lambdas}.h5")
+        model_out = path / f"fitted_model_{rep}_r{model.rank}_l{model.lambdas}.h5"
+        print(model_out)
+        store_cp_tensor(model.decomposition_, model_out)
         return model
 
 
@@ -441,9 +443,9 @@ if __name__ == "__main__":
     # Paramaters
     GENOME_NAME = "Pelagibacter_r-contigs"
     LAMBDAS = [0]  # Adjust lambdas as needed
-    RANKS = [1, 2, 3, 4, 5, 6, 7, 8, 9,10]  # Adjust ranks as needed
-    N_BOOTSTRAPS = 10
-    OUTPUT_DIR = Path(f'../../data/models/{GENOME_NAME}/')
+    RANKS = [1, 2, 3, 4, 5, 6, 7]  # Adjust ranks as needed
+    N_BOOTSTRAPS = 7
+    OUTPUT_DIR = Path(f'../data/models/{GENOME_NAME}/')
 
     # Initialize genome and manager
     genome = Genome(GENOME_NAME)
