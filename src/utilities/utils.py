@@ -164,8 +164,7 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     if pivot_df.height == 0:
         return None
 
-    pivot_df = pivot_df.pivot(index='name', columns='modified base src and motif', values='Nmod',
-                              aggregate_function='first').lazy()
+    pivot_df = pivot_df.pivot(index='name', columns='modified base src and motif', values='Nmod', aggregate_function='first').lazy()
     pivot_df = pivot_df.join(methyl_data.select(['name', 'Ncanonical']), on='name', how='left').fill_null(0)
 
     # If there was no methylation of one type add 0s

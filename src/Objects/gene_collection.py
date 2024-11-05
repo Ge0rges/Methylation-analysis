@@ -392,15 +392,27 @@ class GeneCollection(object):
                              .then(pl.col("start").add(relative_position + end_offset))
                              .otherwise(pl.col("stop").sub(relative_position + start_offset + 1)).alias("region_end"))
 
-        # Get methylation data
-        methyl_data = self.genome.load_all_methylation_data()
+        # Build region filter
+        region_filter = None
+        for row in df.collect(streaming=True).iter_rows():
+            row_filter = (pl.col("chrom").eq(row[1]) &
+                          pl.col("strand").eq(row[4]) &
+                          pl.col("inclusive start position").ge(row[5]) &
+                          pl.col("inclusive start position").le(row[6]))
 
-        # Filter methylation data
-        methyl_data = methyl_data.join_where(df,
-                                             pl.col("contig").eq(pl.col("contig_right")),
-                                             pl.col("strand").eq(pl.col("strand_right")),
-                                             pl.col("position").ge(pl.col("region_start")),
-                                             pl.col("position").le(pl.col("region_end")))
+            if region_filter is None:
+                region_filter = row_filter
+            else:
+                region_filter = region_filter | row_filter
+
+        # methyl_data = methyl_data.join_where(df,
+        #                                      pl.col("contig").eq(pl.col("contig_right")),
+        #                                      pl.col("strand").eq(pl.col("strand_right")),
+        #                                      pl.col("position").ge(pl.col("region_start")),
+        #                                      pl.col("position").le(pl.col("region_end")))
+
+        # Get methylation data
+        methyl_data = self.genome.load_region_methylation_data(region_filter=region_filter)
 
         # Take the reverse complement if strand is negative
         methyl_data = methyl_data.with_columns(pl.when(pl.col("strand"))
