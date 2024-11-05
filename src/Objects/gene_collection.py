@@ -46,6 +46,7 @@ rbs_motifs = {"GGA/GAG/AGG": ["GGA", "GAG", "AGG"],
               "AAAAT": ["AAAAT"],
               "TAAA": ["TAAA"],
               "TAAAA": ["TAAAA"],
+              "TATAA": ["TATAA"],
               None: [None]
 }
 
@@ -182,6 +183,7 @@ class GeneCollection(object):
     @cached_property
     def candidate_rbs_motifs(self) -> pl.LazyFrame:
         df = self.gene_caller_df.select("gene_callers_id", "rbs_motif")
+        print(df.collect().get_column("rbs_motif").to_list())
         df = df.with_columns(pl.col("rbs_motif").replace_strict(rbs_motifs, return_dtype=pl.List(pl.String)).alias("candidate_rbs_motifs"))
         df = df.select("gene_callers_id", "candidate_rbs_motifs")
         return df
@@ -232,6 +234,7 @@ class GeneCollection(object):
     @cached_property
     def rbs_spacer_length(self) -> pl.LazyFrame:
         df = self.gene_caller_df.select("gene_callers_id", "rbs_spacer")
+        print(df.collect().get_column("rbs_spacer").to_list())
         df = df.with_columns(pl.col("rbs_spacer").replace_strict(space_dict, return_dtype=pl.List(pl.Int16)).alias("rbs_spacer_length"))
 
         return df.select("gene_callers_id", "rbs_spacer_length")
@@ -271,7 +274,7 @@ class GeneCollection(object):
 
     def is_significantly_different_between_samples(self, df: pl.LazyFrame, samples: list[str], baseline: str | bool) -> pl.DataFrame:
         df = df.collect(streaming=True)
-        assert samples in df.get_column("sample").unique().to_list()
+        assert all(sample in df.get_column("sample").unique().to_list() for sample in samples)
 
         df = add_rao_score_by_gene(df, samples, baseline)
 

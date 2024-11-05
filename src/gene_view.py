@@ -132,7 +132,7 @@ def plot_gene_start(genome: Genome, gene_id):
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(genome.plot_dir / "gene_promoter_methylation.pdf", format="pdf")
+        plt.savefig(genome.plot_dir / f"{gene.id}_promoter_methylation.pdf", format="pdf")
 
     return
 
@@ -168,9 +168,12 @@ def identify_interesting_genes(genome: Genome):
     promoters_data = promoters_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
 
     # Get the ones that are DMRed
-    # dmr_result = promoter_genes.is_significantly_different_between_samples(promoters_data, ["top", "bottom"], False)
-    # dmr_ids = dmr_result.filter(pl.col("test_result").eq(True)).get_column("gene_callers_id").to_list()
-    # dmr_genes = GeneCollection(dmr_ids, genome)
+    s = promoters_data.collect(streaming=True).get_column("sample").unique().to_list() 
+    dmr_genes = promoter_genes
+    if "top" in s and "bottom" in s:
+        dmr_result = promoter_genes.is_significantly_different_between_samples(promoters_data, ["top", "bottom"], False)
+        dmr_ids = dmr_result.filter(pl.col("test_result").eq(True)).get_column("gene_callers_id").to_list()
+        dmr_genes = GeneCollection(dmr_ids, genome)
 
     # Get genes with biggest difference in methylation between top and bottom, by meth type
     mod_names = list(readable_modification_name.keys())
@@ -186,21 +189,24 @@ def identify_interesting_genes(genome: Genome):
         diff = GeneCollection(diff.get_column("gene_callers_id").to_list(), genome)
         meth_diffs.append(diff)
 
-    # Comapre gene IDs by all these different methods
-    print([d.ids for d in meth_diffs])
-    print([operon.ids for operon in operon_of_interest])
 
     # Return ids present in more than one list
-    return set(meth_diffs[0].ids).intersection(*[d.ids for d in meth_diffs[1:]])
+    return set(dmr_genes.ids).intersection(*[d.ids for d in meth_diffs])
 
 
 if __name__ == "__main__":
     for name in Genome.valid_genome_names():
-        genome = Genome(name)
+        if "metagenome" in name:
+            continue
 
+        genome = Genome(name)
+        
+        print(f"Plotting all gene start for {name}")
         plot_all_gene_starts(genome)
+        print(f"Getting interesting genes for {name}")
         interesting_ids = identify_interesting_genes(genome)
 
         for gene_id in interesting_ids:
+            print(f"Plotting gene {gene_id} for {name}")
             plot_gene_start(genome, gene_id)
 

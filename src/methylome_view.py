@@ -22,10 +22,10 @@ def plot_methylome(genome):
 
     # Make it presentable
     data = data.with_columns(pl.col('sample').replace(readable_sample_name))
-    data = data.rename(readable_methylation_name).rename({"sample": "Sample", "strand": "Strand"}).collect(streaming=True)
+    data = data.rename(readable_methylation_name).rename({"sample": "Sample", "strand": "Strand"})
 
     # Get contigs cumsum
-    contigs = data.get_column("contig").unique().to_list()
+    contigs = data.select("contig").unique().collect(streaming=True).get_column("contig")
     cum_sum = 0
     offsets = {}
     sequences = get_genomic_sequence(genome.name)
@@ -41,7 +41,9 @@ def plot_methylome(genome):
                          index=["Sample", "Position", "Strand"],
                          variable_name="Methylation type",
                          value_name="Normalized methylation fraction")
-                .filter(pl.col("Normalized methylation fraction").gt(0))).to_pandas()
+                .filter(pl.col("Normalized methylation fraction").gt(0))).collect(streaming=True).to_pandas()
+
+    print(f"Data collected for methylome distribution plot  for {genome.name}")
 
     # Plot the strand in two seperate columns, one row per methylation type
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
@@ -91,6 +93,8 @@ def plot_methylation_by_coverage(genome):
                         index=["Sample", "Coverage"],
                         variable_name="Methylation type",
                         value_name="Fraction methylated").collect(streaming=True)
+    
+    print(f"Data collected for methylome by coverage  for {genome.name}")
 
     # Show only coverage that is in the 90% percentile (filter outliers)
     data = data.filter(pl.col("Coverage").lt(data.get_column("Coverage").quantile(0.9)))
@@ -111,6 +115,10 @@ def plot_methylation_by_coverage(genome):
 
 if __name__ == "__main__":
     for name in Genome.valid_genome_names():
+        if not "metagenome" in name:
+            continue
+
         genome = Genome(name)
+        print(f"Plotting methylome of {name}")
         plot_methylome(genome)
         # plot_methylation_by_coverage(genome)
