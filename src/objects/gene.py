@@ -1,8 +1,8 @@
 from copy import deepcopy
 import polars as pl
 from functools import lru_cache, cached_property
-from src.Objects.genome import Genome
-from src.Objects.gene_collection import GeneCollection
+from src.objects.genome import Genome
+from src.objects.gene_collection import GeneCollection
 
 
 class Gene(object):

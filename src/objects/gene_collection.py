@@ -12,7 +12,7 @@ if TYPE_CHECKING:  # Only for type hints
     from genome import Genome
 
 try:
-    from src.raobust import add_rao_score_by_gene
+    from src.utilities.raobust import add_rao_score_by_gene
 except:
     pass
 
@@ -69,7 +69,7 @@ class GeneCollection(object):
 
 
     def __getitem__(self, item) -> Gene | list[Gene]:
-        from src.Objects.gene import Gene
+        from src.objects.gene import Gene
         if isinstance(item, slice):
             return [Gene(self.ids[i], self) for i in self.ids[item]]
         return Gene(self.ids[item], self)

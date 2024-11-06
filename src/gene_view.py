@@ -1,10 +1,10 @@
 import numpy as np
-from src.Objects.gene_collection import GeneCollection
-from src.Objects.gene import Gene
+from src.objects.gene_collection import GeneCollection
+from src.objects.gene import Gene
 import seaborn as sns
 import matplotlib.pyplot as plt
 from utilities.utils import *
-from src.Objects.genome import Genome
+from src.objects.genome import Genome
 from platform import system
 
 
@@ -168,7 +168,7 @@ def identify_interesting_genes(genome: Genome):
     promoters_data = promoters_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
 
     # Get the ones that are DMRed
-    s = promoters_data.collect(streaming=True).get_column("sample").unique().to_list() 
+    s = promoters_data.collect(streaming=True).get_column("sample").unique().to_list()
     dmr_genes = promoter_genes
     if "top" in s and "bottom" in s:
         dmr_result = promoter_genes.is_significantly_different_between_samples(promoters_data, ["top", "bottom"], False)
@@ -200,7 +200,7 @@ if __name__ == "__main__":
             continue
 
         genome = Genome(name)
-        
+
         print(f"Plotting all gene start for {name}")
         plot_all_gene_starts(genome)
         print(f"Getting interesting genes for {name}")

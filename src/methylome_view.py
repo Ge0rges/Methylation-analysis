@@ -1,4 +1,4 @@
-from src.Objects import Genome
+from src.objects import Genome
 import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -93,7 +93,7 @@ def plot_methylation_by_coverage(genome):
                         index=["Sample", "Coverage"],
                         variable_name="Methylation type",
                         value_name="Fraction methylated").collect(streaming=True)
-    
+
     print(f"Data collected for methylome by coverage  for {genome.name}")
 
     # Show only coverage that is in the 90% percentile (filter outliers)

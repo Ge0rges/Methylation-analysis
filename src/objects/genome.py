@@ -1,12 +1,13 @@
 import polars as pl
 import os
-from src.utilities.utils import normalize_data_by_pileup, add_gene_caller_id, readable_modification_name, reshape_pileup_to_matrix_polars
+from src.utilities.utils import normalize_data_by_pileup, add_gene_caller_id, readable_modification_name, \
+    reshape_pileup_to_matrix_polars, readable_methylation_name, barcode_replicate_map
 from src.utilities.data_loading import get_pileup_polars, get_genomic_sequence, get_genes_polars
 from platform import system
 from functools import lru_cache, cached_property
 import glob
 from Bio import SeqRecord
-from src.Objects.gene_collection import GeneCollection
+from src.objects.gene_collection import GeneCollection
 from pathlib import Path
 
 class Genome(object):
@@ -168,3 +169,26 @@ class Genome(object):
         return GeneCollection(gene_collection.pribnow_box_position_and_sequence
                               .filter(pl.col("pribnow_box_position").is_not_null())
                               .collect(streaming=True).get_column("gene_callers_id").to_list(), self)
+
+
+if __name__ == "__main__":
+    genome = Genome("Pelagibacter_r-contigs")
+    df = genome.load_all_methylation_data().collect().filter(pl.col("sample").replace_strict(barcode_replicate_map).is_in(["top", "middle", "bottom"]))
+    meth_types = list(readable_methylation_name.keys())
+
+    print(df.unique(["contig", "strand", "position"]).height)
+
+    data = (df.select(*meth_types, "contig", "strand", "position")
+     .filter(pl.any_horizontal(pl.col(meth_types).is_not_null() & pl.col(meth_types).is_not_nan())).unique(["contig", "strand", "position"]))
+
+    print(data.height)
+
+    # Keep only names (positions) that are in all samples
+    labels_in_all_groups = (df.group_by("contig", "strand", "position")
+                            .agg(pl.col("sample").n_unique().alias("unique_groups"))
+                            .filter(pl.col("unique_groups") == df.get_column("sample").n_unique())
+                            .select("contig", "strand", "position"))
+
+    print(labels_in_all_groups.height)
+
+
