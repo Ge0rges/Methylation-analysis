@@ -149,7 +149,7 @@ class GeneCollection(object):
 
     @cached_property
     def start_codon_sequence(self) -> pl.LazyFrame:
-        return self.gene_caller_df.select("gene_callers_id", "start_type")
+        return self.gene_caller_df.select("gene_callers_id", "start_codon_sequence")
 
 
     @cached_property
@@ -383,35 +383,19 @@ class GeneCollection(object):
             df = df.join(self.rbs_motif_and_relative_position.lazy(), on="gene_callers_id")  # In case, expr uses RBS spacer length
             df = df.filter(pl.col("rbs_motif_position").is_not_null())
 
-        # Figure out coordinates for each gene. The + 1's are needed because stop is exclusive, and we want inclusive.u
+        # Figure out coordinates for each gene. The + 1's are needed because stop is exclusive, and we want inclusive.
         df = df.with_columns(pl.when(pl.col("strand"))
                              .then(pl.col("start").add(relative_position + start_offset))
-                             .otherwise(pl.col("stop").sub(relative_position + end_offset + 1)).alias("region_start"))
+                             .otherwise(pl.col("stop").sub(relative_position + end_offset + 1)).alias("filter_start"))
 
         df = df.with_columns(pl.when(pl.col("strand"))
                              .then(pl.col("start").add(relative_position + end_offset))
-                             .otherwise(pl.col("stop").sub(relative_position + start_offset + 1)).alias("region_end"))
+                             .otherwise(pl.col("stop").sub(relative_position + start_offset + 1)).alias("filter_end"))
 
-        # Build region filter
-        region_filter = None
-        for row in df.collect(streaming=True).iter_rows():
-            row_filter = (pl.col("chrom").eq(row[1]) &
-                          pl.col("strand").eq(row[4]) &
-                          pl.col("inclusive start position").ge(row[5]) &
-                          pl.col("inclusive start position").le(row[6]))
+        # Get methylation data and filter using the filter df we built
+        region_filter = df.select("contig", "strand", "filter_start", "filter_end")
+        region_filter = region_filter.rename({"contig": "filter_contig", "strand": "filter_strand"})
 
-            if region_filter is None:
-                region_filter = row_filter
-            else:
-                region_filter = region_filter | row_filter
-
-        # methyl_data = methyl_data.join_where(df,
-        #                                      pl.col("contig").eq(pl.col("contig_right")),
-        #                                      pl.col("strand").eq(pl.col("strand_right")),
-        #                                      pl.col("position").ge(pl.col("region_start")),
-        #                                      pl.col("position").le(pl.col("region_end")))
-
-        # Get methylation data
         methyl_data = self.genome.load_region_methylation_data(region_filter=region_filter)
 
         # Take the reverse complement if strand is negative

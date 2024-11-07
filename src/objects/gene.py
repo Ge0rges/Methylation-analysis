@@ -73,7 +73,7 @@ class Gene(object):
 
     @cached_property
     def start_codon_sequence(self) -> str | None:
-        df = self.gene_collection.start_codon_sequence.select("start_type").collect(streaming=True)
+        df = self.gene_collection.start_codon_sequence.select("start_codon_sequence").collect(streaming=True)
         return None if df.height == 0 else df.item()
 
 
