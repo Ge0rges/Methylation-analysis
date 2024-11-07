@@ -142,7 +142,7 @@ def truncate_label(label, max_length, max_lines):
 
 def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     # Add a name column
-    methyl_data = methyl_data.with_columns((pl.col('chrom') + '|' + pl.col('strand') + '|' + pl.col(
+    methyl_data = methyl_data.with_columns((pl.col('contig') + '|' + pl.col('strand') + '|' + pl.col(
         'inclusive start position').cast(pl.Utf8) + '|' + pl.col('exclusive end position').cast(pl.Utf8)).alias('name'))
 
     # Keep only what we need
@@ -198,50 +198,11 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
     return result
 
 
-def normalize_data_by_genome_coverage(df: pl.LazyFrame, genome_name, aggregate=False) -> pl.LazyFrame:
-    # Normalize to coverage
-    coverages = dl.get_coverage("../data/", genome_name, agg=aggregate).drop("Genome").collect().to_dict(
-        as_series=False)
-
-    for key, value in coverages.items():
-        coverages[key] = value[0]
-        if value == 0 and key in df.select("norm_sample").unique():
-            print(f"Coverage for {key} is 0")
-
-    methylation_types = list(readable_methylation_name.keys())
-    if "total_methylation" in df.collect_schema().names():
-        df = df.with_columns(
-            pl.col("total_methylation") / (pl.col('norm_sample').replace_strict(coverages).mul(len(methylation_types))))
-
-    df = df.with_columns(pl.col(methylation_types) / pl.col('norm_sample').replace_strict(coverages))
-
-    return df
-
-
 def normalize_data_by_pileup(df: pl.DataFrame | pl.LazyFrame) -> pl.LazyFrame | pl.DataFrame:
     methylation_types = list(readable_modification_name.keys())
     df = df.with_columns(pl.col(methylation_types) / pl.concat_list(methylation_types).list.sum())
 
     return df
-
-
-def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str) -> pl.LazyFrame:
-    """
-    Add functional annotations to DMRs (Differentially Methylated Regions) by matching DMR positions with
-    genomic annotations to find overlaps. Drops the "partial" column from the merged DataFrame.
-    """
-    # Load functional annotations for the specified genome_name from a data directory
-    functions = dl.get_coordinated_functions_polars(data_dir).select("gene_callers_id", "function", "source")
-
-    # Merge DMR data with functional annotations based on contig name
-    merged_df = df.join(functions, on="gene_callers_id", how="left")
-
-    # Fill missing values in the merged DataFrame
-    merged_df = merged_df.with_columns(pl.col("function").fill_null("Unknown"),
-                                       pl.col("source").fill_null("Unannotated"))
-
-    # Remove duplicate entries from the merged DataFrame
-    return merged_df.unique()
 
 
 def generate_cross_validation_sets(df: pl.DataFrame, unique_col: str, treatmeant_col: str, sample_col: str,

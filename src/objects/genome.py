@@ -2,13 +2,16 @@ import polars as pl
 import os
 from src.utilities.utils import normalize_data_by_pileup, add_gene_caller_id, readable_modification_name, \
     reshape_pileup_to_matrix_polars, readable_methylation_name, barcode_replicate_map
-from src.utilities.data_loading import get_pileup_polars, get_genomic_sequence, get_genes_polars
+from src.utilities.data_loading import get_pileup_polars, get_genes_polars
 from platform import system
 from functools import lru_cache, cached_property
 import glob
-from Bio import SeqRecord
+from Bio import SeqRecord, SeqUtils
 from src.objects.gene_collection import GeneCollection
 from pathlib import Path
+import numpy as np
+from Bio import SeqIO
+
 
 class Genome(object):
     __min_coverage_default = 5
@@ -39,12 +42,34 @@ class Genome(object):
 
     @cached_property
     def sequence(self) -> dict[str, SeqRecord]:
-        return get_genomic_sequence(self.name)
+        """
+        Read genomic sequence data from file.
+
+        :param path: Path to .fasta file.
+        :type path: str
+        :return: Dataframe of file data
+        :rtype: pandas.DataFrame
+        """
+        path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{self.name}.fna")
+        fasta_dict = SeqIO.index(path, "fasta")
+
+        return fasta_dict
 
 
     @cached_property
+    def gc_content(self):
+        gcs = np.asarray([SeqUtils.gc_fraction(x.seq, ambiguous="weighted") for x in self.sequence.values()])
+        return gcs.mean()
+
+
+    @cached_property
+    def gene_caller_df(self) -> pl.LazyFrame:
+        return (pl.scan_csv(self._data_dir / "gene-calls.txt", separator="\t").rename({"start_type": "start_codon_sequence"})
+                .filter(pl.col("gene_callers_id").is_in(self.gene_ids)))
+
+    @cached_property
     def gene_ids(self) -> list[int]:
-        bed_files = [f for f in glob.glob(os.path.join(self._data_dir, self.name, "*.bed")) if
+        bed_files = [Path(f) for f in glob.glob(os.path.join(self._data_dir, self.name, "*.bed")) if
                      '-bedgraph' not in os.path.basename(f)]
 
         all_data = []
@@ -70,19 +95,30 @@ class Genome(object):
         return self.load_region_methylation_data(coverage, None, normalize)
 
 
-    @lru_cache
     def load_region_methylation_data(self, coverage: int = __min_coverage_default,
-                                     region_filter: pl.Expr | None = None, normalize: bool = True) -> pl.LazyFrame:
+                                     region_filter: pl.Expr | pl.LazyFrame | None = None, normalize: bool = True) -> pl.LazyFrame:
         # Get all the bed files for this genome
-        bed_files = [f for f in glob.glob(os.path.join(self._data_dir, self.name, "*.bed")) if
-                     '-bedgraph' not in os.path.basename(f)]
+        bed_files = [Path(f) for f in glob.glob(str(self._data_dir / self.name / "*.bed")) if
+            '-bedgraph' not in os.path.basename(f)]
 
         all_data = []
         for bed_file in bed_files:
             # Load the data for the positions that overlap only
             methyl_data = get_pileup_polars(bed_file)
-            if region_filter is not None:
+            if isinstance(region_filter, pl.Expr):
                 methyl_data = methyl_data.filter(region_filter)
+
+            elif isinstance(region_filter, pl.LazyFrame):
+                og_columns = methyl_data.collect_schema().names()
+                methyl_data = methyl_data.join_where(region_filter,
+                                                     pl.col("contig").eq(pl.col("filter_contig")),
+                                                     pl.col("strand").eq(pl.col("filter_strand")),
+                                                     pl.col("inclusive start position").ge(pl.col("filter_start")),
+                                                     pl.col("inclusive start position").le(pl.col("filter_end")))
+                methyl_data = methyl_data.select(*og_columns)
+
+            elif region_filter is not None:
+                raise ValueError("Region filter must be of type pl.Expr, pl.LazyFrame, or None to load all.")
 
             methyl_data = reshape_pileup_to_matrix_polars(methyl_data)
             if methyl_data is None:
