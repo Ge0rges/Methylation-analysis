@@ -15,6 +15,12 @@ def plot_all_gene_starts(genome: Genome):
     relative_start, relative_end = -40, 20
 
     gene_collection = GeneCollection(genome.gene_ids, genome)
+
+    # Keep genes that have a start
+    keep_ids = gene_collection.is_start_missing.filter(pl.col("partial_begin").eq(False)).collect(streaming=True).get_column("gene_callers_id").to_list()
+    gene_collection = GeneCollection(keep_ids, genome)
+
+    # Get the data
     methyl_data = gene_collection.load_flanking_methylation_data(0, (relative_start, relative_end))
 
     # Say something about the number of genes that don't cover all positions
