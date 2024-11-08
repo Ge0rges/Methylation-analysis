@@ -18,7 +18,7 @@ def run_analysis(genome_name, data_dir, fig_savepath="plots"):
     print(f"Starting to generate gene position plots for {genome_name}")
 
     # Get the genes
-    genes = get_genes_polars(data_dir)
+    genes = get_dataset_genes(data_dir)
 
     # Get methylation level data
     methylation_types = list(readable_methylation_name.keys())

@@ -3,7 +3,6 @@ import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
 from platform import system
-from src.utilities.data_loading import get_genomic_sequence
 from src.utilities.utils import readable_modification_name, normalize_data_by_pileup
 from utilities.utils import readable_methylation_name, barcode_replicate_map, readable_sample_name
 
@@ -111,6 +110,9 @@ def plot_methylation_by_coverage(genome):
             plt.show()
         else:
             plt.savefig(genome.plot_dir / "coverage_{readable_methylation_name[meth_type]}.pdf", format="pdf")
+
+def plot_methylation_genic_intergenic(genome):
+    pass
 
 
 if __name__ == "__main__":
