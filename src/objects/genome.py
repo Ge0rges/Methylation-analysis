@@ -2,7 +2,7 @@ import polars as pl
 import os
 from src.utilities.utils import normalize_data_by_pileup, add_gene_caller_id, readable_modification_name, \
     reshape_pileup_to_matrix_polars, readable_methylation_name, barcode_replicate_map
-from src.utilities.data_loading import get_pileup_polars, get_genes_polars
+from src.utilities.data_loading import get_pileup, get_dataset_genes
 from platform import system
 from functools import lru_cache, cached_property
 import glob
@@ -64,8 +64,7 @@ class Genome(object):
 
     @cached_property
     def gene_caller_df(self) -> pl.LazyFrame:
-        return (pl.scan_csv(self._data_dir / "gene-calls.txt", separator="\t").rename({"start_type": "start_codon_sequence"})
-                .filter(pl.col("gene_callers_id").is_in(self.gene_ids)))
+        return get_dataset_genes(self).filter(pl.col("gene_callers_id").is_in(self.gene_ids))
 
     @cached_property
     def gene_ids(self) -> list[int]:
@@ -75,16 +74,15 @@ class Genome(object):
         all_data = []
         for bed_file in bed_files:
             # Load the data for the positions that overlap only
-            methyl_data = get_pileup_polars(bed_file).select("chrom", "inclusive start position",
+            methyl_data = get_pileup(bed_file).select("contig", "inclusive start position",
                                                              "exclusive end position", "strand")
-            methyl_data = methyl_data.rename({"chrom": "contig", "inclusive start position": "position",
-                                              "exclusive end position": "end"})
+            methyl_data = methyl_data.rename({"inclusive start position": "position", "exclusive end position": "end"})
 
             all_data.append(methyl_data)
 
         all_data = pl.concat(all_data)
 
-        all_genes = get_genes_polars(self._data_dir)
+        all_genes = get_dataset_genes(self)
         gene_ids = add_gene_caller_id(all_data, all_genes).select("gene_callers_id").unique().collect(
             streaming=True).get_column("gene_callers_id").to_list()
         return gene_ids
@@ -104,7 +102,7 @@ class Genome(object):
         all_data = []
         for bed_file in bed_files:
             # Load the data for the positions that overlap only
-            methyl_data = get_pileup_polars(bed_file)
+            methyl_data = get_pileup(bed_file)
             if isinstance(region_filter, pl.Expr):
                 methyl_data = methyl_data.filter(region_filter)
 
@@ -118,7 +116,7 @@ class Genome(object):
                 methyl_data = methyl_data.select(*og_columns)
 
             elif region_filter is not None:
-                raise ValueError("Region filter must be of type pl.Expr, pl.LazyFrame, or None to load all.")
+                raise ValueError("Region filter must be of type pl.Expr, pl.LazyFrame, or None.")
 
             methyl_data = reshape_pileup_to_matrix_polars(methyl_data)
             if methyl_data is None:
@@ -143,11 +141,7 @@ class Genome(object):
             result = normalize_data_by_pileup(result)
 
         # Seperate name
-        result = result.with_columns(
-            contig=pl.col('name').str.split(by='|').list.get(0),
-            strand=pl.col('name').str.split(by='|').list.get(1).eq("+"),
-            position=pl.col('name').str.split(by='|').list.get(2).cast(pl.Int64),
-        ).drop("name")
+        result = result.rename({"inclusive start position": "position"})
         return result
 
 
@@ -167,7 +161,7 @@ class Genome(object):
 
 
     def add_gene_caller_id(self, df: pl.LazyFrame) -> pl.LazyFrame:
-        genes = get_genes_polars(self._data_dir)
+        genes = get_dataset_genes(self._data_dir)
         return add_gene_caller_id(df, genes)
 
 

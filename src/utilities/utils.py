@@ -142,52 +142,44 @@ def truncate_label(label, max_length, max_lines):
 
 def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     # Add a name column
-    methyl_data = methyl_data.with_columns((pl.col('contig') + '|' + pl.col('strand') + '|' + pl.col(
-        'inclusive start position').cast(pl.Utf8) + '|' + pl.col('exclusive end position').cast(pl.Utf8)).alias('name'))
+    position_cols = ["contig", "strand", "inclusive start position", "exclusive end position"]
 
     # Keep only what we need
-    methyl_data = methyl_data.select(
-        ['name', 'modified base src and motif', 'Nvalid_cov', "Ndiff", "Nmod", "Ncanonical"])
+    methyl_data = methyl_data.select(position_cols + ['modified base src and motif', 'Nvalid_cov', "Ndiff", "Nmod", "Ncanonical"])
 
     # Ndiff is reads with a base other than the canonical base for this modification
     methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
-
-    # mod_base_map = {"a": "A", "m": "C", "21839": "C"}
-    # methyl_data = methyl_data.with_columns(
-    #     pl.col('modified base src and motif').replace(mod_base_map).alias('mod_group'))
-    #
-    # grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov'))
-    #
-    # methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')
 
     pivot_df = methyl_data.collect(streaming=True)
     if pivot_df.height == 0:
         return None
 
-    pivot_df = pivot_df.pivot(index='name', columns='modified base src and motif', values='Nmod', aggregate_function='first').lazy()
-    pivot_df = pivot_df.join(methyl_data.select(['name', 'Ncanonical']), on='name', how='left').fill_null(0)
+    pivot_df = pivot_df.pivot(index=position_cols, columns='modified base src and motif', values='Nmod', aggregate_function='first').lazy()
+    pivot_df = pivot_df.join(methyl_data.select(position_cols + ['Ncanonical']), on=position_cols, how='left').fill_null(0)
 
-    # If there was no methylation of one type add 0s
+    # If there was no methylation of one type add Nulls
     for meth_type in readable_modification_name.keys():
         if meth_type not in pivot_df.collect_schema().names():
-            pivot_df = pivot_df.with_columns(pl.lit(0).cast(pl.Int64).alias(meth_type))
+            pivot_df = pivot_df.with_columns(pl.lit(pl.Null).alias(meth_type))
 
-    return pivot_df.select("name", *readable_modification_name.keys())  # Select is needed to ensure order for vstack
+    # Select is needed to ensure order for vstack
+    return pivot_df.select("contig", "strand", "inclusive start position", *readable_modification_name.keys())
 
 
-def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
+def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[str] = []) -> pl.LazyFrame:
     """
     Add the gene caller id.
     """
     # Merge merged_df with ranges based on conditions
     # Filter rows where merged_df start and end values are within sequence_range start and end.
     # Gene sequence_range is inclusive of end, modkit bed is not.
-    og_columns = df.collect_schema().names()
+    og_columns = df.collect_schema().names() + keep_cols
     result = df.join_where(genes,
                            pl.col('position').ge(pl.col('start')),
                            pl.col('position').lt(pl.col('stop')),
                            pl.col("contig").eq(pl.col("contig_right")),
                            pl.col('strand').eq(pl.col('strand_right')))
+
 
     # If there are still multiple gene_callers_id for the same name, pick the first one
     result = result.unique(subset=og_columns, keep="first")

@@ -1,11 +1,16 @@
+from __future__ import annotations
 import os
 import glob
 import polars as pl
 import src.utilities.utils as utils
 from pathlib import Path
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.objects.genome import Genome
 
-def get_pileup_polars(path: Path) -> pl.LazyFrame:
+
+def get_pileup(path: Path) -> pl.LazyFrame:
     """
     Read pileup data from a file.
 
@@ -23,10 +28,13 @@ def get_pileup_polars(path: Path) -> pl.LazyFrame:
     # Drop redundant columns
     pileup = pileup.drop("score", "start position2", "end position2", "color")
 
+    # Convert strand to bool
+    pileup = pileup.with_columns(pl.col("strand").replace_strict({"+": True, "-": False}))
+
     return pileup
 
 
-def get_genes_polars(data_dir: Path) -> pl.LazyFrame:
+def get_dataset_genes(genome: Genome) -> pl.LazyFrame:
     """
     Parameters:
     data_dir (str): The path to the data directory.
@@ -35,16 +43,17 @@ def get_genes_polars(data_dir: Path) -> pl.LazyFrame:
     Returns:
     pandas.DataFrame: DataFrame with gene functions.
     """
+    data_dir = genome._data_dir
     gene_calls = pl.scan_csv(data_dir / "gene-calls.txt", separator="\t")
 
     # Map direction to +/-
-    gene_calls = gene_calls.with_columns(pl.col("direction").str.replace_many(["f", "r"],["+", "-"]))
-    gene_calls = gene_calls.rename({"direction": "strand"})
+    gene_calls = gene_calls.with_columns(pl.col("direction").replace_strict({"f": True, "r": False}))
+    gene_calls = gene_calls.rename({"direction": "strand", "start_type": "start_codon_sequence"})
 
     return gene_calls
 
 
-def get_dmrs_from_file_polars(path: Path) -> (pl.LazyFrame, bool):
+def get_dmrs(path: Path) -> (pl.LazyFrame, bool):
     """
     Read DMRs (Differentially Methylated Regions) data from a file, replaces the fractions and count columns with
     individual columns for each methylation type. Adds a column called comparison to note the samples comapred.
@@ -81,7 +90,7 @@ def get_dmrs_from_file_polars(path: Path) -> (pl.LazyFrame, bool):
     return dmrs, False
 
 
-def get_dmrs_for_genome_polars(data_dir: Path, genome_name, dmr_type) -> pl.LazyFrame:
+def get_dmrs_for_genome(data_dir: Path, genome_name, dmr_type) -> pl.LazyFrame | None:
     # Get bed files
     bed_files = glob.glob(data_dir / genome_name / dmr_type / "*.bed")
     bed_files = [file for file in bed_files if not file.endswith('-bedgraph.bed')]
@@ -91,7 +100,7 @@ def get_dmrs_for_genome_polars(data_dir: Path, genome_name, dmr_type) -> pl.Lazy
     # Get all the methylation data from the bed files
     dmrs = []
     for bed_file in bed_files:
-        dmr, empty = get_dmrs_from_file_polars(bed_file)
+        dmr, empty = get_dmrs(bed_file)
         if not empty:
             dmrs.append(dmr)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 from functools import lru_cache, cached_property
 from src.utilities.utils import add_gene_caller_id, readable_modification_name
 from Bio import SeqRecord
-from src.utilities.data_loading import get_genomic_sequence, get_genes_polars
+from src.utilities.data_loading import get_dataset_genes
 import polars as pl
 
 from typing import TYPE_CHECKING
@@ -62,7 +62,7 @@ class GeneCollection(object):
 
 
     def _load_data(self) -> None:
-        self.gene_caller_df: pl.LazyFrame = get_genes_polars(self.genome._data_dir).filter(
+        self.gene_caller_df: pl.LazyFrame = get_dataset_genes(self.genome).filter(
             pl.col("gene_callers_id").is_in(self.ids))
         self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._data_dir}/function-calls.txt", separator="\t").filter(
             pl.col("gene_callers_id").is_in(self.ids))
@@ -320,7 +320,7 @@ class GeneCollection(object):
 
         # Get full sequences first and their length
         sequences = {}
-        for key, value in get_genomic_sequence(self.genome.name).items():
+        for key, value in self.genome.sequence.items():
             sequences[key] = str(value.seq)
         sequences = {"contig": sequences.keys(), "sequence": sequences.values()}
         sequences = pl.from_dict(sequences, schema=["contig", "sequence"]).lazy()
@@ -376,7 +376,6 @@ class GeneCollection(object):
 
         # Get the gene information we need
         df = self.gene_caller_df.select("gene_callers_id", "contig", "start", "stop", "strand")
-        df = df.with_columns(pl.col("strand").eq("+"))
 
         # Add RBS if needed, filter for RBS spacer length non-null
         if type(start_offset) is pl.Expr or type(end_offset) is pl.Expr:
@@ -397,6 +396,13 @@ class GeneCollection(object):
         region_filter = region_filter.rename({"contig": "filter_contig", "strand": "filter_strand"})
 
         methyl_data = self.genome.load_region_methylation_data(region_filter=region_filter)
+
+        # Add gene info
+        methyl_data = methyl_data.join_where(df,
+                                             pl.col("contig").eq(pl.col("contig_right")),
+                                             pl.col("strand").eq(pl.col("strand_right")),
+                                             pl.col("position").ge(pl.col("filter_start")),
+                                             pl.col("position").le(pl.col("filter_end")))
 
         # Take the reverse complement if strand is negative
         methyl_data = methyl_data.with_columns(pl.when(pl.col("strand"))
