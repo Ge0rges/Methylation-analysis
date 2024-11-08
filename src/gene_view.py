@@ -12,8 +12,12 @@ sns.set_theme(context="poster", style="white")
 
 
 def plot_all_gene_starts(genome: Genome):
+    relative_start, relative_end = -40, 20
+
     gene_collection = GeneCollection(genome.gene_ids, genome)
-    methyl_data = gene_collection.load_flanking_methylation_data(0, (-40, 20))
+    methyl_data = gene_collection.load_flanking_methylation_data(0, (relative_start, relative_end))
+
+    # Say something about the number of genes that don't cover all positions
 
     # Get DF for all genes
     data = methyl_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
@@ -25,13 +29,19 @@ def plot_all_gene_starts(genome: Genome):
                              index=["Sample", "Position"],
                              variable_name="Methylation type",
                              value_name="Normalized methylation fraction")
-    #long_form = long_form.filter(pl.col("Normalized methylation fraction").gt(0))
+
+    # Get the most frequent nucleotide at each position
+    sequence = gene_collection.get_flanking_sequence(0, (relative_start, relative_end))
+    sequence = sequence.with_columns(pl.col("sequence").str.split("")).explode("sequence")
+    sequence = sequence.with_columns((pl.cum_count("gene_callers_id") - 1 + relative_start).over("gene_callers_id").alias("position"))
+    sequence_str = sequence.group_by("position").agg(pl.col("sequence").mode().first().alias("mode"))
+    sequence_str = sequence_str.sort("position").collect().get_column("mode").str.join("").item()
 
     # Get DF for promoter distribution
     promoter_positions = gene_collection.pribnow_box_position_and_sequence.drop("gene_callers_id", "pribnow_box_sequence").filter(pl.col("pribnow_box_position").is_not_null()).collect().to_pandas()
 
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-    fig, axes = plt.subplots(5, 1, figsize=(15, 35), layout="constrained", sharex=True)
+    fig, axes = plt.subplots(6, 1, figsize=(15, 35), layout="constrained", sharex=True)
     fig.suptitle(f"All gene promoter methylation in {genome.readable_name}", fontsize=28)
 
     # Promoter position distribution plot
@@ -41,7 +51,6 @@ def plot_all_gene_starts(genome: Genome):
     # Per type plot
     for i, meth_type in enumerate(readable_methylation_name.values()):
         i += 1
-        #df = data.filter(pl.col(meth_type).gt(0))
         sns.lineplot(data.to_pandas(), x="Position", y=meth_type, hue="Sample", ax=axes[i], hue_order=hue_order)
 
         # Draw a vertical line at 0
@@ -50,6 +59,20 @@ def plot_all_gene_starts(genome: Genome):
     sns.lineplot(long_form.to_pandas(), x="Position", y="Normalized methylation fraction", hue="Sample",
                  style="Methylation type", ax=axes[4], hue_order=hue_order)
     axes[4].axvline(x=0, color='black', linestyle='--', alpha=0.7)
+
+    # Plot distribution of nucleotides
+    nucleotide_freq = sequence.select("sequence", "position").collect(streaming=True).to_pandas()
+    sns.histplot(nucleotide_freq, x="position", hue="sequence", ax=axes[5], discrete=True, multiple="stack")
+
+    # Plot the sequence as X ticks
+    ticks = np.linspace(relative_start, relative_end, len(sequence_str))
+    axes[5].set_xticks(ticks)
+    axes[5].set_xticklabels(sequence_str)
+
+    # Highlight start codon
+    for i, label in enumerate(axes[5].get_xticklabels()):
+        if 0 <= ticks[i] < 3:  # Start codon
+            label.set_color('green')
 
     if system() == "Darwin":
         plt.show()
@@ -68,8 +91,7 @@ def plot_gene_start(genome: Genome, gene_id):
     print(f"Gene start {gene.sequence[:13]}")
 
     # Build filter for the region of interest
-    relative_start = -40
-    relative_end = 40
+    relative_start, relative_end = -40, 40
 
     methyl_data = gene.load_flanking_methylation_data(0, (relative_start, relative_end))
     sequence = gene.get_flanking_sequence(0, (relative_start, relative_end))
@@ -155,7 +177,6 @@ def identify_interesting_genes(genome: Genome):
         if functions.filter(pl.col("source").eq("COG20_CATEGORY")).get_column("function").n_unique() == 1 and functions.filter(pl.col("source").eq("COG20_CATEGORY")).height == number_of_genes_in_operon:
             operon_of_interest.append(gene_collection)
 
-
     # Get every gene with a promoter
     all_genes = GeneCollection(genome.gene_ids, genome)
     promoter_present = (all_genes.pribnow_box_position_and_sequence.filter(pl.col("pribnow_box_position").is_not_null())
@@ -203,10 +224,10 @@ if __name__ == "__main__":
 
         print(f"Plotting all gene start for {name}")
         plot_all_gene_starts(genome)
-        print(f"Getting interesting genes for {name}")
-        interesting_ids = identify_interesting_genes(genome)
-
-        for gene_id in interesting_ids:
-            print(f"Plotting gene {gene_id} for {name}")
-            plot_gene_start(genome, gene_id)
+        # print(f"Getting interesting genes for {name}")
+        # interesting_ids = identify_interesting_genes(genome)
+        #
+        # for gene_id in interesting_ids:
+        #     print(f"Plotting gene {gene_id} for {name}")
+        #     plot_gene_start(genome, gene_id)
 
