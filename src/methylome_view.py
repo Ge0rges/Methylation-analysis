@@ -61,7 +61,7 @@ def plot_methylome(genome):
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(genome.plot_dir / "methylome.pdf", format="pdf")
+        plt.savefig(genome.plot_dir / "violin_methylome.pdf", format="pdf")
 
     g = sns.displot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand", height=8, hue="Sample", aspect=2, row_order=[True, False], hue_order=hue_order, kind="kde")
     g.fig.suptitle(f"{genome.readable_name} methylome KDE")
@@ -69,7 +69,7 @@ def plot_methylome(genome):
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(genome.plot_dir / "methylome.pdf", format="pdf")
+        plt.savefig(genome.plot_dir / "kde_methylome.pdf", format="pdf")
 
 
 def plot_methylation_by_coverage(genome):
@@ -117,10 +117,10 @@ def plot_methylation_genic_intergenic(genome):
 
 if __name__ == "__main__":
     for name in Genome.valid_genome_names():
-        if not "metagenome" in name:
+        if "metagenome" in name:
             continue
 
         genome = Genome(name)
         print(f"Plotting methylome of {name}")
         plot_methylome(genome)
-        # plot_methylation_by_coverage(genome)
+        plot_methylation_by_coverage(genome)

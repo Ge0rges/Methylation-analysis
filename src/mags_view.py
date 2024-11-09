@@ -50,5 +50,5 @@ def plot_start_codon_dist(genomes: list[Genome]):
 
 if __name__ == "__main__":
     genomes = [Genome(n) for n in Genome.valid_genome_names()]
-    #plot_mags_by_gc_content(genomes)
+    plot_mags_by_gc_content(genomes)
     plot_start_codon_dist(genomes)

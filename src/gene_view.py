@@ -219,7 +219,6 @@ def identify_interesting_genes(genome: Genome):
         diff = GeneCollection(diff.get_column("gene_callers_id").to_list(), genome)
         meth_diffs.append(diff)
 
-
     # Return ids present in more than one list
     return set(dmr_genes.ids).intersection(*[d.ids for d in meth_diffs])
 
@@ -233,10 +232,10 @@ if __name__ == "__main__":
 
         print(f"Plotting all gene start for {name}")
         plot_all_gene_starts(genome)
-        # print(f"Getting interesting genes for {name}")
-        # interesting_ids = identify_interesting_genes(genome)
-        #
-        # for gene_id in interesting_ids:
-        #     print(f"Plotting gene {gene_id} for {name}")
-        #     plot_gene_start(genome, gene_id)
+        print(f"Getting interesting genes for {name}")
+        interesting_ids = identify_interesting_genes(genome)
+
+        for gene_id in interesting_ids:
+            print(f"Plotting gene {gene_id} for {name}")
+            plot_gene_start(genome, gene_id)
 
