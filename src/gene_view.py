@@ -17,16 +17,16 @@ def plot_all_gene_starts(genome: Genome):
     gene_collection = GeneCollection(genome.gene_ids, genome)
 
     # Keep genes that have a start
-    keep_ids = gene_collection.is_start_missing.filter(pl.col("partial_begin").eq(False)).collect(streaming=True).get_column("gene_callers_id").to_list()
+    keep_ids = (gene_collection.is_start_missing.filter(pl.col("partial_begin").eq(False))
+                .collect(streaming=True).get_column("gene_callers_id").to_list())
     gene_collection = GeneCollection(keep_ids, genome)
 
     # Get the data
     methyl_data = gene_collection.load_flanking_methylation_data(0, (relative_start, relative_end))
 
-    # Say something about the number of genes that don't cover all positions
-
     # Get DF for all genes
     data = methyl_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
+    data = data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
     data = data.rename(readable_methylation_name).rename({"sample": "Sample", "position": "Position"})
     data = data.with_columns(pl.col('Sample').replace(readable_sample_name)).collect(streaming=True)
 
@@ -47,7 +47,7 @@ def plot_all_gene_starts(genome: Genome):
     promoter_positions = gene_collection.pribnow_box_position_and_sequence.drop("gene_callers_id", "pribnow_box_sequence").filter(pl.col("pribnow_box_position").is_not_null()).collect().to_pandas()
 
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-    fig, axes = plt.subplots(6, 1, figsize=(15, 35), layout="constrained", sharex=True)
+    fig, axes = plt.subplots(7, 1, figsize=(15, 45), layout="constrained", sharex=True)
     fig.suptitle(f"All gene promoter methylation in {genome.readable_name}", fontsize=28)
 
     # Promoter position distribution plot
@@ -66,17 +66,20 @@ def plot_all_gene_starts(genome: Genome):
                  style="Methylation type", ax=axes[4], hue_order=hue_order)
     axes[4].axvline(x=0, color='black', linestyle='--', alpha=0.7)
 
+    # Plot number of data points at each position
+    sns.histplot(data, x="Position", hue="Sample", ax=axes[5], discrete=True, multiple="stack")
+
     # Plot distribution of nucleotides
-    nucleotide_freq = sequence.select("sequence", "position").collect(streaming=True).to_pandas()
-    sns.histplot(nucleotide_freq, x="position", hue="sequence", ax=axes[5], discrete=True, multiple="stack")
+    nucleotide_freq = sequence.select("sequence", "position").rename({"sequence": "Nucleotide"}).collect(streaming=True).to_pandas()
+    sns.histplot(nucleotide_freq, x="position", hue="Nucleotide", ax=axes[6], discrete=True, multiple="stack")
 
     # Plot the sequence as X ticks
     ticks = np.linspace(relative_start, relative_end, len(sequence_str))
-    axes[5].set_xticks(ticks)
-    axes[5].set_xticklabels(sequence_str)
+    axes[-1].set_xticks(ticks)
+    axes[-1].set_xticklabels(sequence_str)
 
     # Highlight start codon
-    for i, label in enumerate(axes[5].get_xticklabels()):
+    for i, label in enumerate(axes[-1].get_xticklabels()):
         if 0 <= ticks[i] < 3:  # Start codon
             label.set_color('green')
 

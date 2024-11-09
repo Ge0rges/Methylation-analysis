@@ -21,7 +21,7 @@ def get_pileup(path: Path) -> pl.LazyFrame:
     """
     pileup = pl.scan_csv(path, separator="\t", has_header=False,
                          new_columns=["contig", "inclusive start position", "exclusive end position",
-                                      "modified base src and motif", "score", "strand", "start position2",
+                                      "modified base code and motif", "score", "strand", "start position2",
                                       "end position2", "color", "Nvalid_cov", "fraction modified", "Nmod", "Ncanonical",
                                       "Nother_mod", "Ndelete", "Nfail", "Ndiff", "Nnocall"])
 

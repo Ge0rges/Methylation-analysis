@@ -145,16 +145,16 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     position_cols = ["contig", "strand", "inclusive start position", "exclusive end position"]
 
     # Keep only what we need
-    methyl_data = methyl_data.select(position_cols + ['modified base src and motif', 'Nvalid_cov', "Ndiff", "Nmod", "Ncanonical"])
+    methyl_data = methyl_data.select(position_cols + ['modified base code and motif', 'Nvalid_cov', "Ndiff", "Nmod", "Ncanonical"])
 
     # Ndiff is reads with a base other than the canonical base for this modification
-    methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
+    #methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
 
     pivot_df = methyl_data.collect(streaming=True)
     if pivot_df.height == 0:
         return None
 
-    pivot_df = pivot_df.pivot(index=position_cols, columns='modified base src and motif', values='Nmod', aggregate_function='first').lazy()
+    pivot_df = pivot_df.pivot(index=position_cols, columns='modified base code and motif', values='Nmod').lazy()
     pivot_df = pivot_df.join(methyl_data.select(position_cols + ['Ncanonical']), on=position_cols, how='left').fill_null(0)
 
     # If there was no methylation of one type add Nulls

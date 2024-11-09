@@ -147,21 +147,20 @@ class Genome(object):
 
     def add_genome_relative_position(self, df: pl.LazyFrame) -> pl.LazyFrame:
         # Get contigs cumsum
-        sequences = get_genomic_sequence(self.name)
-        contigs = list(sequences.keys())
+        contigs = list(self.sequence.keys())
         contigs.sort()
         cum_sum = 0
         offsets = {}
         for key in contigs:
             offsets[key] = cum_sum
-            cum_sum += len(sequences[key])
+            cum_sum += len(self.sequence[key])
 
         # Convert position to absolute
         return df.with_columns(pl.col("position").add(pl.col("contig").replace_strict(offsets, return_dtype=pl.UInt64)).alias("genome_position"))
 
 
     def add_gene_caller_id(self, df: pl.LazyFrame) -> pl.LazyFrame:
-        genes = get_dataset_genes(self._data_dir)
+        genes = get_dataset_genes(self)
         return add_gene_caller_id(df, genes)
 
 
