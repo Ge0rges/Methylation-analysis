@@ -52,31 +52,31 @@ def plot_all_gene_starts(genome: Genome):
 
     # Promoter position distribution plot
     sns.histplot(promoter_positions, ax=axes[0], kde=(len(promoter_positions) > 1))
-    axes[0].set_title(f"Proportion of genes with motif: {len(promoter_positions)} / {len(gene_collection.ids)}")
+    axes[0].set_title(f"Proportion of genes with pribnox box: {len(promoter_positions)} / {len(gene_collection.ids)}")
 
     # Per type plot
     for i, meth_type in enumerate(readable_methylation_name.values()):
         i += 1
         sns.lineplot(data.to_pandas(), x="Position", y=meth_type, hue="Sample", ax=axes[i], hue_order=hue_order)
 
-        # Draw a vertical line at 0
-        axes[i].axvline(x=0, color='black', linestyle='--', alpha=0.7)
-
     sns.lineplot(long_form.to_pandas(), x="Position", y="Normalized methylation fraction", hue="Sample",
                  style="Methylation type", ax=axes[4], hue_order=hue_order)
-    axes[4].axvline(x=0, color='black', linestyle='--', alpha=0.7)
 
     # Plot number of data points at each position
-    sns.histplot(data, x="Position", hue="Sample", ax=axes[5], discrete=True, multiple="stack")
+    sns.histplot(data, x="Position", hue="Sample", ax=axes[5], discrete=True, multiple="stack", hue_order=hue_order)
 
     # Plot distribution of nucleotides
     nucleotide_freq = sequence.select("sequence", "position").rename({"sequence": "Nucleotide"}).collect(streaming=True).to_pandas()
-    sns.histplot(nucleotide_freq, x="position", hue="Nucleotide", ax=axes[6], discrete=True, multiple="stack")
+    sns.histplot(nucleotide_freq, x="position", hue="Nucleotide", ax=axes[6], discrete=True, multiple="stack", hue_order=["A", "T", "G", "C"], palette="paired")
 
     # Plot the sequence as X ticks
     ticks = np.linspace(relative_start, relative_end, len(sequence_str))
     axes[-1].set_xticks(ticks)
     axes[-1].set_xticklabels(sequence_str)
+
+    # Draw line at  0
+    for ax in axes:
+        ax.axvline(x=0, color='black', linestyle='--', alpha=0.7)
 
     # Highlight start codon
     for i, label in enumerate(axes[-1].get_xticklabels()):
