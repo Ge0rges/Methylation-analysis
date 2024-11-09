@@ -27,10 +27,9 @@ def plot_methylome(genome):
     contigs = data.select("contig").unique().collect(streaming=True).get_column("contig")
     cum_sum = 0
     offsets = {}
-    sequences = get_genomic_sequence(genome.name)
     for key in contigs:
         offsets[key] = cum_sum
-        cum_sum += len(sequences[key])
+        cum_sum += len(genome.sequence[key])
 
     # Convert positiont to absolute
     data = data.with_columns(pl.col("position").add(pl.col("contig").replace_strict(offsets)).alias("Position"))
@@ -103,7 +102,7 @@ def plot_methylation_by_coverage(genome):
 
     for meth_type in readable_methylation_name.keys():
         df = data.filter(pl.col("Methylation type").eq(meth_type)).to_pandas()
-        g = sns.jointplot(df, x="Fraction methylated", y="Coverage", hue="Sample", hue_order=hue_order, height=16, kind="hex")
+        g = sns.jointplot(df, x="Fraction methylated", y="Coverage", hue="Sample", hue_order=hue_order, height=16, kind="scatter")
         g.fig.suptitle(f"{readable_methylation_name[meth_type]}")
 
         if system() == "Darwin":

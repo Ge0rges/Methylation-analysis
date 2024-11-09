@@ -3,16 +3,13 @@ import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from src.utilities.data_loading import get_genomic_sequence
 from utilities.utils import readable_methylation_name, barcode_replicate_map, readable_sample_name
 
 
 sns.set_theme(context="poster", style="white")
 
 
-def show_motifs():
-    genome = Genome("Pelagibacter_r-contigs")
-
+def show_motifs(genome: Genome):
     data = genome.load_all_methylation_data()
 
     # Preprocess the data. Sort, rename, filter, and make position absolute to genome.
@@ -27,7 +24,7 @@ def show_motifs():
     # Get full sequences first and their length
     sequences = {}
     com_sequences = {}
-    for key, value in get_genomic_sequence(genome.name).items():
+    for key, value in genome.sequence.items():
         sequences[key] = str(value.seq)
         com_sequences[key] = str(value.seq.complement())
     sequences = {"contig": sequences.keys(), "sequence": sequences.values(), "complement_sequence": com_sequences.values()}
@@ -79,4 +76,9 @@ def show_motifs():
 
 
 if __name__ == "__main__":
-    show_motifs()
+    for name in Genome.valid_genome_names():
+        if "metagenome" in name:
+            continue
+
+        genome = Genome(name)
+        show_motifs(genome)
