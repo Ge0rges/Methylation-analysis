@@ -160,7 +160,7 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     # If there was no methylation of one type add Nulls
     for meth_type in readable_modification_name.keys():
         if meth_type not in pivot_df.collect_schema().names():
-            pivot_df = pivot_df.with_columns(pl.lit(pl.Null).alias(meth_type))
+            pivot_df = pivot_df.with_columns(pl.lit(pl.Null, allow_object=True).alias(meth_type))
 
     # Select is needed to ensure order for vstack
     return pivot_df.select("contig", "strand", "inclusive start position", *readable_modification_name.keys())

@@ -108,7 +108,7 @@ def plot_methylation_by_coverage(genome):
         if system() == "Darwin":
             plt.show()
         else:
-            plt.savefig(genome.plot_dir / "coverage_{readable_methylation_name[meth_type]}.pdf", format="pdf")
+            plt.savefig(genome.plot_dir / f"coverage_{readable_methylation_name[meth_type]}.pdf", format="pdf")
 
 def plot_methylation_genic_intergenic(genome):
     pass
