@@ -114,7 +114,7 @@ class GeneCollection(object):
 
     @cached_property
     def strand(self) -> pl.LazyFrame:
-        df = self.gene_caller_df.select("gene_callers_id", "strand").with_columns(pl.col("strand").eq("+"))
+        df = self.gene_caller_df.select("gene_callers_id", "strand")
         return df
 
 
@@ -217,7 +217,7 @@ class GeneCollection(object):
             raise ValueError
 
         df = self.candidate_rbs_motifs.join(self.rbs_spacer_length, on="gene_callers_id")
-        df = df.join(self.get_flanking_sequence(0, (-pl.col("rbs_spacer_length").list.last() - 12, 0)), on="gene_callers_id")
+        df = df.join(self.get_flanking_sequence(0, (-pl.col("rbs_spacer_length").list.max() - 12, 0)), on="gene_callers_id")
         df = df.collect(streaming=True)
 
         # map_rows requires return_dtype and can't specify different types
@@ -311,7 +311,6 @@ class GeneCollection(object):
 
         # Get the Df we need
         df = self.gene_caller_df.select("contig", "start", "stop", "strand", "gene_callers_id")
-        df = df.with_columns(pl.col("strand").eq("+"))
 
         # Add RBS if needed, filter for RBS spacer length non-null
         if type(start_offset) is pl.Expr or type(end_offset) is pl.Expr:
