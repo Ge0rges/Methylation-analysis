@@ -92,7 +92,7 @@ def plot_all_gene_starts(genome: Genome):
 
 
 def plot_gene_start(genome: Genome, gene_id):
-    gene = Gene.from_id(gene_id, genome)
+    gene = Gene(gene_id, genome)
     print(f"Gene is {gene.contig} at {gene.start} with length {gene.length} and strand {gene.strand}")
     print(f"RBS is {gene.rbs_motif} located at {gene.rbs_motif_position} and start is {gene.start_codon_sequence}")
     print(f"Pribnows box is {gene.pribnow_box_sequence} located at {gene.pribnow_box_position}")

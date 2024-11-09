@@ -71,8 +71,8 @@ class GeneCollection(object):
     def __getitem__(self, item) -> Gene | list[Gene]:
         from src.objects.gene import Gene
         if isinstance(item, slice):
-            return [Gene(self.ids[i], self) for i in self.ids[item]]
-        return Gene(self.ids[item], self)
+            return [Gene(self.ids[i]) for i in self.ids[item]]
+        return Gene(self.ids[item])
 
 
     def __len__(self):

@@ -7,18 +7,9 @@ from src.objects.gene_collection import GeneCollection
 
 class Gene(object):
 
-    def __init__(self, id: int, gene_collection: GeneCollection):
-        assert id in gene_collection.ids, f"Gene ID {id} not in GeneCollection"
+    def __init__(self, id: int, genome:Genome):
         self.id: int = id
-        self.gene_collection: GeneCollection = deepcopy(gene_collection)
-        self.gene_collection.ids = [id]
-        self.gene_collection._load_data()  # Reload data for the specific gene
-
-
-    @classmethod
-    def from_id(cls, id: int, genome: Genome):
-        collection = GeneCollection([id], genome)
-        return cls(id, collection)
+        self.gene_collection: GeneCollection = GeneCollection([self.id], genome)
 
 
     @cached_property
