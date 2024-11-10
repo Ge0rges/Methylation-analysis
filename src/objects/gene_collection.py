@@ -91,7 +91,6 @@ class GeneCollection(object):
 
         # Do a group by gene_callers_id and then do a subtraction of the start position
         methylation_data = methylation_data.join(self.start, on="gene_callers_id")
-        methylation_data = methylation_data.with_columns(pl.col('name').str.split(by='|').list.get(2).cast(pl.Int64).sub(pl.col("start")).alias("position")).drop("name")
         return methylation_data
 
 

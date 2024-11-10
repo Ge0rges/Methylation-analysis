@@ -1,4 +1,4 @@
-from src.objects import Genome
+from src.objects import Genome, GeneCollection
 import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -110,10 +110,11 @@ def plot_methylation_by_coverage(genome):
         else:
             plt.savefig(genome.plot_dir / f"coverage_{readable_methylation_name[meth_type]}.pdf", format="pdf")
 
+
 def plot_methylation_genic_intergenic(genome: Genome):
     data = genome.gene_caller_df.select("start", "stop", "strand", "contig").sort("start", descending=False).collect(streaming=True).group_by("contig", "strand", maintain_order=True)
 
-    ranges = {"contig": [], "strand": [], "start": [], "stop": []}
+    ranges = {"filter_contig": [], "filter_strand": [], "filter_start": [], "filter_end": []}
     for group in data:
         group_name = group[0]
         group = group[1]
@@ -132,34 +133,59 @@ def plot_methylation_genic_intergenic(genome: Genome):
         if position < contig_length:
             group_ranges.append((position, contig_length))
 
-        ranges["contig"].append([group_name[0]] * len(group_ranges))
-        ranges["strand"].append([group_name[1]] * len(group_ranges))
-        ranges["start"].extend([r[0] for r in group_ranges])
-        ranges["stop"].extend([r[1] for r in group_ranges])
+        ranges["filter_contig"].extend([group_name[0]] * len(group_ranges))
+        ranges["filter_strand"].extend([group_name[1]] * len(group_ranges))
+        ranges["filter_start"].extend([r[0] for r in group_ranges])
+        ranges["filter_end"].extend([r[1] for r in group_ranges])
 
     # Handle no gene on contig
     for contig in genome.sequence.keys():
-        if not contig in ranges["contig"]:
+        if not contig in ranges["filter_contig"]:
             # Include whole contig positive strand
-            ranges["contig"].append(contig)
-            ranges["strand"].append(True)
-            ranges["start"].append(0)
-            ranges["stop"].append(len(genome.sequence[contig]))
+            ranges["filter_contig"].append(contig)
+            ranges["filter_strand"].append(True)
+            ranges["filter_start"].append(0)
+            ranges["filter_end"].append(len(genome.sequence[contig]))
 
             # Include whole contig negative strand
-            ranges["contig"].append(contig)
-            ranges["strand"].append(False)
-            ranges["start"].append(0)
-            ranges["stop"].append(len(genome.sequence[contig]))
+            ranges["filter_contig"].append(contig)
+            ranges["filter_strand"].append(False)
+            ranges["filter_start"].append(0)
+            ranges["filter_end"].append(len(genome.sequence[contig]))
 
     # Result
-    ranges_df = pl.DataFrame(ranges)
+    ranges_df = pl.from_dict(ranges).lazy()
+
+    intragenic_data = genome.load_region_methylation_data(region_filter=ranges_df)
+    genic_data = GeneCollection(genome.gene_ids, genome).methylation_data
+
+    intragenic_data = intragenic_data.with_columns(pl.lit("intra-genic").alias("Region"))
+    genic_data = genic_data.with_columns(pl.lit("Genic").alias("Region"))
+
+    data = pl.concat([intragenic_data, genic_data])
+
+    # Wrangle dataframe
+    data = data.with_columns(pl.col('sample').replace(barcode_replicate_map).alias("Sample"))
+    data = data.filter(pl.col("Sample").is_in(["top", "middle", "bottom"]))
+    data = data.with_columns(pl.col('Sample').replace(readable_sample_name))
+
+    # Long form it
+    data = data.unpivot(on=list(readable_methylation_name.keys()),
+                        index=["Sample", "Region"],
+                        variable_name="Methylation type",
+                        value_name="Fraction methylated").collect(streaming=True)
+    data = data.with_columns(pl.col('Methylation type').replace(readable_methylation_name))
+
+    # Plot
+    sns.catplot(data.to_pandas(), x="Sample", y="Fraction methylated", col="Methylation type", hue="Region", kind="bar", height=8, aspect=2)
+
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "genic_intragenic.pdf", format="pdf")
 
 
 if __name__ == "__main__":
-    plot_methylation_genic_intergenic(Genome("Pelagibacter_r-contigs"))
-    exit()
-
     for name in Genome.valid_genome_names():
         if "metagenome" in name:
             continue
@@ -168,3 +194,4 @@ if __name__ == "__main__":
         print(f"Plotting methylome of {name}")
         plot_methylome(genome)
         plot_methylation_by_coverage(genome)
+        plot_methylation_genic_intergenic(genome)
