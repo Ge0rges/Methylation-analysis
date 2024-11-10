@@ -110,11 +110,56 @@ def plot_methylation_by_coverage(genome):
         else:
             plt.savefig(genome.plot_dir / f"coverage_{readable_methylation_name[meth_type]}.pdf", format="pdf")
 
-def plot_methylation_genic_intergenic(genome):
-    pass
+def plot_methylation_genic_intergenic(genome: Genome):
+    data = genome.gene_caller_df.select("start", "stop", "strand", "contig").sort("start", descending=False).collect(streaming=True).group_by("contig", "strand", maintain_order=True)
+
+    ranges = {"contig": [], "strand": [], "start": [], "stop": []}
+    for group in data:
+        group_name = group[0]
+        group = group[1]
+        group_ranges = []
+
+        position = 0
+
+        for row in group.iter_rows():
+            if row[0] <= position:
+                position = row[1]
+                continue
+            group_ranges.append((position, row[0] - 1))
+            position = row[1]
+
+        contig_length = len(genome.sequence[group_name[0]])
+        if position < contig_length:
+            group_ranges.append((position, contig_length))
+
+        ranges["contig"].append([group_name[0]] * len(group_ranges))
+        ranges["strand"].append([group_name[1]] * len(group_ranges))
+        ranges["start"].extend([r[0] for r in group_ranges])
+        ranges["stop"].extend([r[1] for r in group_ranges])
+
+    # Handle no gene on contig
+    for contig in genome.sequence.keys():
+        if not contig in ranges["contig"]:
+            # Include whole contig positive strand
+            ranges["contig"].append(contig)
+            ranges["strand"].append(True)
+            ranges["start"].append(0)
+            ranges["stop"].append(len(genome.sequence[contig]))
+
+            # Include whole contig negative strand
+            ranges["contig"].append(contig)
+            ranges["strand"].append(False)
+            ranges["start"].append(0)
+            ranges["stop"].append(len(genome.sequence[contig]))
+
+    # Result
+    ranges_df = pl.DataFrame(ranges)
 
 
 if __name__ == "__main__":
+    plot_methylation_genic_intergenic(Genome("Pelagibacter_r-contigs"))
+    exit()
+
     for name in Genome.valid_genome_names():
         if "metagenome" in name:
             continue
