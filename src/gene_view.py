@@ -169,58 +169,18 @@ def plot_gene_start(genome: Genome, gene_id):
 
 
 def identify_interesting_genes(genome: Genome):
-
-    # Get operons of interest
-    operons = genome.gene_cassettes
-    operon_of_interest = []
-    for gene_collection in operons:
-
-        # Get list of functions of each gene in the operon
-        functions = gene_collection.get_function().collect()
-        number_of_genes_in_operon = len(gene_collection.ids)
-
-        if 5 > number_of_genes_in_operon > 1:
-            continue
-
-        # Figure out if the function for KEGG_Brite is the same
-        if functions.filter(pl.col("source").eq("COG20_CATEGORY")).get_column("function").n_unique() == 1 and functions.filter(pl.col("source").eq("COG20_CATEGORY")).height == number_of_genes_in_operon:
-            operon_of_interest.append(gene_collection)
-
-    # Get every gene with a promoter
     all_genes = GeneCollection(genome.gene_ids, genome)
-    promoter_present = (all_genes.pribnow_box_position_and_sequence.filter(pl.col("pribnow_box_position").is_not_null())
-                        .collect(streaming=True)
-                        .get_column("gene_callers_id").to_list())
-    promoter_genes = GeneCollection(promoter_present, genome)
-    promoters_data = promoter_genes.load_flanking_methylation_data(0, (-40, 0))
-
-    # Change sample names
-    promoters_data = promoters_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
+    all_data = all_genes.load_flanking_methylation_data(0, (-40, 40))
+    all_data = all_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
 
     # Get the ones that are DMRed
-    s = promoters_data.collect(streaming=True).get_column("sample").unique().to_list()
-    dmr_genes = promoter_genes
+    dmr_ids = []
+    s = all_data.collect(streaming=True).get_column("sample").unique().to_list()
     if "top" in s and "bottom" in s:
-        dmr_result = promoter_genes.is_significantly_different_between_samples(promoters_data, ["top", "bottom"], False)
+        dmr_result = all_genes.is_significantly_different_between_samples(all_data, ["top", "bottom"], False)
         dmr_ids = dmr_result.filter(pl.col("test_result").eq(True)).get_column("gene_callers_id").to_list()
-        dmr_genes = GeneCollection(dmr_ids, genome)
 
-    # Get genes with biggest difference in methylation between top and bottom, by meth type
-    mod_names = list(readable_modification_name.keys())
-    meth_sum = promoters_data.group_by("gene_callers_id", "sample").agg(pl.col(*mod_names).mean())
-    samples_to_compare = ["top", "bottom"]
-    meth_sum = meth_sum.filter(pl.col("sample").is_in(samples_to_compare))
-    meth_sum = meth_sum.sort("gene_callers_id", "sample")
-
-    meth_diffs: list[GeneCollection] = []
-    for mod_name in mod_names:
-        diff = meth_sum.group_by("gene_callers_id", maintain_order=True).agg(pl.col(mod_name).diff()).collect()
-        diff = diff.top_k(5, by=pl.col(mod_name).list.last().abs())
-        diff = GeneCollection(diff.get_column("gene_callers_id").to_list(), genome)
-        meth_diffs.append(diff)
-
-    # Return ids present in more than one list
-    return set(dmr_genes.ids).intersection(*[d.ids for d in meth_diffs])
+    return dmr_ids
 
 
 if __name__ == "__main__":
