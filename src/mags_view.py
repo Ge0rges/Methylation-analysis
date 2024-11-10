@@ -44,7 +44,7 @@ def plot_start_codon_dist(genomes: list[Genome]):
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(genomes[0].plot_dir / ".." / "mags_gc_content.pdf", format="pdf")
+        plt.savefig(genomes[0].plot_dir / ".." / "mags_start_dist.pdf", format="pdf")
 
 
 

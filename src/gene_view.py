@@ -67,7 +67,7 @@ def plot_all_gene_starts(genome: Genome):
 
     # Plot distribution of nucleotides
     nucleotide_freq = sequence.select("sequence", "position").rename({"sequence": "Nucleotide"}).collect(streaming=True).to_pandas()
-    sns.histplot(nucleotide_freq, x="position", hue="Nucleotide", ax=axes[6], discrete=True, multiple="stack", hue_order=["A", "T", "G", "C"], palette="paired")
+    sns.histplot(nucleotide_freq, x="position", hue="Nucleotide", ax=axes[6], discrete=True, multiple="stack", hue_order=["A", "T", "G", "C"], palette="Paired")
 
     # Plot the sequence as X ticks
     ticks = np.linspace(relative_start, relative_end, len(sequence_str))
