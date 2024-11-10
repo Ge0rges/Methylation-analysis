@@ -11,18 +11,14 @@ from platform import system
 sns.set_theme(context="poster", style="white")
 
 
-def plot_all_gene_starts(genome: Genome):
-    relative_start, relative_end = -40, 20
-
-    gene_collection = GeneCollection(genome.gene_ids, genome)
-
-    # Keep genes that have a start
+def plot_genes_regions(gene_collection: GeneCollection, relative_position: int = 0, relative_start: int = -40, relative_end: int = 20):
+    # Keep genes that have a start if relative_start is negative
     keep_ids = (gene_collection.is_start_missing.filter(pl.col("partial_begin").eq(False))
                 .collect(streaming=True).get_column("gene_callers_id").to_list())
     gene_collection = GeneCollection(keep_ids, genome)
 
     # Get the data
-    methyl_data = gene_collection.load_flanking_methylation_data(0, (relative_start, relative_end))
+    methyl_data = gene_collection.load_flanking_methylation_data(relative_position, (relative_start, relative_end))
 
     # Get DF for all genes
     data = methyl_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
@@ -37,7 +33,7 @@ def plot_all_gene_starts(genome: Genome):
                              value_name="Normalized methylation fraction")
 
     # Get the most frequent nucleotide at each position
-    sequence = gene_collection.get_flanking_sequence(0, (relative_start, relative_end))
+    sequence = gene_collection.get_flanking_sequence(relative_position, (relative_start, relative_end))
     sequence = sequence.with_columns(pl.col("sequence").str.split("")).explode("sequence")
     sequence = sequence.with_columns((pl.cum_count("gene_callers_id") - 1 + relative_start).over("gene_callers_id").alias("position"))
     sequence_str = sequence.group_by("position").agg(pl.col("sequence").mode().first().alias("mode"))
@@ -47,7 +43,7 @@ def plot_all_gene_starts(genome: Genome):
     promoter_positions = gene_collection.pribnow_box_position_and_sequence.drop("gene_callers_id", "pribnow_box_sequence").filter(pl.col("pribnow_box_position").is_not_null()).collect().to_pandas()
 
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-    fig, axes = plt.subplots(7, 1, figsize=(15, 45), layout="constrained", sharex=True)
+    fig, axes = plt.subplots(7, 1, figsize=(int((relative_end - relative_start) * 0.4), 45), layout="constrained", sharex=True)
     fig.suptitle(f"All gene promoter methylation in {genome.readable_name}", fontsize=28)
 
     # Promoter position distribution plot
@@ -91,19 +87,16 @@ def plot_all_gene_starts(genome: Genome):
     return
 
 
-def plot_gene_start(genome: Genome, gene_id):
-    gene = Gene(gene_id, genome)
+def plot_gene_region(gene: Gene, relative_position: int = 0, relative_start: int = -40, relative_end: int = 40):
     print(f"Gene is {gene.contig} at {gene.start} with length {gene.length} and strand {gene.strand}")
     print(f"RBS is {gene.rbs_motif} located at {gene.rbs_motif_position} and start is {gene.start_codon_sequence}")
     print(f"Pribnows box is {gene.pribnow_box_sequence} located at {gene.pribnow_box_position}")
     print(f"Minus 35 box is {gene.minus_35_sequence} located at {gene.minus_35_position}")
     print(f"Gene start {gene.sequence[:13]}")
 
-    # Build filter for the region of interest
-    relative_start, relative_end = -40, 40
-
-    methyl_data = gene.load_flanking_methylation_data(0, (relative_start, relative_end))
-    sequence = gene.get_flanking_sequence(0, (relative_start, relative_end))
+    # Get region of intereset
+    methyl_data = gene.load_flanking_methylation_data(relative_position, (relative_start, relative_end))
+    sequence = gene.get_flanking_sequence(relative_position, (relative_start, relative_end))
 
     # Plot whole gene
     data = methyl_data.with_columns(pl.col('sample').replace(barcode_replicate_map).replace(readable_sample_name))
@@ -119,9 +112,9 @@ def plot_gene_start(genome: Genome, gene_id):
 
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
     ticks = np.linspace(relative_start, relative_end, len(sequence))
-    fig, axes = plt.subplots(4, 1, figsize=(20, 25), layout="constrained", sharex=True, sharey=True)
+    fig, axes = plt.subplots(4, 1, figsize=(int((relative_end - relative_start) * 0.4), 25), layout="constrained", sharex=True, sharey=True)
 
-    fig.suptitle(f"Gene {gene_id} methylation - {genome.readable_name}", fontsize=16)
+    fig.suptitle(f"Gene {gene.id} methylation - {gene.genome.readable_name}", fontsize=16)
 
     # Per type plot
     for i, meth_type in enumerate(readable_methylation_name.values()):
@@ -189,13 +182,17 @@ if __name__ == "__main__":
             continue
 
         genome = Genome(name)
+        gene_collection = GeneCollection(genome.gene_ids, genome)
+        plot_genes_regions(gene_collection, 0, -100, 100)
+        plot_genes_regions(gene_collection, -1, -100, 100)
 
-        print(f"Plotting all gene start for {name}")
-        plot_all_gene_starts(genome)
-        print(f"Getting interesting genes for {name}")
-        interesting_ids = identify_interesting_genes(genome)
 
-        for gene_id in interesting_ids:
-            print(f"Plotting gene {gene_id} for {name}")
-            plot_gene_start(genome, gene_id)
+        # print(f"Plotting all gene start for {name}")
+        # plot_all_gene_regions(gene_collection)
+        # print(f"Getting interesting genes for {name}")
+        # interesting_ids = identify_interesting_genes(genome)
+        #
+        # for gene_id in interesting_ids:
+        #     print(f"Plotting gene {gene_id} for {name}")
+        #     plot_gene_region(Gene(gene_id, genome))
 

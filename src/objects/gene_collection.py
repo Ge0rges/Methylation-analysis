@@ -326,6 +326,10 @@ class GeneCollection(object):
 
         df = df.join(sequences, on="contig")
 
+        # If relative position is negative handle that as being from gene end
+        if relative_position < 0:
+            relative_position = pl.col("stop") + relative_position + 1  # -1 should be the end
+
         # Figure out coordinate
         df = df.with_columns(pl.when(pl.col("strand"))
                              .then(pl.col("start").add(relative_position + start_offset))
@@ -380,6 +384,10 @@ class GeneCollection(object):
         if type(start_offset) is pl.Expr or type(end_offset) is pl.Expr:
             df = df.join(self.rbs_motif_and_relative_position.lazy(), on="gene_callers_id")  # In case, expr uses RBS spacer length
             df = df.filter(pl.col("rbs_motif_position").is_not_null())
+
+        # If relative position is negative handle that as being from gene end
+        if relative_position < 0:
+            relative_position = pl.col("stop") + relative_position + 1  # -1 should be the end
 
         # Figure out coordinates for each gene. The + 1's are needed because stop is exclusive, and we want inclusive.
         df = df.with_columns(pl.when(pl.col("strand"))

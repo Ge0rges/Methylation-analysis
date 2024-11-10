@@ -1,4 +1,3 @@
-from copy import deepcopy
 import polars as pl
 from functools import lru_cache, cached_property
 from src.objects.genome import Genome
@@ -7,9 +6,10 @@ from src.objects.gene_collection import GeneCollection
 
 class Gene(object):
 
-    def __init__(self, id: int, genome:Genome):
+    def __init__(self, id: int, genome: Genome):
         self.id: int = id
         self.gene_collection: GeneCollection = GeneCollection([self.id], genome)
+        self.genome: Genome = genome
 
 
     @cached_property

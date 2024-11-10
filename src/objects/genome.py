@@ -53,6 +53,10 @@ class Genome(object):
         path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{self.name}.fna")
         fasta_dict = SeqIO.index(path, "fasta")
 
+        # Remove contigs not in this genome
+        my_contigs = self.gene_caller_df.select("contig").unique().collect(streaming=True).get_column("contig").to_list()
+        fasta_dict = {k: v for k, v in fasta_dict.items() if k in my_contigs}
+
         return fasta_dict
 
 
@@ -94,7 +98,7 @@ class Genome(object):
 
 
     def load_region_methylation_data(self, coverage: int = __min_coverage_default,
-                                     region_filter: pl.Expr | pl.LazyFrame | None = None, normalize: bool = True) -> pl.LazyFrame:
+                                     region_filter: pl.Expr | pl.LazyFrame | None = None, normalize: bool = True) -> pl.LazyFrame | None:
         # Get all the bed files for this genome
         bed_files = [Path(f) for f in glob.glob(str(self._data_dir / self.name / "*.bed")) if
             '-bedgraph' not in os.path.basename(f)]
@@ -127,6 +131,10 @@ class Genome(object):
             methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
 
             all_data.append(methyl_data)
+
+        if len(all_data) == 0:
+            print(f"No data found for {self.name}")
+            return None
 
         result = pl.concat(all_data)
 
