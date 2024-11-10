@@ -113,7 +113,7 @@ class Genome(object):
                                                      pl.col("strand").eq(pl.col("filter_strand")),
                                                      pl.col("inclusive start position").ge(pl.col("filter_start")),
                                                      pl.col("inclusive start position").le(pl.col("filter_end")))
-                methyl_data = methyl_data.select(*og_columns)
+                methyl_data = methyl_data.select(*og_columns).unique()  # Unique is needed when a positon is in more than one region filter
 
             elif region_filter is not None:
                 raise ValueError("Region filter must be of type pl.Expr, pl.LazyFrame, or None.")
