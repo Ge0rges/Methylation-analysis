@@ -26,6 +26,10 @@ def plot_genes_regions(gene_collection: GeneCollection, relative_position: int =
     data = data.rename(readable_methylation_name).rename({"sample": "Sample", "position": "Position"})
     data = data.with_columns(pl.col('Sample').replace(readable_sample_name)).collect(streaming=True)
 
+    if data.height == 0:
+        print(f"No data for {gene_collection.ids} in genome {gene_collection.genome.name} in region {relative_position} +- {relative_start}, {relative_end}")
+        return
+
     # All types plot
     long_form = data.unpivot(on=list(readable_methylation_name.values()),
                              index=["Sample", "Position"],
@@ -191,16 +195,15 @@ if __name__ == "__main__":
 
         genome = Genome(name)
         gene_collection = GeneCollection(genome.gene_ids, genome)
-        plot_genes_regions(gene_collection, 0, -100, 100)
-        plot_genes_regions(gene_collection, -1, -100, 100)
 
+        print(f"Plotting all gene start for {name}")
+        plot_genes_regions(gene_collection, 0, -40, 10)
 
-        # print(f"Plotting all gene start for {name}")
-        # plot_all_gene_regions(gene_collection)
-        # print(f"Getting interesting genes for {name}")
-        # interesting_ids = identify_interesting_genes(genome)
-        #
-        # for gene_id in interesting_ids:
-        #     print(f"Plotting gene {gene_id} for {name}")
-        #     plot_gene_region(Gene(gene_id, genome))
+        if "Pelagibacter" in name or "polaribacter" in name:
+            print(f"Getting interesting genes for {name}")
+            interesting_ids = identify_interesting_genes(genome)
+        
+            for gene_id in interesting_ids:
+                print(f"Plotting gene {gene_id} for {name}")
+                plot_gene_region(Gene(gene_id, genome), 0, -40, 10)
 

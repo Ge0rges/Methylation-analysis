@@ -47,6 +47,7 @@ rbs_motifs = {"GGA/GAG/AGG": ["GGA", "GAG", "AGG"],
               "TAAA": ["TAAA"],
               "TAAAA": ["TAAAA"],
               "TATAA": ["TATAA"],
+              "AAAAAA": ["AAAAAA"],
               None: [None]
 }
 
