@@ -229,8 +229,10 @@ def uniquely_methylated_positions(genome: Genome):
     sns.histplot(df.to_pandas(), x="meth_type", stat="count")
     plt.title(f"Uniquely methylated positions in {genome.readable_name}")
 
-    plt.show()
-
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "unique_methylation.pdf", format="pdf")
 
 def always_methylated_positions(genome: Genome):
     data = genome.load_all_methylation_data()
@@ -240,7 +242,7 @@ def always_methylated_positions(genome: Genome):
     df = []
     for meth_type in readable_methylation_name.keys():
         unique = ((data.select(meth_type, "contig", "strand", "position", "sample")
-                  .filter(pl.col(meth_type).eq(1.0))
+                  .filter(pl.col(meth_type) > 0.95)
                   .group_by("contig", "strand", "position")
                   .agg(pl.col("sample").n_unique().alias("unique_samples"))).filter(pl.col("unique_samples").eq(3))
                   .with_columns(pl.lit(meth_type).alias("meth_type")))
@@ -254,25 +256,37 @@ def always_methylated_positions(genome: Genome):
 
     plt.title(f"Always methylated positions in {genome.readable_name}")
 
-    plt.show()
-
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "always_methylated.pdf", format="pdf")
 
 def methylation_counts(genome: Genome):
     data = genome.load_all_methylation_data(normalize=False)
     data = data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map))
     data = data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+    data = data.with_columns(pl.col("sample").replace_strict(readable_sample_name))
 
     # Longform it
     data = data.unpivot(on=list(readable_modification_name.keys()),
-                        index=["sample", "contig", "strand", "position"],
+                        index="sample",
                         variable_name="methylation_type",
-                        value_name="methylation_count").collect(streaming=True)
+                        value_name="methylation_count")
 
-    plt.subplots(figsize=(12, 8), layout="constrained")
-    sns.displot(data.to_pandas(), x="methylation_type", y="methylation_count", hue="sample", kind="hist")
+    data = data.group_by("sample", "methylation_type").agg(pl.col("methylation_count").sum())
+    data = data.with_columns(pl.col("methylation_type").replace_strict(readable_modification_name)).collect(streaming=True)
+
+    hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
+    fig, ax = plt.subplots(figsize=(12, 8), layout="constrained")
+    sns.barplot(data.to_pandas(), x="methylation_type", y="methylation_count", hue="sample", hue_order=hue_order, ax=ax,
+                order=readable_modification_name.values())
+    ax.set_yscale("log")
     plt.title(f"Methylation counts in {genome.readable_name}")
 
-    plt.show()
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "methylome_counts.pdf", format="pdf")
 
 
 if __name__ == "__main__":
@@ -281,10 +295,10 @@ if __name__ == "__main__":
             continue
 
         genome = Genome(name)
-        # print(f"Plotting methylome of {name}")
-        # plot_methylome(genome)
-        # plot_methylation_by_coverage(genome)
-        # plot_methylation_genic_intergenic(genome)
+        print(f"Plotting methylome of {name}")
+        plot_methylome(genome)
+        plot_methylation_by_coverage(genome)
+        plot_methylation_genic_intergenic(genome)
         uniquely_methylated_positions(genome)
         always_methylated_positions(genome)
         methylation_counts(genome)

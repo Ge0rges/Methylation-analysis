@@ -2,10 +2,9 @@ import itertools
 import textwrap
 import random
 import polars as pl
-import src.utilities.data_loading as dl
 
-readable_modification_name = {"21839": "4mC", "a": "6mA", "m": "5mC", "Ncanonical": "Canonical"}
-readable_methylation_name = {"21839": "4mC", "a": "6mA", "m": "5mC"}
+readable_modification_name = {"21839": "4mC","m": "5mC", "a": "6mA", "Ncanonical": "Canonical"}
+readable_methylation_name = {"21839": "4mC", "m": "5mC", "a": "6mA"}
 
 readable_sample_name = {"barcode01": "S2-1",
                         "barcode02": "S2-2",
