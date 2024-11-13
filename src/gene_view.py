@@ -170,8 +170,16 @@ def identify_interesting_genes(genome: Genome):
     dmr_ids = []
     s = all_data.collect(streaming=True).get_column("sample").unique().to_list()
     if "top" in s and "bottom" in s:
-        dmr_result = all_genes.is_significantly_different_between_samples(all_data, ["top", "bottom"], False)
-        dmr_ids = dmr_result.filter(pl.col("test_result").eq(True)).get_column("gene_callers_id").to_list()
+        dmr_result = (all_genes.is_significantly_different_between_samples(all_data, ["top", "bottom"], False)
+                      .filter(pl.col("test_result").eq(True)))
+        dmr_ids = dmr_result.get_column("gene_callers_id").to_list()
+
+        # Write their function to a CSV
+        dmr_genes = GeneCollection(dmr_ids, genome)
+        dmr_genes = (dmr_genes.get_function().join(dmr_result.lazy(), on="gene_callers_id")
+                     .select("gene_callers_id", "function", "rao_score", "source")
+                     .sort("rao_score", descending=True))
+        dmr_genes.sink_csv(genome.plot_dir / "dmred_genes_rao.csv")
 
     return dmr_ids
 

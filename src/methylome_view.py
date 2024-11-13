@@ -1,3 +1,7 @@
+from unicodedata import normalize
+
+from bokeh.layouts import layout
+
 from src.objects import Genome, GeneCollection
 import polars as pl
 import matplotlib.pyplot as plt
@@ -198,11 +202,77 @@ def plot_methylation_genic_intergenic(genome: Genome):
     # Show genic ration in title
     plt.suptitle(f"{genome.readable_name} genic ratio: {genic_ratio:.2f}")
 
-
     if system() == "Darwin":
         plt.show()
     else:
         plt.savefig(genome.plot_dir / "genic_intragenic.pdf", format="pdf")
+
+
+def uniquely_methylated_positions(genome: Genome):
+    data = genome.load_all_methylation_data()
+    data = data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map))
+
+    # Per type
+    df = []
+    for meth_type in readable_methylation_name.keys():
+        unique = ((data.select(meth_type, "contig", "strand", "position", "sample")
+                  .filter(pl.col(meth_type) > 0.95)
+                  .group_by("contig", "strand", "position")
+                  .agg(pl.col("sample").n_unique().alias("unique_samples"))).filter(pl.col("unique_samples").eq(1))
+                  .with_columns(pl.lit(meth_type).alias("meth_type")))
+        df.append(unique)
+
+    df = pl.concat(df).collect(streaming=True)
+    df = df.with_columns(pl.col("meth_type").replace(readable_methylation_name))
+
+    plt.subplots(figsize=(12, 8), layout="constrained")
+    sns.histplot(df.to_pandas(), x="meth_type", stat="count")
+    plt.title(f"Uniquely methylated positions in {genome.readable_name}")
+
+    plt.show()
+
+
+def always_methylated_positions(genome: Genome):
+    data = genome.load_all_methylation_data()
+    data = data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map))
+
+    # Per type
+    df = []
+    for meth_type in readable_methylation_name.keys():
+        unique = ((data.select(meth_type, "contig", "strand", "position", "sample")
+                  .filter(pl.col(meth_type).eq(1.0))
+                  .group_by("contig", "strand", "position")
+                  .agg(pl.col("sample").n_unique().alias("unique_samples"))).filter(pl.col("unique_samples").eq(3))
+                  .with_columns(pl.lit(meth_type).alias("meth_type")))
+        df.append(unique)
+
+    df = pl.concat(df).collect(streaming=True)
+    df = df.with_columns(pl.col("meth_type").replace(readable_methylation_name))
+
+    plt.subplots(figsize=(12, 8), layout="constrained")
+    sns.histplot(df.to_pandas(), x="meth_type", stat="count")
+
+    plt.title(f"Always methylated positions in {genome.readable_name}")
+
+    plt.show()
+
+
+def methylation_counts(genome: Genome):
+    data = genome.load_all_methylation_data(normalize=False)
+    data = data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map))
+    data = data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+
+    # Longform it
+    data = data.unpivot(on=list(readable_modification_name.keys()),
+                        index=["sample", "contig", "strand", "position"],
+                        variable_name="methylation_type",
+                        value_name="methylation_count").collect(streaming=True)
+
+    plt.subplots(figsize=(12, 8), layout="constrained")
+    sns.displot(data.to_pandas(), x="methylation_type", y="methylation_count", hue="sample", kind="hist")
+    plt.title(f"Methylation counts in {genome.readable_name}")
+
+    plt.show()
 
 
 if __name__ == "__main__":
@@ -214,4 +284,7 @@ if __name__ == "__main__":
         # print(f"Plotting methylome of {name}")
         # plot_methylome(genome)
         # plot_methylation_by_coverage(genome)
-        plot_methylation_genic_intergenic(genome)
+        # plot_methylation_genic_intergenic(genome)
+        uniquely_methylated_positions(genome)
+        always_methylated_positions(genome)
+        methylation_counts(genome)

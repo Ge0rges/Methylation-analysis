@@ -14,7 +14,7 @@ from Bio import SeqIO
 
 
 class Genome(object):
-    __min_coverage_default = 5
+    __min_coverage_default = 10
     __data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../methylation_data/methylation_5"))
     if system() == "Darwin":
         __data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
@@ -70,8 +70,10 @@ class Genome(object):
     def gene_caller_df(self) -> pl.LazyFrame:
         return get_dataset_genes(self).filter(pl.col("gene_callers_id").is_in(self.gene_ids))
 
+
     @cached_property
     def gene_ids(self) -> list[int]:
+        # This works because modkit takes a reference and then does pileup one area within that reference only.
         bed_files = [Path(f) for f in glob.glob(os.path.join(self._data_dir, self.name, "*.bed")) if
                      '-bedgraph' not in os.path.basename(f)]
 
