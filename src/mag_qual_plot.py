@@ -17,7 +17,7 @@ def plot_coverage():
     """
 
     # Load data
-    coverage = get_coverage("../../data/").collect().to_pandas()
+    coverage = get_coverage("../data/").collect().to_pandas()
     coverage.rename(inplace=True, columns=barcode_replicate_map)
     coverage.rename(inplace=True, columns=readable_sample_name)
 
@@ -52,8 +52,8 @@ def plot_mag_eval():
     :return: Saves a file
     """
     # Load data
-    checkm2_quality = pd.read_csv("../../data/mag_eval/checkm2.tsv", sep="\t", header=0)
-    anvio_quality = pd.read_csv("../../data/mag_eval/anvio.tsv", sep="\t", header=0)
+    checkm2_quality = pd.read_csv("../data/mag_eval/checkm2.tsv", sep="\t", header=0)
+    anvio_quality = pd.read_csv("../data/mag_eval/anvio.tsv", sep="\t", header=0)
 
     # Merge the quality dataframes
     checkm2_quality['Name'] = checkm2_quality['Name'].str.replace("_r-contigs", "_r")
@@ -159,6 +159,6 @@ def read_count_plot():
 if __name__ == "__main__":
     sns.set_theme(context="talk", style="white")
 
-    #plot_mag_eval()
+    plot_mag_eval()
     plot_coverage()
-    #read_count_plot()
+    read_count_plot()

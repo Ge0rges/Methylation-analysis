@@ -4,7 +4,7 @@ from random import randint
 import xarray as xr
 import json
 from sklearn.model_selection import ParameterGrid
-from src.Objects import GeneCollection, Genome
+from src.objects import GeneCollection, Genome
 from src.utilities.utils import barcode_replicate_map, readable_methylation_name
 from tensorly import check_random_state
 from barnacle import SparseCP

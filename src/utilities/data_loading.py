@@ -1,11 +1,16 @@
+from __future__ import annotations
 import os
 import glob
 import polars as pl
-from Bio import SeqIO
 import src.utilities.utils as utils
+from pathlib import Path
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from src.objects.genome import Genome
 
 
-def get_pileup_polars(path) -> pl.LazyFrame:
+def get_pileup(path: Path) -> pl.LazyFrame:
     """
     Read pileup data from a file.
 
@@ -15,76 +20,21 @@ def get_pileup_polars(path) -> pl.LazyFrame:
     :rtype: pandas.DataFrame
     """
     pileup = pl.scan_csv(path, separator="\t", has_header=False,
-                         new_columns=["chrom", "inclusive start position", "exclusive end position",
-                                      "modified base src and motif", "score", "strand", "start position2",
+                         new_columns=["contig", "inclusive start position", "exclusive end position",
+                                      "modified base code and motif", "score", "strand", "start position2",
                                       "end position2", "color", "Nvalid_cov", "fraction modified", "Nmod", "Ncanonical",
                                       "Nother_mod", "Ndelete", "Nfail", "Ndiff", "Nnocall"])
 
     # Drop redundant columns
     pileup = pileup.drop("score", "start position2", "end position2", "color")
 
-    # assert that there is always 1 between start and end
-    test = pileup.with_columns((pl.col("exclusive end position") - pl.col("inclusive start position")).alias("length"))
-    test = test.filter(pl.col("length") != 1)
-    assert test.collect().is_empty(), "There are rows for data more than 1 nucleotide long"
+    # Convert strand to bool
+    pileup = pileup.with_columns(pl.col("strand").replace_strict({"+": True, "-": False}))
 
     return pileup
 
 
-def load_combined_methyl_data_for_genome_polars(genome_name: str, data_dir: str, coverage: int = None) -> pl.LazyFrame | None:
-    """
-    Load the methyl data from every sample into a matrix.
-
-    :param genome_name: Folder name of the genome_name.
-    :type genome_name: str
-    :param data_dir: Path to the data directory.
-    :type data_dir: str
-    :param coverage: Minimum coverage to include
-    :type coverage: int
-    :return: Dataframe of the combined methyl data.
-    :rtype: pd.DataFrame
-    """
-    # Load the methyl_dfs from the bed files
-    bed_files = [f for f in glob.glob(os.path.join(data_dir, genome_name, "*.bed")) if
-                 '-bedgraph' not in os.path.basename(f)]
-
-    if len(bed_files) == 0:
-        print(f"No pileup bed files found for {data_dir}/{genome_name}")
-        return None
-
-    dfs = []
-    for i, bed_file in enumerate(bed_files):
-        methyl_data = get_pileup_polars(bed_file)
-
-        methyl_data = utils.reshape_pileup_to_matrix_polars(methyl_data)
-
-        # Add sample column
-        sample_name = os.path.basename(bed_file).split(".")[0]
-        methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
-
-        dfs.append(methyl_data)
-
-    # Concat everything together
-    dfs = pl.concat(dfs)
-
-    # Split name
-    dfs = dfs.with_columns(
-        contig=pl.col('name').str.split(by='|').list.get(0),
-        strand=pl.col('name').str.split(by='|').list.get(1),
-        start=pl.col('name').str.split(by='|').list.get(2).cast(pl.UInt32),
-        end=pl.col('name').str.split(by='|').list.get(3).cast(pl.UInt32)
-    )
-
-    # Filter for coverage
-    if coverage is not None:
-        methylation_types = list(utils.readable_methylation_name.keys()) + ["Ncanonical"]
-        dfs = dfs.filter(pl.concat_list(methylation_types).list.sum().ge(coverage))
-        dfs = dfs.filter(pl.any_horizontal(pl.col(methylation_types).is_not_null() & pl.col(methylation_types).is_not_nan()))
-
-    return dfs
-
-
-def get_genes_polars(data_dir: str) -> pl.LazyFrame:
+def get_dataset_genes(genome: Genome) -> pl.LazyFrame:
     """
     Parameters:
     data_dir (str): The path to the data directory.
@@ -93,16 +43,17 @@ def get_genes_polars(data_dir: str) -> pl.LazyFrame:
     Returns:
     pandas.DataFrame: DataFrame with gene functions.
     """
-    gene_calls = pl.scan_csv(f"{data_dir}/gene-calls.txt", separator="\t")
+    data_dir = genome._data_dir
+    gene_calls = pl.scan_csv(data_dir / "gene-calls.txt", separator="\t")
 
     # Map direction to +/-
-    gene_calls = gene_calls.with_columns(pl.col("direction").str.replace_many(["f", "r"],["+", "-"]))
-    gene_calls = gene_calls.rename({"direction": "strand"})
+    gene_calls = gene_calls.with_columns(pl.col("direction").replace_strict({"f": True, "r": False}))
+    gene_calls = gene_calls.rename({"direction": "strand", "start_type": "start_codon_sequence"})
 
     return gene_calls
 
 
-def get_dmrs_from_file_polars(path) -> (pl.LazyFrame, bool):
+def get_dmrs(path: Path) -> (pl.LazyFrame, bool):
     """
     Read DMRs (Differentially Methylated Regions) data from a file, replaces the fractions and count columns with
     individual columns for each methylation type. Adds a column called comparison to note the samples comapred.
@@ -139,9 +90,9 @@ def get_dmrs_from_file_polars(path) -> (pl.LazyFrame, bool):
     return dmrs, False
 
 
-def get_dmrs_for_genome_polars(data_dir, genome_name, dmr_type) -> pl.LazyFrame:
+def get_dmrs_for_genome(data_dir: Path, genome_name, dmr_type) -> pl.LazyFrame | None:
     # Get bed files
-    bed_files = glob.glob(os.path.join(os.path.join(data_dir, genome_name, dmr_type), "*.bed"))
+    bed_files = glob.glob(data_dir / genome_name / dmr_type / "*.bed")
     bed_files = [file for file in bed_files if not file.endswith('-bedgraph.bed')]
     if len(bed_files) == 0:
         return None
@@ -149,7 +100,7 @@ def get_dmrs_for_genome_polars(data_dir, genome_name, dmr_type) -> pl.LazyFrame:
     # Get all the methylation data from the bed files
     dmrs = []
     for bed_file in bed_files:
-        dmr, empty = get_dmrs_from_file_polars(bed_file)
+        dmr, empty = get_dmrs(bed_file)
         if not empty:
             dmrs.append(dmr)
 
@@ -159,7 +110,7 @@ def get_dmrs_for_genome_polars(data_dir, genome_name, dmr_type) -> pl.LazyFrame:
     return dmrs
 
 
-def get_sample_metadata(data_dir) -> pl.DataFrame:
+def get_sample_metadata(data_dir: Path) -> pl.DataFrame:
     """
     Load the sample metadata from an Excel file.
 
@@ -169,16 +120,15 @@ def get_sample_metadata(data_dir) -> pl.DataFrame:
     Returns:
     pd.DataFrame: A DataFrame containing the loaded sample metadata.
     """
-    file_path = os.path.join(data_dir, "sample_metadata.xlsx")
-    metadata_df = pl.read_excel(file_path)
+    metadata_df = pl.read_excel(data_dir / "sample_metadata.xlsx")
     return metadata_df
 
 
-def get_coverage(data_dir, genome_name=None, agg=False) -> pl.LazyFrame:
+def get_coverage(data_dir: Path, genome_name=None, agg=False) -> pl.LazyFrame:
     """
     Load the coverage data from a file. If aggregate, returns the mean coverage for the group.
     """
-    coverage = pl.scan_csv(os.path.join(data_dir, "mag_eval/coverm.tsv"), separator="\t")
+    coverage = pl.scan_csv(data_dir / "mag_eval" / "coverm.tsv", separator="\t")
 
     # Replace the coverage column names based on dictionnary mapping
     coverage = coverage.rename(lambda x: x.replace(".fastq Mean", ""))
@@ -208,39 +158,3 @@ def get_coverage(data_dir, genome_name=None, agg=False) -> pl.LazyFrame:
         return coverage.select(*list(sample_group_barcodes.keys()), "Genome")
 
     return coverage
-
-
-def get_coordinated_functions_polars(data_dir) -> pl.LazyFrame:
-    """
-    Read gene caller and functions from seperate files then intersect.
-
-    Parameters:
-    data_dir (str): The path to the data directory.
-    genome_name (str): Genome name.
-
-    Returns:
-    pandas.DataFrame: DataFrame with gene functions.
-    """
-    # Load data
-    function_calls = pl.scan_csv(f"{data_dir}/function-calls.txt", separator="\t")
-    gene_calls = get_genes_polars(data_dir)
-
-    # Merge using efficient indexing
-    coordinated_functions = gene_calls.join(function_calls, on='gene_callers_id')
-
-    return coordinated_functions
-
-
-def get_genomic_sequence(genome_name) -> dict[str, SeqIO.SeqRecord]:
-    """
-    Read genomic sequence data from a file.
-
-    :param path: Path to .fasta file.
-    :type path: str
-    :return: Dataframe of file data
-    :rtype: pandas.DataFrame
-    """
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{genome_name}.fna")
-    fasta_dict = SeqIO.index(path, "fasta")
-
-    return fasta_dict

@@ -2,7 +2,7 @@ from __future__ import annotations
 from functools import lru_cache, cached_property
 from src.utilities.utils import add_gene_caller_id, readable_modification_name
 from Bio import SeqRecord
-from src.utilities.data_loading import get_genomic_sequence, get_genes_polars
+from src.utilities.data_loading import get_dataset_genes
 import polars as pl
 
 from typing import TYPE_CHECKING
@@ -12,7 +12,7 @@ if TYPE_CHECKING:  # Only for type hints
     from genome import Genome
 
 try:
-    from src.raobust import add_rao_score_by_gene
+    from src.utilities.raobust import add_rao_score_by_gene
 except:
     pass
 
@@ -46,6 +46,8 @@ rbs_motifs = {"GGA/GAG/AGG": ["GGA", "GAG", "AGG"],
               "AAAAT": ["AAAAT"],
               "TAAA": ["TAAA"],
               "TAAAA": ["TAAAA"],
+              "TATAA": ["TATAA"],
+              "AAAAAA": ["AAAAAA"],
               None: [None]
 }
 
@@ -61,17 +63,17 @@ class GeneCollection(object):
 
 
     def _load_data(self) -> None:
-        self.gene_caller_df: pl.LazyFrame = get_genes_polars(self.genome._data_dir).filter(
+        self.gene_caller_df: pl.LazyFrame = get_dataset_genes(self.genome).filter(
             pl.col("gene_callers_id").is_in(self.ids))
         self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._data_dir}/function-calls.txt", separator="\t").filter(
             pl.col("gene_callers_id").is_in(self.ids))
 
 
     def __getitem__(self, item) -> Gene | list[Gene]:
-        from src.Objects.gene import Gene
+        from src.objects.gene import Gene
         if isinstance(item, slice):
-            return [Gene(self.ids[i], self) for i in self.ids[item]]
-        return Gene(self.ids[item], self)
+            return [Gene(self.ids[i]) for i in self.ids[item]]
+        return Gene(self.ids[item])
 
 
     def __len__(self):
@@ -90,7 +92,6 @@ class GeneCollection(object):
 
         # Do a group by gene_callers_id and then do a subtraction of the start position
         methylation_data = methylation_data.join(self.start, on="gene_callers_id")
-        methylation_data = methylation_data.with_columns(pl.col('name').str.split(by='|').list.get(2).cast(pl.Int64).sub(pl.col("start")).alias("position")).drop("name")
         return methylation_data
 
 
@@ -113,7 +114,7 @@ class GeneCollection(object):
 
     @cached_property
     def strand(self) -> pl.LazyFrame:
-        df = self.gene_caller_df.select("gene_callers_id", "strand").with_columns(pl.col("strand").eq("+"))
+        df = self.gene_caller_df.select("gene_callers_id", "strand")
         return df
 
 
@@ -148,7 +149,7 @@ class GeneCollection(object):
 
     @cached_property
     def start_codon_sequence(self) -> pl.LazyFrame:
-        return self.gene_caller_df.select("gene_callers_id", "start_type")
+        return self.gene_caller_df.select("gene_callers_id", "start_codon_sequence")
 
 
     @cached_property
@@ -182,6 +183,7 @@ class GeneCollection(object):
     @cached_property
     def candidate_rbs_motifs(self) -> pl.LazyFrame:
         df = self.gene_caller_df.select("gene_callers_id", "rbs_motif")
+        print(df.collect().get_column("rbs_motif").to_list())
         df = df.with_columns(pl.col("rbs_motif").replace_strict(rbs_motifs, return_dtype=pl.List(pl.String)).alias("candidate_rbs_motifs"))
         df = df.select("gene_callers_id", "candidate_rbs_motifs")
         return df
@@ -215,7 +217,7 @@ class GeneCollection(object):
             raise ValueError
 
         df = self.candidate_rbs_motifs.join(self.rbs_spacer_length, on="gene_callers_id")
-        df = df.join(self.get_flanking_sequence(0, (-pl.col("rbs_spacer_length").list.last() - 12, 0)), on="gene_callers_id")
+        df = df.join(self.get_flanking_sequence(0, (-pl.col("rbs_spacer_length").list.max() - 12, 0)), on="gene_callers_id")
         df = df.collect(streaming=True)
 
         # map_rows requires return_dtype and can't specify different types
@@ -232,6 +234,7 @@ class GeneCollection(object):
     @cached_property
     def rbs_spacer_length(self) -> pl.LazyFrame:
         df = self.gene_caller_df.select("gene_callers_id", "rbs_spacer")
+        print(df.collect().get_column("rbs_spacer").to_list())
         df = df.with_columns(pl.col("rbs_spacer").replace_strict(space_dict, return_dtype=pl.List(pl.Int16)).alias("rbs_spacer_length"))
 
         return df.select("gene_callers_id", "rbs_spacer_length")
@@ -271,7 +274,7 @@ class GeneCollection(object):
 
     def is_significantly_different_between_samples(self, df: pl.LazyFrame, samples: list[str], baseline: str | bool) -> pl.DataFrame:
         df = df.collect(streaming=True)
-        assert samples in df.get_column("sample").unique().to_list()
+        assert all(sample in df.get_column("sample").unique().to_list() for sample in samples)
 
         df = add_rao_score_by_gene(df, samples, baseline)
 
@@ -308,7 +311,6 @@ class GeneCollection(object):
 
         # Get the Df we need
         df = self.gene_caller_df.select("contig", "start", "stop", "strand", "gene_callers_id")
-        df = df.with_columns(pl.col("strand").eq("+"))
 
         # Add RBS if needed, filter for RBS spacer length non-null
         if type(start_offset) is pl.Expr or type(end_offset) is pl.Expr:
@@ -317,12 +319,16 @@ class GeneCollection(object):
 
         # Get full sequences first and their length
         sequences = {}
-        for key, value in get_genomic_sequence(self.genome.name).items():
+        for key, value in self.genome.sequence.items():
             sequences[key] = str(value.seq)
         sequences = {"contig": sequences.keys(), "sequence": sequences.values()}
         sequences = pl.from_dict(sequences, schema=["contig", "sequence"]).lazy()
 
         df = df.join(sequences, on="contig")
+
+        # If relative position is negative handle that as being from gene end
+        if relative_position < 0:
+            relative_position = pl.col("stop") + relative_position + 1  # -1 should be the end
 
         # Figure out coordinate
         df = df.with_columns(pl.when(pl.col("strand"))
@@ -373,31 +379,37 @@ class GeneCollection(object):
 
         # Get the gene information we need
         df = self.gene_caller_df.select("gene_callers_id", "contig", "start", "stop", "strand")
-        df = df.with_columns(pl.col("strand").eq("+"))
 
         # Add RBS if needed, filter for RBS spacer length non-null
         if type(start_offset) is pl.Expr or type(end_offset) is pl.Expr:
             df = df.join(self.rbs_motif_and_relative_position.lazy(), on="gene_callers_id")  # In case, expr uses RBS spacer length
             df = df.filter(pl.col("rbs_motif_position").is_not_null())
 
-        # Figure out coordinates for each gene. The + 1's are needed because stop is exclusive, and we want inclusive.u
+        # If relative position is negative handle that as being from gene end
+        if relative_position < 0:
+            relative_position = pl.col("stop") + relative_position + 1  # -1 should be the end
+
+        # Figure out coordinates for each gene. The + 1's are needed because stop is exclusive, and we want inclusive.
         df = df.with_columns(pl.when(pl.col("strand"))
                              .then(pl.col("start").add(relative_position + start_offset))
-                             .otherwise(pl.col("stop").sub(relative_position + end_offset + 1)).alias("region_start"))
+                             .otherwise(pl.col("stop").sub(relative_position + end_offset + 1)).alias("filter_start"))
 
         df = df.with_columns(pl.when(pl.col("strand"))
                              .then(pl.col("start").add(relative_position + end_offset))
-                             .otherwise(pl.col("stop").sub(relative_position + start_offset + 1)).alias("region_end"))
+                             .otherwise(pl.col("stop").sub(relative_position + start_offset + 1)).alias("filter_end"))
 
-        # Get methylation data
-        methyl_data = self.genome.load_all_methylation_data()
+        # Get methylation data and filter using the filter df we built
+        region_filter = df.select("contig", "strand", "filter_start", "filter_end")
+        region_filter = region_filter.rename({"contig": "filter_contig", "strand": "filter_strand"})
 
-        # Filter methylation data
+        methyl_data = self.genome.load_region_methylation_data(region_filter=region_filter)
+
+        # Add gene info
         methyl_data = methyl_data.join_where(df,
                                              pl.col("contig").eq(pl.col("contig_right")),
                                              pl.col("strand").eq(pl.col("strand_right")),
-                                             pl.col("position").ge(pl.col("region_start")),
-                                             pl.col("position").le(pl.col("region_end")))
+                                             pl.col("position").ge(pl.col("filter_start")),
+                                             pl.col("position").le(pl.col("filter_end")))
 
         # Take the reverse complement if strand is negative
         methyl_data = methyl_data.with_columns(pl.when(pl.col("strand"))

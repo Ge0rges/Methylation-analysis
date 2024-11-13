@@ -2,10 +2,9 @@ import itertools
 import textwrap
 import random
 import polars as pl
-import src.utilities.data_loading as dl
 
-readable_modification_name = {"21839": "4mC", "a": "6mA", "m": "5mC", "Ncanonical": "Canonical"}
-readable_methylation_name = {"21839": "4mC", "a": "6mA", "m": "5mC"}
+readable_modification_name = {"21839": "4mC","m": "5mC", "a": "6mA", "Ncanonical": "Canonical"}
+readable_methylation_name = {"21839": "4mC", "m": "5mC", "a": "6mA"}
 
 readable_sample_name = {"barcode01": "S2-1",
                         "barcode02": "S2-2",
@@ -142,53 +141,44 @@ def truncate_label(label, max_length, max_lines):
 
 def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     # Add a name column
-    methyl_data = methyl_data.with_columns((pl.col('chrom') + '|' + pl.col('strand') + '|' + pl.col(
-        'inclusive start position').cast(pl.Utf8) + '|' + pl.col('exclusive end position').cast(pl.Utf8)).alias('name'))
+    position_cols = ["contig", "strand", "inclusive start position", "exclusive end position"]
 
     # Keep only what we need
-    methyl_data = methyl_data.select(
-        ['name', 'modified base src and motif', 'Nvalid_cov', "Ndiff", "Nmod", "Ncanonical"])
+    methyl_data = methyl_data.select(position_cols + ['modified base code and motif', 'Nvalid_cov', "Ndiff", "Nmod", "Ncanonical"])
 
     # Ndiff is reads with a base other than the canonical base for this modification
-    methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
-
-    # mod_base_map = {"a": "A", "m": "C", "21839": "C"}
-    # methyl_data = methyl_data.with_columns(
-    #     pl.col('modified base src and motif').replace(mod_base_map).alias('mod_group'))
-    #
-    # grouped = methyl_data.group_by(['name', 'mod_group']).agg(pl.max('Nvalid_cov'))
-    #
-    # methyl_data = methyl_data.join(grouped, on=['name', 'mod_group', 'Nvalid_cov'], how='inner')
+    #methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
 
     pivot_df = methyl_data.collect(streaming=True)
     if pivot_df.height == 0:
         return None
 
-    pivot_df = pivot_df.pivot(index='name', columns='modified base src and motif', values='Nmod',
-                              aggregate_function='first').lazy()
-    pivot_df = pivot_df.join(methyl_data.select(['name', 'Ncanonical']), on='name', how='left').fill_null(0)
+    pivot_df = pivot_df.pivot(index=position_cols, columns='modified base code and motif', values='Nmod').lazy()
+    pivot_df = pivot_df.join(methyl_data.select(position_cols + ['Ncanonical']), on=position_cols, how='left').fill_null(0)
 
-    # If there was no methylation of one type add 0s
+    # If there was no methylation of one type add Nulls
     for meth_type in readable_modification_name.keys():
         if meth_type not in pivot_df.collect_schema().names():
-            pivot_df = pivot_df.with_columns(pl.lit(0).cast(pl.Int64).alias(meth_type))
+            pivot_df = pivot_df.with_columns(pl.lit(pl.Null, allow_object=True).alias(meth_type))
 
-    return pivot_df.select("name", *readable_modification_name.keys())  # Select is needed to ensure order for vstack
+    # Select is needed to ensure order for vstack
+    return pivot_df.select("contig", "strand", "inclusive start position", *readable_modification_name.keys())
 
 
-def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
+def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[str] = []) -> pl.LazyFrame:
     """
     Add the gene caller id.
     """
     # Merge merged_df with ranges based on conditions
     # Filter rows where merged_df start and end values are within sequence_range start and end.
     # Gene sequence_range is inclusive of end, modkit bed is not.
-    og_columns = df.collect_schema().names()
+    og_columns = df.collect_schema().names() + keep_cols
     result = df.join_where(genes,
                            pl.col('position').ge(pl.col('start')),
                            pl.col('position').lt(pl.col('stop')),
                            pl.col("contig").eq(pl.col("contig_right")),
                            pl.col('strand').eq(pl.col('strand_right')))
+
 
     # If there are still multiple gene_callers_id for the same name, pick the first one
     result = result.unique(subset=og_columns, keep="first")
@@ -199,50 +189,11 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame) -> pl.LazyFrame:
     return result
 
 
-def normalize_data_by_genome_coverage(df: pl.LazyFrame, genome_name, aggregate=False) -> pl.LazyFrame:
-    # Normalize to coverage
-    coverages = dl.get_coverage("../data/", genome_name, agg=aggregate).drop("Genome").collect().to_dict(
-        as_series=False)
-
-    for key, value in coverages.items():
-        coverages[key] = value[0]
-        if value == 0 and key in df.select("norm_sample").unique():
-            print(f"Coverage for {key} is 0")
-
-    methylation_types = list(readable_methylation_name.keys())
-    if "total_methylation" in df.collect_schema().names():
-        df = df.with_columns(
-            pl.col("total_methylation") / (pl.col('norm_sample').replace_strict(coverages).mul(len(methylation_types))))
-
-    df = df.with_columns(pl.col(methylation_types) / pl.col('norm_sample').replace_strict(coverages))
-
-    return df
-
-
 def normalize_data_by_pileup(df: pl.DataFrame | pl.LazyFrame) -> pl.LazyFrame | pl.DataFrame:
     methylation_types = list(readable_modification_name.keys())
     df = df.with_columns(pl.col(methylation_types) / pl.concat_list(methylation_types).list.sum())
 
     return df
-
-
-def add_functional_annotations_polars(df: pl.LazyFrame, data_dir: str) -> pl.LazyFrame:
-    """
-    Add functional annotations to DMRs (Differentially Methylated Regions) by matching DMR positions with
-    genomic annotations to find overlaps. Drops the "partial" column from the merged DataFrame.
-    """
-    # Load functional annotations for the specified genome_name from a data directory
-    functions = dl.get_coordinated_functions_polars(data_dir).select("gene_callers_id", "function", "source")
-
-    # Merge DMR data with functional annotations based on contig name
-    merged_df = df.join(functions, on="gene_callers_id", how="left")
-
-    # Fill missing values in the merged DataFrame
-    merged_df = merged_df.with_columns(pl.col("function").fill_null("Unknown"),
-                                       pl.col("source").fill_null("Unannotated"))
-
-    # Remove duplicate entries from the merged DataFrame
-    return merged_df.unique()
 
 
 def generate_cross_validation_sets(df: pl.DataFrame, unique_col: str, treatmeant_col: str, sample_col: str,

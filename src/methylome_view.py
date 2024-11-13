@@ -1,9 +1,12 @@
-from src.Objects import Genome
+from unicodedata import normalize
+
+from bokeh.layouts import layout
+
+from src.objects import Genome, GeneCollection
 import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
 from platform import system
-from src.utilities.data_loading import get_genomic_sequence
 from src.utilities.utils import readable_modification_name, normalize_data_by_pileup
 from utilities.utils import readable_methylation_name, barcode_replicate_map, readable_sample_name
 
@@ -22,16 +25,15 @@ def plot_methylome(genome):
 
     # Make it presentable
     data = data.with_columns(pl.col('sample').replace(readable_sample_name))
-    data = data.rename(readable_methylation_name).rename({"sample": "Sample", "strand": "Strand"}).collect(streaming=True)
+    data = data.rename(readable_methylation_name).rename({"sample": "Sample", "strand": "Strand"})
 
     # Get contigs cumsum
-    contigs = data.get_column("contig").unique().to_list()
+    contigs = data.select("contig").unique().collect(streaming=True).get_column("contig")
     cum_sum = 0
     offsets = {}
-    sequences = get_genomic_sequence(genome.name)
     for key in contigs:
         offsets[key] = cum_sum
-        cum_sum += len(sequences[key])
+        cum_sum += len(genome.sequence[key])
 
     # Convert positiont to absolute
     data = data.with_columns(pl.col("position").add(pl.col("contig").replace_strict(offsets)).alias("Position"))
@@ -41,7 +43,9 @@ def plot_methylome(genome):
                          index=["Sample", "Position", "Strand"],
                          variable_name="Methylation type",
                          value_name="Normalized methylation fraction")
-                .filter(pl.col("Normalized methylation fraction").gt(0))).to_pandas()
+                .filter(pl.col("Normalized methylation fraction").gt(0))).collect(streaming=True).to_pandas()
+
+    print(f"Data collected for methylome distribution plot  for {genome.name}")
 
     # Plot the strand in two seperate columns, one row per methylation type
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
@@ -60,7 +64,7 @@ def plot_methylome(genome):
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(genome.plot_dir / "methylome.pdf", format="pdf")
+        plt.savefig(genome.plot_dir / "violin_methylome.pdf", format="pdf")
 
     g = sns.displot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand", height=8, hue="Sample", aspect=2, row_order=[True, False], hue_order=hue_order, kind="kde")
     g.fig.suptitle(f"{genome.readable_name} methylome KDE")
@@ -68,7 +72,7 @@ def plot_methylome(genome):
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(genome.plot_dir / "methylome.pdf", format="pdf")
+        plt.savefig(genome.plot_dir / "kde_methylome.pdf", format="pdf")
 
 
 def plot_methylation_by_coverage(genome):
@@ -92,6 +96,8 @@ def plot_methylation_by_coverage(genome):
                         variable_name="Methylation type",
                         value_name="Fraction methylated").collect(streaming=True)
 
+    print(f"Data collected for methylome by coverage  for {genome.name}")
+
     # Show only coverage that is in the 90% percentile (filter outliers)
     data = data.filter(pl.col("Coverage").lt(data.get_column("Coverage").quantile(0.9)))
 
@@ -100,17 +106,199 @@ def plot_methylation_by_coverage(genome):
 
     for meth_type in readable_methylation_name.keys():
         df = data.filter(pl.col("Methylation type").eq(meth_type)).to_pandas()
-        g = sns.jointplot(df, x="Fraction methylated", y="Coverage", hue="Sample", hue_order=hue_order, height=16, kind="hex")
+        g = sns.jointplot(df, x="Fraction methylated", y="Coverage", hue="Sample", hue_order=hue_order, height=16, kind="scatter")
         g.fig.suptitle(f"{readable_methylation_name[meth_type]}")
 
         if system() == "Darwin":
             plt.show()
         else:
-            plt.savefig(genome.plot_dir / "coverage_{readable_methylation_name[meth_type]}.pdf", format="pdf")
+            plt.savefig(genome.plot_dir / f"coverage_{readable_methylation_name[meth_type]}.pdf", format="pdf")
+
+
+def plot_methylation_genic_intergenic(genome: Genome):
+    data = genome.gene_caller_df.select("start", "stop", "strand", "contig").sort("start", descending=False).collect(streaming=True).group_by("contig", "strand", maintain_order=True)
+
+    ranges = {"filter_contig": [], "filter_strand": [], "filter_start": [], "filter_end": []}
+    for group in data:
+        group_name = group[0]
+        group = group[1]
+        group_ranges = []
+
+        position = 0
+
+        for row in group.iter_rows():
+            if row[0] <= position:
+                position = row[1]
+                continue
+            group_ranges.append((position, row[0] - 1))
+            position = row[1]
+
+        contig_length = len(genome.sequence[group_name[0]])
+        if position < contig_length:
+            group_ranges.append((position, contig_length))
+
+        ranges["filter_contig"].extend([group_name[0]] * len(group_ranges))
+        ranges["filter_strand"].extend([group_name[1]] * len(group_ranges))
+        ranges["filter_start"].extend([r[0] for r in group_ranges])
+        ranges["filter_end"].extend([r[1] for r in group_ranges])
+
+    # Handle no gene on contig
+    for contig in genome.sequence.keys():
+        if not contig in ranges["filter_contig"]:
+            # Include whole contig positive strand
+            ranges["filter_contig"].append(contig)
+            ranges["filter_strand"].append(True)
+            ranges["filter_start"].append(0)
+            ranges["filter_end"].append(len(genome.sequence[contig]))
+
+            # Include whole contig negative strand
+            ranges["filter_contig"].append(contig)
+            ranges["filter_strand"].append(False)
+            ranges["filter_start"].append(0)
+            ranges["filter_end"].append(len(genome.sequence[contig]))
+
+    ranges_df = pl.from_dict(ranges).lazy()
+
+    # Get proportion of contig that is genic
+    intragenic_prop = (ranges_df.group_by("filter_contig", "filter_strand")
+                       .agg((pl.col("filter_end") - pl.col("filter_start")).sum().alias("length"))
+                       .select("filter_contig", "filter_strand", "length")
+                       .with_columns(pl.lit("Intra-genic").alias("Region"))
+                       .rename({"filter_strand": "strand", "filter_contig": "contig"})
+                       .collect(streaming=True))
+    genic_prop = (data.agg((pl.col("stop") - pl.col("start")).sum().alias("length"))
+                  .select("contig", "strand", "length")
+                  .with_columns(pl.lit("Genic").alias("Region")))
+    prop_df = pl.concat([intragenic_prop, genic_prop])
+    prop_df = prop_df.group_by("Region").agg(pl.col("length").sum()).sort("Region", descending=False)
+    ratio = prop_df.get_column("length").to_list()
+    genic_ratio = ratio[0] / (ratio[0] + ratio[1]) * 100
+
+    # Get corresponding methylation data
+    intragenic_data = genome.load_region_methylation_data(region_filter=ranges_df)
+    genic_data = GeneCollection(genome.gene_ids, genome).methylation_data
+
+    intragenic_data = intragenic_data.with_columns(pl.lit("Intra-genic").alias("Region"))
+    genic_data = genic_data.with_columns(pl.lit("Genic").alias("Region"))
+
+    data = pl.concat([intragenic_data, genic_data])
+
+    # Wrangle dataframe
+    data = data.with_columns(pl.col('sample').replace(barcode_replicate_map).alias("Sample"))
+    data = data.filter(pl.col("Sample").is_in(["top", "middle", "bottom"]))
+    data = data.with_columns(pl.col('Sample').replace(readable_sample_name))
+
+    # Long form it
+    data = data.unpivot(on=list(readable_methylation_name.keys()),
+                        index=["Sample", "Region"],
+                        variable_name="Methylation type",
+                        value_name="Fraction methylated").collect(streaming=True)
+    data = data.with_columns(pl.col('Methylation type').replace(readable_methylation_name))
+
+    # Plot
+    hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
+    sns.catplot(data.to_pandas(), x="Region", y="Fraction methylated", col="Methylation type", hue="Sample", kind="bar", height=8, aspect=2, hue_order=hue_order)
+
+    # Show genic ration in title
+    plt.suptitle(f"{genome.readable_name} genic ratio: {genic_ratio:.2f}")
+
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "genic_intragenic.pdf", format="pdf")
+
+
+def uniquely_methylated_positions(genome: Genome):
+    data = genome.load_all_methylation_data()
+    data = data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map))
+
+    # Per type
+    df = []
+    for meth_type in readable_methylation_name.keys():
+        unique = ((data.select(meth_type, "contig", "strand", "position", "sample")
+                  .filter(pl.col(meth_type) > 0.95)
+                  .group_by("contig", "strand", "position")
+                  .agg(pl.col("sample").n_unique().alias("unique_samples"))).filter(pl.col("unique_samples").eq(1))
+                  .with_columns(pl.lit(meth_type).alias("meth_type")))
+        df.append(unique)
+
+    df = pl.concat(df).collect(streaming=True)
+    df = df.with_columns(pl.col("meth_type").replace(readable_methylation_name))
+
+    plt.subplots(figsize=(12, 8), layout="constrained")
+    sns.histplot(df.to_pandas(), x="meth_type", stat="count")
+    plt.title(f"Uniquely methylated positions in {genome.readable_name}")
+
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "unique_methylation.pdf", format="pdf")
+
+def always_methylated_positions(genome: Genome):
+    data = genome.load_all_methylation_data()
+    data = data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map))
+
+    # Per type
+    df = []
+    for meth_type in readable_methylation_name.keys():
+        unique = ((data.select(meth_type, "contig", "strand", "position", "sample")
+                  .filter(pl.col(meth_type) > 0.95)
+                  .group_by("contig", "strand", "position")
+                  .agg(pl.col("sample").n_unique().alias("unique_samples"))).filter(pl.col("unique_samples").eq(3))
+                  .with_columns(pl.lit(meth_type).alias("meth_type")))
+        df.append(unique)
+
+    df = pl.concat(df).collect(streaming=True)
+    df = df.with_columns(pl.col("meth_type").replace(readable_methylation_name))
+
+    plt.subplots(figsize=(12, 8), layout="constrained")
+    sns.histplot(df.to_pandas(), x="meth_type", stat="count")
+
+    plt.title(f"Always methylated positions in {genome.readable_name}")
+
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "always_methylated.pdf", format="pdf")
+
+def methylation_counts(genome: Genome):
+    data = genome.load_all_methylation_data(normalize=False)
+    data = data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map))
+    data = data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
+    data = data.with_columns(pl.col("sample").replace_strict(readable_sample_name))
+
+    # Longform it
+    data = data.unpivot(on=list(readable_modification_name.keys()),
+                        index="sample",
+                        variable_name="methylation_type",
+                        value_name="methylation_count")
+
+    data = data.group_by("sample", "methylation_type").agg(pl.col("methylation_count").sum())
+    data = data.with_columns(pl.col("methylation_type").replace_strict(readable_modification_name)).collect(streaming=True)
+
+    hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
+    fig, ax = plt.subplots(figsize=(12, 8), layout="constrained")
+    sns.barplot(data.to_pandas(), x="methylation_type", y="methylation_count", hue="sample", hue_order=hue_order, ax=ax,
+                order=readable_modification_name.values())
+    ax.set_yscale("log")
+    plt.title(f"Methylation counts in {genome.readable_name}")
+
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "methylome_counts.pdf", format="pdf")
 
 
 if __name__ == "__main__":
     for name in Genome.valid_genome_names():
+        if "metagenome" in name:
+            continue
+
         genome = Genome(name)
+        print(f"Plotting methylome of {name}")
         plot_methylome(genome)
-        # plot_methylation_by_coverage(genome)
+        plot_methylation_by_coverage(genome)
+        plot_methylation_genic_intergenic(genome)
+        uniquely_methylated_positions(genome)
+        always_methylated_positions(genome)
+        methylation_counts(genome)

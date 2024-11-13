@@ -1,24 +1,15 @@
-from copy import deepcopy
 import polars as pl
 from functools import lru_cache, cached_property
-from src.Objects.genome import Genome
-from src.Objects.gene_collection import GeneCollection
+from src.objects.genome import Genome
+from src.objects.gene_collection import GeneCollection
 
 
 class Gene(object):
 
-    def __init__(self, id: int, gene_collection: GeneCollection):
-        assert id in gene_collection.ids, f"Gene ID {id} not in GeneCollection"
+    def __init__(self, id: int, genome: Genome):
         self.id: int = id
-        self.gene_collection: GeneCollection = deepcopy(gene_collection)
-        self.gene_collection.ids = [id]
-        self.gene_collection._load_data()  # Reload data for the specific gene
-
-
-    @classmethod
-    def from_id(cls, id: int, genome: Genome):
-        collection = GeneCollection([id], genome)
-        return cls(id, collection)
+        self.gene_collection: GeneCollection = GeneCollection([self.id], genome)
+        self.genome: Genome = genome
 
 
     @cached_property
@@ -73,7 +64,7 @@ class Gene(object):
 
     @cached_property
     def start_codon_sequence(self) -> str | None:
-        df = self.gene_collection.start_codon_sequence.select("start_type").collect(streaming=True)
+        df = self.gene_collection.start_codon_sequence.select("start_codon_sequence").collect(streaming=True)
         return None if df.height == 0 else df.item()
 
 
