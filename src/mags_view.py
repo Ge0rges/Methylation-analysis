@@ -21,7 +21,7 @@ def plot_mags_by_gc_content(genomes: list[Genome]):
     df = pd.DataFrame(dataframe)
     sns.scatterplot(data=df, x="MAG", y="GC content")
 
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=90)
     plt.title("GC content of MAGs")
 
     if system() == "Darwin":
@@ -37,7 +37,7 @@ def plot_start_codon_dist(genomes: list[Genome]):
 
     plt.subplots(1, 1, figsize=(10, 10), layout="constrained")
 
-    sns.histplot(data=starts.collect(streaming=True).to_pandas(), x="start_codon_sequence", hue="MAG")
+    sns.barplot(data=starts.collect(streaming=True).to_pandas(), x="start_codon_sequence", hue="MAG")
 
     plt.title("Start codon distribution in each MAG")
 
@@ -49,6 +49,6 @@ def plot_start_codon_dist(genomes: list[Genome]):
 
 
 if __name__ == "__main__":
-    genomes = [Genome(n) for n in Genome.valid_genome_names()]
+    genomes = [Genome(n) for n in Genome.valid_genome_names() if "metagenome" not in n]
     plot_mags_by_gc_content(genomes)
     plot_start_codon_dist(genomes)
