@@ -153,13 +153,28 @@ def plot_methylation_genic_intergenic(genome: Genome):
             ranges["filter_start"].append(0)
             ranges["filter_end"].append(len(genome.sequence[contig]))
 
-    # Result
     ranges_df = pl.from_dict(ranges).lazy()
 
+    # Get proportion of contig that is genic
+    intragenic_prop = (ranges_df.group_by("filter_contig", "filter_strand")
+                       .agg((pl.col("filter_end") - pl.col("filter_start")).sum().alias("length"))
+                       .select("filter_contig", "filter_strand", "length")
+                       .with_columns(pl.lit("Intra-genic").alias("Region"))
+                       .rename({"filter_strand": "strand", "filter_contig": "contig"})
+                       .collect(streaming=True))
+    genic_prop = (data.agg((pl.col("stop") - pl.col("start")).sum().alias("length"))
+                  .select("contig", "strand", "length")
+                  .with_columns(pl.lit("Genic").alias("Region")))
+    prop_df = pl.concat([intragenic_prop, genic_prop])
+    prop_df = prop_df.group_by("Region").agg(pl.col("length").sum()).sort("Region", descending=False)
+    ratio = prop_df.get_column("length").to_list()
+    genic_ratio = ratio[0] / (ratio[0] + ratio[1]) * 100
+
+    # Get corresponding methylation data
     intragenic_data = genome.load_region_methylation_data(region_filter=ranges_df)
     genic_data = GeneCollection(genome.gene_ids, genome).methylation_data
 
-    intragenic_data = intragenic_data.with_columns(pl.lit("intra-genic").alias("Region"))
+    intragenic_data = intragenic_data.with_columns(pl.lit("Intra-genic").alias("Region"))
     genic_data = genic_data.with_columns(pl.lit("Genic").alias("Region"))
 
     data = pl.concat([intragenic_data, genic_data])
@@ -177,7 +192,12 @@ def plot_methylation_genic_intergenic(genome: Genome):
     data = data.with_columns(pl.col('Methylation type').replace(readable_methylation_name))
 
     # Plot
-    sns.catplot(data.to_pandas(), x="Sample", y="Fraction methylated", col="Methylation type", hue="Region", kind="bar", height=8, aspect=2)
+    hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
+    sns.catplot(data.to_pandas(), x="Region", y="Fraction methylated", col="Methylation type", hue="Sample", kind="bar", height=8, aspect=2, hue_order=hue_order)
+
+    # Show genic ration in title
+    plt.suptitle(f"{genome.readable_name} genic ratio: {genic_ratio:.2f}")
+
 
     if system() == "Darwin":
         plt.show()
@@ -191,7 +211,7 @@ if __name__ == "__main__":
             continue
 
         genome = Genome(name)
-        print(f"Plotting methylome of {name}")
-        plot_methylome(genome)
-        plot_methylation_by_coverage(genome)
+        # print(f"Plotting methylome of {name}")
+        # plot_methylome(genome)
+        # plot_methylation_by_coverage(genome)
         plot_methylation_genic_intergenic(genome)
