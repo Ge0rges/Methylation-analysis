@@ -367,8 +367,8 @@ class BarnacleVisualizer:
         # Max FMS
         summary_df = results_df[results_df['comparison'] == 'cross-validation']
         summary_df = summary_df[summary_df['rank'] == rank]
-        summary_df = summary_df.groupby(['rank', 'lambda'])[['mean_gene_sparsity', 'relative_sse', 'fms_cv']].agg(
-            mean_gene_sparsity=('mean_gene_sparsity', 'mean'),
+        summary_df = summary_df.groupby(['rank', 'lambda'])[['mean_sparsity', 'relative_sse', 'fms_cv']].agg(
+            mean_gene_sparsity=('mean_sparsity', 'mean'),
             relative_sse=('relative_sse', 'mean'),
             fms_cv=('fms_cv', 'mean'),
             fms_sem=('fms_cv', 'sem'),
@@ -459,9 +459,9 @@ def execute_bootstrap(boot_id, model_manager, data_manager, dataset, replicate_l
 if __name__ == "__main__":
     # Paramaters
     GENOME_NAME = "Pelagibacter_r-contigs"
-    LAMBDAS = [0]  # Adjust lambdas as needed
-    RANKS = [1, 2, 3, 4, 5, 6, 7]  # Adjust ranks as needed
-    N_BOOTSTRAPS = 1
+    LAMBDAS = [0]#[0, 0.001, 0.01, 0.1, 1, 0.05, 0.5]  # Adjust lambdas as needed
+    RANKS = list(range(1,12)) + [12, 15, 20, 25, 30, 35, 40, 45, 50, 100]
+    N_BOOTSTRAPS = 27
     OUTPUT_DIR = Path(__file__).parent.resolve() / Path(f'../../data/models/{GENOME_NAME}/')
 
     # Initialize genome and manager

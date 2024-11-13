@@ -11,7 +11,7 @@ from pathlib import Path
 
 class Genome(object):
     __min_coverage_default = 5
-    __data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../methylation_data/methylation_5"))
+    __data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
     if system() == "Darwin":
         __data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
 
