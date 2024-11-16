@@ -181,7 +181,7 @@ def identify_interesting_genes(genome: Genome):
         # Write their function to a CSV
         dmr_genes = GeneCollection(dmr_ids, genome)
         dmr_genes = (dmr_genes.get_function().join(dmr_result.lazy(), on="gene_callers_id")
-                     .select("gene_callers_id", "function", "rao_score", "source")
+                     .select("gene_callers_id", "function", "rao_score", "source", "test_result").unique()
                      .sort("rao_score", descending=True))
         dmr_genes.sink_csv(genome.plot_dir / "dmred_genes_rao.csv")
 
@@ -202,7 +202,7 @@ if __name__ == "__main__":
         if "Pelagibacter" in name or "polaribacter" in name:
             print(f"Getting interesting genes for {name}")
             interesting_ids = identify_interesting_genes(genome)
-        
+
             for gene_id in interesting_ids:
                 print(f"Plotting gene {gene_id} for {name}")
                 plot_gene_region(Gene(gene_id, genome), 0, -40, 10)

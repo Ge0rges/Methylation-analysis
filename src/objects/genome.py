@@ -1,7 +1,5 @@
-import polars as pl
 import os
-from src.utilities.utils import normalize_data_by_pileup, add_gene_caller_id, readable_modification_name, \
-    reshape_pileup_to_matrix_polars, readable_methylation_name, barcode_replicate_map
+from src.utilities.utils import *
 from src.utilities.data_loading import get_pileup, get_dataset_genes
 from platform import system
 from functools import lru_cache, cached_property
@@ -15,7 +13,8 @@ from Bio import SeqIO
 
 class Genome(object):
 
-    __min_coverage_default = 5
+    __min_coverage_default = 10
+    __default_treatments = ["top", "middle", "bottom"]
     __data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
 
     if system() == "Darwin":
@@ -96,19 +95,29 @@ class Genome(object):
         return gene_ids
 
 
-    @lru_cache
-    def load_all_methylation_data(self, coverage: int = __min_coverage_default, normalize: bool = True) -> pl.LazyFrame:
-        return self.load_region_methylation_data(coverage, None, normalize)
+    def load_all_methylation_data(self, coverage: int = __min_coverage_default, normalize: bool = True,
+                                  treatments: list[str] = __default_treatments, triplicates_only: bool = True,
+                                  common_only: bool = False) -> pl.LazyFrame:
+        return self.load_region_methylation_data(coverage, None, normalize, treatments, triplicates_only,
+                                                 common_only)
 
 
     def load_region_methylation_data(self, coverage: int = __min_coverage_default,
-                                     region_filter: pl.Expr | pl.LazyFrame | None = None, normalize: bool = True) -> pl.LazyFrame | None:
+                                     region_filter: pl.Expr | pl.LazyFrame | None = None, normalize: bool = True,
+                                     treatments: list[str] = __default_treatments, triplicates_only: bool = True,
+                                     common_only: bool = False) -> pl.LazyFrame | None:
         # Get all the bed files for this genome
         bed_files = [Path(f) for f in glob.glob(str(self._data_dir / self.name / "*.bed")) if
             '-bedgraph' not in os.path.basename(f)]
 
         all_data = []
         for bed_file in bed_files:
+            # Load only asked treamtent samples
+            sample_name = os.path.basename(bed_file).split(".")[0]
+            treatment = barcode_replicate_map[sample_name]
+            if treatments is not None and treatment not in treatments:
+                continue
+
             # Load the data for the positions that overlap only
             methyl_data = get_pileup(bed_file)
             if isinstance(region_filter, pl.Expr):
@@ -130,8 +139,14 @@ class Genome(object):
             if methyl_data is None:
                 continue
 
+            # Filter for coverage and no full Null/NaN values
+            modification_types = list(readable_modification_name.keys())
+            methyl_data = (methyl_data.filter(
+                pl.any_horizontal(pl.col(modification_types).is_not_null() &
+                                  pl.col(modification_types).is_not_nan()) &
+                pl.concat_list(modification_types).list.sum().ge(coverage)))
+
             # Add sample column
-            sample_name = os.path.basename(bed_file).split(".")[0]
             methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
 
             all_data.append(methyl_data)
@@ -142,18 +157,37 @@ class Genome(object):
 
         result = pl.concat(all_data)
 
-        # Filter for coverage of at least 5 and no full Null/NaN values
-        modification_types = list(readable_modification_name.keys())
-        result = (result.filter(
-            pl.any_horizontal(pl.col(modification_types).is_not_null() & pl.col(modification_types).is_not_nan()) &
-            pl.concat_list(modification_types).list.sum().ge(coverage)))
+        # Rename
+        result = result.rename({"inclusive start position": "position"})
+
+        #result = result.filter(pl.col("contig").eq("contig_112356"), pl.col("strand").eq(False), pl.col("position").eq(260)).collect()
+
+        # Keep only positions that occur in triplicate within a treatment
+        # Keep only positions that are in all samples
+        if common_only:
+            og_columns = result.collect_schema().names()
+            triplicate_positions = (result.group_by("contig", "strand", "position")
+                                    .agg(pl.col("sample").n_unique().alias("sample_count"))
+                                    .filter(pl.col("sample_count").eq(len(treatments) * 3)))
+
+            result = (result.join(triplicate_positions, on=["contig", "strand", "position"], how="inner")
+                      .select(*og_columns))
+
+        elif triplicates_only:
+            og_columns = result.collect_schema().names()
+            triplicate_positions = result.with_columns(pl.col("sample").replace_strict(barcode_replicate_map).alias("treatment"))
+            triplicate_positions = (triplicate_positions.group_by("contig", "strand", "position", "treatment")
+                                    .agg(pl.col("sample").n_unique().alias("treatment_count"), pl.col("sample"))
+                                    .explode("sample")
+                                    .filter(pl.col("treatment_count").eq(3)))
+
+            result = (result.join(triplicate_positions, on=["contig", "strand", "position", "sample"], how="inner")
+                      .select(*og_columns))
 
         # Normalize to fraction
         if normalize:
             result = normalize_data_by_pileup(result)
 
-        # Seperate name
-        result = result.rename({"inclusive start position": "position"})
         return result
 
 

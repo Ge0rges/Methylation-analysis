@@ -1,3 +1,5 @@
+from unicodedata import normalize
+
 import polars as pl
 from itertools import product
 from random import randint
@@ -32,7 +34,7 @@ class BarnacleDataManager:
 
     def get_position_based_data(self, boot_id: int = None) -> xr.DataArray:
         if self.position_df is None:
-            methyl_data = self.genome.load_all_methylation_data()
+            methyl_data = self.genome.load_all_methylation_data(normalize=True, common_only=True)
 
             # Filter samples
             methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map, return_dtype=pl.String).alias("treatment"))
@@ -53,7 +55,7 @@ class BarnacleDataManager:
 
         methyl_data = self.position_df
         if boot_id is not None:
-            methyl_data = self.generate_cross_validation_sets(methyl_data, ["position"], "treatment", "sample", boot_id)
+            methyl_data = self.generate_cross_validation_sets(methyl_data, None, "treatment", "sample", boot_id)
 
         # Mean
         methyl_data = methyl_data.group_by(["position", "treatment", "methylation_type"]).agg(pl.col("value").mean())
@@ -64,8 +66,7 @@ class BarnacleDataManager:
 
     def get_gene_based_data(self, boot_id: int = None) -> xr.DataArray:
         if self.gene_df is None:
-            gene_collection = GeneCollection(self.genome.gene_ids, self.genome)
-            methyl_data = gene_collection.methylation_data
+            methyl_data = self.genome.load_all_methylation_data(normalize=True, common_only=True)
 
             # Filter samples
             methyl_data = methyl_data.with_columns(
@@ -113,14 +114,15 @@ class BarnacleDataManager:
         df = df.filter(pl.col(sample_col).is_in(combination))
 
         # Get a list of values in unique_col that are common to all samples
-        filter_common_samples = pl.col("n_unique").eq(og_df.select(sample_col).n_unique())
-        t_df = (og_df.group_by(*unique_cols).agg(pl.col(sample_col).n_unique().alias("n_unique"))
-                .filter(filter_common_samples))
+        if not unique_cols is None:
+            filter_common_samples = pl.col("n_unique").eq(og_df.select(sample_col).n_unique())
+            t_df = (og_df.group_by(*unique_cols).agg(pl.col(sample_col).n_unique().alias("n_unique"))
+                    .filter(filter_common_samples))
 
-        # Filter to keep common samples
-        for unique_col in unique_cols:
-            uniques = t_df.get_column(unique_col).to_list()
-            df = df.filter(pl.col(unique_col).is_in(uniques))
+            # Filter to keep common samples
+            for unique_col in unique_cols:
+                uniques = t_df.get_column(unique_col).to_list()
+                df = df.filter(pl.col(unique_col).is_in(uniques))
 
         return df
 

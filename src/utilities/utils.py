@@ -3,13 +3,14 @@ import textwrap
 import random
 import polars as pl
 
-readable_modification_name = {"21839": "4mC","m": "5mC", "a": "6mA", "Ncanonical": "Canonical"}
+readable_modification_name = {"21839": "4mC", "m": "5mC", "a": "6mA", "Ncanonical_A": "A", "Ncanonical_C": "C"}
 readable_methylation_name = {"21839": "4mC", "m": "5mC", "a": "6mA"}
+methylation_base_map = {"21839": "C", "m": "C", "a": "A"}
+base_methylation_map = {"C": ["21839", "m"], "A": ["a"]}
 
 readable_sample_name = {"barcode01": "S2-1",
                         "barcode02": "S2-2",
                         "barcode03": "S2-3",
-                        "barcode04": "Control",
                         "barcode05": "S3-1",
                         "barcode06": "S3-2",
                         "barcode07": "S3-3",
@@ -23,6 +24,7 @@ readable_sample_name = {"barcode01": "S2-1",
                         "top": "Sackhole Top (40 cm)",
                         "middle": "Sackhole Middle (70 cm)",
                         "bottom": "Sackhole Bottom (160 cm)",
+                        "barcode04": "Control",
                         "control": "Control",
                         "core-40": "Ice core 40 cm",
                         "core-160": "Ice core 160 cm",
@@ -33,7 +35,6 @@ readable_sample_name = {"barcode01": "S2-1",
 barcode_replicate_map = {"barcode01": "top",
                          "barcode02": "middle",
                          "barcode03": "bottom",
-                         "barcode04": "control",
                          "barcode05": "top",
                          "barcode06": "middle",
                          "barcode07": "bottom",
@@ -44,6 +45,7 @@ barcode_replicate_map = {"barcode01": "top",
                          "barcode12": "core-160",
                          "barcode13": "core-205",
                          "barcode14": "core-70",
+                         "barcode04": "control",
                          "top": "top",
                          "middle": "middle",
                          "bottom": "bottom"
@@ -144,17 +146,17 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     position_cols = ["contig", "strand", "inclusive start position", "exclusive end position"]
 
     # Keep only what we need
-    methyl_data = methyl_data.select(position_cols + ['modified base code and motif', 'Nvalid_cov', "Ndiff", "Nmod", "Ncanonical"])
+    methyl_data = methyl_data.select(position_cols + ['modified base code and motif', "Nmod", "Ncanonical"])
 
-    # Ndiff is reads with a base other than the canonical base for this modification
-    #methyl_data = methyl_data.filter(pl.col('Ndiff') < pl.col('Nvalid_cov'))
-
-    pivot_df = methyl_data.collect(streaming=True)
-    if pivot_df.height == 0:
+    methyl_data = methyl_data.collect(streaming=True)
+    if methyl_data.height == 0:
         return None
 
-    pivot_df = pivot_df.pivot(index=position_cols, columns='modified base code and motif', values='Nmod').lazy()
-    pivot_df = pivot_df.join(methyl_data.select(position_cols + ['Ncanonical']), on=position_cols, how='left').fill_null(0)
+    pivot_df1 = methyl_data.pivot(index=position_cols, columns='modified base code and motif', values='Nmod')
+    pivot_df2 = (methyl_data.pivot(index=position_cols, columns='modified base code and motif', values='Ncanonical')
+                 .with_columns(pl.sum_horizontal(*base_methylation_map["C"]).alias("Ncanonical_C"))
+                 .rename({"a": "Ncanonical_A"})).select(*position_cols, "Ncanonical_C", "Ncanonical_A")
+    pivot_df = pivot_df1.join(pivot_df2, on=position_cols, how='inner').lazy()
 
     # If there was no methylation of one type add Nulls
     for meth_type in readable_modification_name.keys():
@@ -179,7 +181,6 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
                            pl.col("contig").eq(pl.col("contig_right")),
                            pl.col('strand').eq(pl.col('strand_right')))
 
-
     # If there are still multiple gene_callers_id for the same name, pick the first one
     result = result.unique(subset=og_columns, keep="first")
 
@@ -190,8 +191,10 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
 
 
 def normalize_data_by_pileup(df: pl.DataFrame | pl.LazyFrame) -> pl.LazyFrame | pl.DataFrame:
-    methylation_types = list(readable_modification_name.keys())
-    df = df.with_columns(pl.col(methylation_types) / pl.concat_list(methylation_types).list.sum())
+    for base, meth_group in base_methylation_map.items():
+        norm_columns = meth_group + ["Ncanonical_" + base]
+        for meth_key in norm_columns:
+            df = df.with_columns(pl.col(meth_key) / pl.concat_list(*norm_columns).list.sum())
 
     return df
 
