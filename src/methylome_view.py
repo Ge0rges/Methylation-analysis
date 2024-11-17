@@ -424,7 +424,11 @@ def number_of_positions_switched(genome: Genome):
     plt.title(f"Transition Heatmap (A_bottom vs. A_top) in {genome.readable_name}")
     plt.xlabel("A_top")
     plt.ylabel("A_bottom")
-    plt.show()
+
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "A_positions_switched.pdf", format="pdf")
 
     # Plot the heatmap
     plt.figure(figsize=(8, 6))
@@ -432,7 +436,10 @@ def number_of_positions_switched(genome: Genome):
     plt.title(f"Transition Heatmap (C_bottom vs. C_top) in {genome.readable_name}")
     plt.xlabel("C_top")
     plt.ylabel("C_bottom")
-    plt.show()
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "C_positions_switched.pdf", format="pdf")
 
 
 def positions_by_methylation(genome: Genome):
@@ -463,7 +470,10 @@ def positions_by_methylation(genome: Genome):
         ax.set_ylim(1, 1e4)
 
     plt.title(f"Methylation value distribution of common positions in {genome.readable_name}")
-    plt.show()
+    if system() == "Darwin":
+        plt.show()
+    else:
+        plt.savefig(genome.plot_dir / "positions_by_methylation.pdf", format="pdf")
 
 
 if __name__ == "__main__":
