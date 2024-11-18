@@ -72,9 +72,6 @@ def plot_methylation_dist_by_sample_violin(genome):
 
 def plot_methylation_by_coverage(genome):
     data = genome.load_all_methylation_data(normalize=False, coverage=0)
-    if data.height == 0:
-        print(f"No data for {genome.name}")
-        return
 
     # Filter to sample we want
     data = data.with_columns(pl.col('sample').replace(barcode_replicate_map).alias("Sample"))
@@ -214,9 +211,6 @@ def plot_methylation_genic_intergenic(genome: Genome):
 
 def uniquely_methylated_positions(genome: Genome):
     data = genome.load_all_methylation_data(triplicates_only=True)
-    if data.height == 0:
-        print(f"No data for {genome.name}")
-        return
 
     # Per type
     df = []
@@ -251,9 +245,6 @@ def uniquely_methylated_positions(genome: Genome):
 
 def always_methylated_positions(genome: Genome):
     data = genome.load_all_methylation_data(triplicates_only=True)
-    if data.height == 0:
-        print(f"No data for {genome.name}")
-        return
 
     # Per type
     df = []
@@ -286,9 +277,6 @@ def always_methylated_positions(genome: Genome):
 def methylation_counts(genome: Genome):
     data = genome.load_all_methylation_data(normalize=False)
     data = data.with_columns(pl.col("sample").replace_strict(readable_sample_name))
-    if data.height == 0:
-        print(f"No data for {genome.name}")
-        return
 
     # Longform it
     data = data.unpivot(on=list(readable_modification_name.keys()),
@@ -401,7 +389,7 @@ def positions_by_threshold_common(genome: Genome):
 
 
 def number_of_positions_switched(genome: Genome):
-    data = genome.load_all_methylation_data(normalize=True, common_only=True, treatments=["top", "bottom"]).collect()
+    data = genome.load_all_methylation_data(normalize=True, common_only=True, treatments=["top", "bottom"]).collect(streaming=True)
     if data.height == 0:
         print(f"No data for {genome.name}")
         return
@@ -461,7 +449,7 @@ def number_of_positions_switched(genome: Genome):
 
 
 def positions_by_methylation(genome: Genome):
-    data = genome.load_all_methylation_data(normalize=True, common_only=True).collect()
+    data = genome.load_all_methylation_data(normalize=True, common_only=True).collect(streaming=True)
     data = data.with_columns(pl.col("sample").replace(barcode_replicate_map).alias("treatment"))
     data = data.with_columns(pl.col("treatment").replace(readable_sample_name).alias("treatment"))
     data = data.rename(readable_methylation_name)
