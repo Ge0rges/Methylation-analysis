@@ -1,5 +1,3 @@
-import numpy as np
-
 from src.objects import Genome, GeneCollection
 import polars as pl
 import matplotlib.pyplot as plt
@@ -113,7 +111,12 @@ def plot_methylation_by_coverage(genome):
 
 
 def plot_methylation_genic_intergenic(genome: Genome):
-    data = genome.gene_caller_df.select("start", "stop", "strand", "contig").sort("start", descending=False).collect(streaming=True).group_by("contig", "strand", maintain_order=True)
+    data = genome.gene_caller_df.select("start", "stop", "strand", "contig").sort("start", descending=False).collect(streaming=True)
+    if data.height == 0:
+        print(f"No data for {genome.name}")
+        return
+
+    data = data.group_by("contig", "strand", maintain_order=True)
 
     ranges = {"filter_contig": [], "filter_strand": [], "filter_start": [], "filter_end": []}
     for group in data:
@@ -386,7 +389,10 @@ def positions_by_threshold_common(genome: Genome):
 
 
 def number_of_positions_switched(genome: Genome):
-    data = genome.load_all_methylation_data(normalize=True, common_only=True, treatments=["top", "bottom"]).collect()
+    data = genome.load_all_methylation_data(normalize=True, common_only=True, treatments=["top", "bottom"]).collect(streaming=True)
+    if data.height == 0:
+        print(f"No data for {genome.name}")
+        return
 
     # Make a binary decision on methylation state at a positon
     data = data.with_columns(pl.col("sample").replace(barcode_replicate_map).alias("treatment"))
@@ -443,10 +449,14 @@ def number_of_positions_switched(genome: Genome):
 
 
 def positions_by_methylation(genome: Genome):
-    data = genome.load_all_methylation_data(normalize=True, common_only=True).collect()
+    data = genome.load_all_methylation_data(normalize=True, common_only=True).collect(streaming=True)
     data = data.with_columns(pl.col("sample").replace(barcode_replicate_map).alias("treatment"))
     data = data.with_columns(pl.col("treatment").replace(readable_sample_name).alias("treatment"))
     data = data.rename(readable_methylation_name)
+
+    if data.height == 0:
+        print(f"No data for {genome.name}")
+        return
 
     data = data.unpivot(
         index=["contig", "strand", "position", "treatment"],

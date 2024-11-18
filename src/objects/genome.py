@@ -15,13 +15,16 @@ class Genome(object):
 
     __min_coverage_default = 10
     __default_treatments = ["top", "middle", "bottom"]
-    __data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
+    __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/"))
+    __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../bams/aligned"))
 
     if system() == "Darwin":
-        __data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
+        __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
+        __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/bams/"))
 
     def __init__(self, name: str):
-        self._data_dir: Path = Genome.__data_dir
+        self._methylation_data_dir: Path = Genome.__methylation_data_dir
+        self._bam_dir: Path = Genome.__bam_dir
         if not self._is_valid_genome_name(name):
             raise ValueError(f"Genome {name} not found in the data directory.")
 
@@ -29,16 +32,18 @@ class Genome(object):
         self.readable_name: str = name.capitalize().replace("_r-contigs", " sp.")
         self.plot_dir: Path = Path(f"../plots/{self.name}")
         self.plot_dir.mkdir(exist_ok=True, parents=True)
+        self.genome_path: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{self.name}.fna"))
+
 
     @classmethod
     def valid_genome_names(cls) -> list[str]:
         # Check if genome exists in the data directory
-        return [name for name in os.listdir(cls.__data_dir) if os.path.isdir(cls.__data_dir / name)]
+        return [name for name in os.listdir(cls.__methylation_data_dir) if os.path.isdir(cls.__methylation_data_dir / name)]
 
 
     def _is_valid_genome_name(self, name: str) -> bool:
         # Check if genome exists in the data directory
-        return os.path.exists(os.path.join(self._data_dir, name))
+        return os.path.exists(os.path.join(self._methylation_data_dir, name))
 
 
     @cached_property
@@ -51,8 +56,7 @@ class Genome(object):
         :return: Dataframe of file data
         :rtype: pandas.DataFrame
         """
-        path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{self.name}.fna")
-        fasta_dict = SeqIO.index(path, "fasta")
+        fasta_dict = SeqIO.index(str(self.genome_path), "fasta")
 
         # Remove contigs not in this genome
         my_contigs = self.gene_caller_df.select("contig").unique().collect(streaming=True).get_column("contig").to_list()
@@ -75,7 +79,7 @@ class Genome(object):
     @cached_property
     def gene_ids(self) -> list[int]:
         # This works because modkit takes a reference and then does pileup one area within that reference only.
-        bed_files = [Path(f) for f in glob.glob(os.path.join(self._data_dir, self.name, "*.bed")) if
+        bed_files = [Path(f) for f in glob.glob(os.path.join(self._methylation_data_dir, self.name, "*.bed")) if
                      '-bedgraph' not in os.path.basename(f)]
 
         all_data = []
@@ -107,7 +111,7 @@ class Genome(object):
                                      treatments: list[str] = __default_treatments, triplicates_only: bool = True,
                                      common_only: bool = False) -> pl.LazyFrame | None:
         # Get all the bed files for this genome
-        bed_files = [Path(f) for f in glob.glob(str(self._data_dir / self.name / "*.bed")) if
+        bed_files = [Path(f) for f in glob.glob(str(self._methylation_data_dir / self.name / "*.bed")) if
             '-bedgraph' not in os.path.basename(f)]
 
         all_data = []

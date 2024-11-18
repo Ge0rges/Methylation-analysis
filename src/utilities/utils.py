@@ -153,15 +153,17 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
         return None
 
     pivot_df1 = methyl_data.pivot(index=position_cols, columns='modified base code and motif', values='Nmod')
-    pivot_df2 = (methyl_data.pivot(index=position_cols, columns='modified base code and motif', values='Ncanonical')
-                 .with_columns(pl.sum_horizontal(*base_methylation_map["C"]).alias("Ncanonical_C"))
-                 .rename({"a": "Ncanonical_A"})).select(*position_cols, "Ncanonical_C", "Ncanonical_A")
-    pivot_df = pivot_df1.join(pivot_df2, on=position_cols, how='inner').lazy()
+    pivot_df2 = methyl_data.pivot(index=position_cols, columns='modified base code and motif', values='Ncanonical')
 
     # If there was no methylation of one type add Nulls
     for meth_type in readable_modification_name.keys():
-        if meth_type not in pivot_df.collect_schema().names():
-            pivot_df = pivot_df.with_columns(pl.lit(pl.Null, allow_object=True).alias(meth_type))
+        if meth_type not in pivot_df2.columns:
+            pivot_df2 = pivot_df2.with_columns(pl.lit(pl.Null, allow_object=True).alias(meth_type))
+
+    pivot_df = (pivot_df2.with_columns(pl.sum_horizontal(*base_methylation_map["C"]).alias("Ncanonical_C"))
+                .rename({"a": "Ncanonical_A"})
+                .select(*position_cols, "Ncanonical_C", "Ncanonical_A"))
+    pivot_df = pivot_df1.join(pivot_df2, on=position_cols, how='inner').lazy()
 
     # Select is needed to ensure order for vstack
     return pivot_df.select("contig", "strand", "inclusive start position", *readable_modification_name.keys())
@@ -181,6 +183,7 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
                            pl.col("contig").eq(pl.col("contig_right")),
                            pl.col('strand').eq(pl.col('strand_right')))
 
+    print("Adding gene calers id REMOVES ALL NON-GENE DATA")
     # If there are still multiple gene_callers_id for the same name, pick the first one
     result = result.unique(subset=og_columns, keep="first")
 
