@@ -214,12 +214,12 @@ if __name__ == "__main__":
 
         print(f"Plotting all gene start for {name}")
         plot_genes_regions(gene_collection, 0, -40, 10)
-        break
-        # if "Pelagibacter" in name or "polaribacter" in name:
-        #     print(f"Getting interesting genes for {name}")
-        #     interesting_ids = [] #identify_interesting_genes(genome)
-        #
-        #     for gene_id in interesting_ids:
-        #         print(f"Plotting gene {gene_id} for {name}")
-        #         plot_gene_region(Gene(gene_id, genome), 0, -40, 10)
+        
+        if "Pelagibacter" in name or "polaribacter" in name:
+            print(f"Getting interesting genes for {name}")
+            interesting_ids = [] #identify_interesting_genes(genome)
+       
+            for gene_id in interesting_ids:
+                print(f"Plotting gene {gene_id} for {name}")
+                plot_gene_region(Gene(gene_id, genome), 0, -40, 10)
 
