@@ -157,7 +157,7 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
 
     # If there was no methylation of one type add Nulls
     for meth_type in readable_modification_name.keys():
-        if meth_type not in pivot_df2.collect_schema().names():
+        if meth_type not in pivot_df2.columns:
             pivot_df2 = pivot_df2.with_columns(pl.lit(pl.Null, allow_object=True).alias(meth_type))
 
     pivot_df = (pivot_df2.with_columns(pl.sum_horizontal(*base_methylation_map["C"]).alias("Ncanonical_C"))
