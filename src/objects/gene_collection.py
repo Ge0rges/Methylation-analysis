@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from io import StringIO
 import glob
 import subprocess
-from Path import Path
+from pathlib import Path
 
 if TYPE_CHECKING:  # Only for type hints
     from gene import Gene
