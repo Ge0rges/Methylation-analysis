@@ -1,5 +1,3 @@
-import numpy as np
-
 from src.objects import Genome, GeneCollection
 import polars as pl
 import matplotlib.pyplot as plt
@@ -14,6 +12,10 @@ sns.set_theme(context="poster", style="white")
 def plot_methylation_dist_by_sample_violin(genome):
 
     data = genome.load_all_methylation_data()
+
+    if data.height == 0:
+        print(f"No data for {genome.name}")
+        return
 
     # Preprocess the data. Sort, rename, filter, and make position absolute to genome.
     data = data.sort("strand", "contig", "position", descending=False)
@@ -74,6 +76,9 @@ def plot_methylation_dist_by_sample_violin(genome):
 
 def plot_methylation_by_coverage(genome):
     data = genome.load_all_methylation_data(normalize=False, coverage=0)
+    if data.height == 0:
+        print(f"No data for {genome.name}")
+        return
 
     # Filter to sample we want
     data = data.with_columns(pl.col('sample').replace(barcode_replicate_map).alias("Sample"))
@@ -113,7 +118,12 @@ def plot_methylation_by_coverage(genome):
 
 
 def plot_methylation_genic_intergenic(genome: Genome):
-    data = genome.gene_caller_df.select("start", "stop", "strand", "contig").sort("start", descending=False).collect(streaming=True).group_by("contig", "strand", maintain_order=True)
+    data = genome.gene_caller_df.select("start", "stop", "strand", "contig").sort("start", descending=False).collect(streaming=True).
+    if data.height == 0:
+        print(f"No data for {genome.name}")
+        return
+
+    data = data.group_by("contig", "strand", maintain_order=True)
 
     ranges = {"filter_contig": [], "filter_strand": [], "filter_start": [], "filter_end": []}
     for group in data:
@@ -208,6 +218,9 @@ def plot_methylation_genic_intergenic(genome: Genome):
 
 def uniquely_methylated_positions(genome: Genome):
     data = genome.load_all_methylation_data(triplicates_only=True)
+    if data.height == 0:
+        print(f"No data for {genome.name}")
+        return
 
     # Per type
     df = []
@@ -242,6 +255,9 @@ def uniquely_methylated_positions(genome: Genome):
 
 def always_methylated_positions(genome: Genome):
     data = genome.load_all_methylation_data(triplicates_only=True)
+    if data.height == 0:
+        print(f"No data for {genome.name}")
+        return
 
     # Per type
     df = []
@@ -274,6 +290,9 @@ def always_methylated_positions(genome: Genome):
 def methylation_counts(genome: Genome):
     data = genome.load_all_methylation_data(normalize=False)
     data = data.with_columns(pl.col("sample").replace_strict(readable_sample_name))
+    if data.height == 0:
+        print(f"No data for {genome.name}")
+        return
 
     # Longform it
     data = data.unpivot(on=list(readable_modification_name.keys()),
@@ -387,6 +406,9 @@ def positions_by_threshold_common(genome: Genome):
 
 def number_of_positions_switched(genome: Genome):
     data = genome.load_all_methylation_data(normalize=True, common_only=True, treatments=["top", "bottom"]).collect()
+    if data.height == 0:
+        print(f"No data for {genome.name}")
+        return
 
     # Make a binary decision on methylation state at a positon
     data = data.with_columns(pl.col("sample").replace(barcode_replicate_map).alias("treatment"))
@@ -447,6 +469,10 @@ def positions_by_methylation(genome: Genome):
     data = data.with_columns(pl.col("sample").replace(barcode_replicate_map).alias("treatment"))
     data = data.with_columns(pl.col("treatment").replace(readable_sample_name).alias("treatment"))
     data = data.rename(readable_methylation_name)
+
+    if data.height == 0:
+        print(f"No data for {genome.name}")
+        return
 
     data = data.unpivot(
         index=["contig", "strand", "position", "treatment"],

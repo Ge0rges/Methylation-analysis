@@ -109,6 +109,10 @@ def plot_gene_region(gene: Gene, relative_position: int = 0, relative_start: int
     data = data.rename(readable_methylation_name).rename({"sample": "Sample", "position": "Position"})
     data = data.collect(streaming=True)
 
+    if data.height == 0:
+        print(f"No data for {gene_collection.ids} in genome {gene_collection.genome.name} in region {relative_position} +- {relative_start}, {relative_end}")
+        return
+
     long_form = (data.unpivot(on=list(readable_methylation_name.values()),
                              index=["Sample", "Position"],
                              variable_name="Methylation type",
@@ -171,6 +175,10 @@ def identify_interesting_genes(genome: Genome):
     all_genes = GeneCollection(genome.gene_ids, genome)
     all_data = all_genes.load_flanking_methylation_data(0, (-40, 40))
     all_data = all_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
+
+    if all_data.height == 0:
+        print(f"No data for {gene_collection.ids} in genome {gene_collection.genome.name}")
+        return
 
     # Get the ones that are DMRed
     dmr_ids = []
