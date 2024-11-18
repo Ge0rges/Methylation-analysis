@@ -146,9 +146,12 @@ class Genome(object):
             # Filter for coverage and no full Null/NaN values
             modification_types = list(readable_modification_name.keys())
             methyl_data = (methyl_data.filter(
-                pl.any_horizontal(pl.col(modification_types).is_not_null() &
-                                  pl.col(modification_types).is_not_nan()) &
-                pl.concat_list(modification_types).list.sum().ge(coverage)))
+                pl.any_horizontal(
+                    pl.col(modification_types).is_not_null() &
+                    pl.col(modification_types).cast(pl.Float64, strict=False).is_not_nan()
+                ) &
+                pl.concat_list(modification_types).list.sum().ge(coverage))
+            )
 
             # Add sample column
             methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
@@ -248,26 +251,4 @@ class Genome(object):
         return GeneCollection(gene_collection.pribnow_box_position_and_sequence
                               .filter(pl.col("pribnow_box_position").is_not_null())
                               .collect(streaming=True).get_column("gene_callers_id").to_list(), self)
-
-
-if __name__ == "__main__":
-    genome = Genome("Pelagibacter_r-contigs")
-    df = genome.load_all_methylation_data().collect().filter(pl.col("sample").replace_strict(barcode_replicate_map).is_in(["top", "middle", "bottom"]))
-    meth_types = list(readable_methylation_name.keys())
-
-    print(df.unique(["contig", "strand", "position"]).height)
-
-    data = (df.select(*meth_types, "contig", "strand", "position")
-     .filter(pl.any_horizontal(pl.col(meth_types).is_not_null() & pl.col(meth_types).is_not_nan())).unique(["contig", "strand", "position"]))
-
-    print(data.height)
-
-    # Keep only names (positions) that are in all samples
-    labels_in_all_groups = (df.group_by("contig", "strand", "position")
-                            .agg(pl.col("sample").n_unique().alias("unique_groups"))
-                            .filter(pl.col("unique_groups") == df.get_column("sample").n_unique())
-                            .select("contig", "strand", "position"))
-
-    print(labels_in_all_groups.height)
-
 

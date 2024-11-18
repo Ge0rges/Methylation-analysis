@@ -479,7 +479,7 @@ def positions_by_methylation(genome: Genome):
         ax.set_yscale("log")
         ax.set_ylim(1, 1e4)
 
-    plt.title(f"Methylation value distribution of common positions in {genome.readable_name}")
+    g.fig.suptitle(f"Methylation value distribution of common positions in {genome.readable_name}")
     if system() == "Darwin":
         plt.show()
     else:
