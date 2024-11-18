@@ -15,13 +15,16 @@ class Genome(object):
 
     __min_coverage_default = 10
     __default_treatments = ["top", "middle", "bottom"]
-    __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
+    __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/"))
+    __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../bams/aligned"))
 
     if system() == "Darwin":
         __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
+        __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/bams/"))
 
     def __init__(self, name: str):
         self._methylation_data_dir: Path = Genome.__methylation_data_dir
+        self._bam_dir: Path = Genome.__bam_dir
         if not self._is_valid_genome_name(name):
             raise ValueError(f"Genome {name} not found in the data directory.")
 

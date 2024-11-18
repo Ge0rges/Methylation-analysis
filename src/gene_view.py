@@ -196,7 +196,6 @@ def identify_interesting_genes(genome: Genome):
     return dmr_ids
 
 
-
 if __name__ == "__main__":
     for name in Genome.valid_genome_names():
         if "metagenome" in name:

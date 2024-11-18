@@ -454,14 +454,14 @@ class GeneCollection(object):
         region_filter = df.select("contig", "strand", "filter_start", "filter_end").collect(streaming=True)
 
         # Iterate over rows and execute modkit command
-        bam_files = [Path(f) for f in glob.glob(str(self.genome._methylation_data_dir / self.genome.name / "*.bam"))]
+        bam_files = [Path(f) for f in glob.glob(str(self.genome._bam_dir / self.genome.name / "*.bam"))]
         results = []
         for row in region_filter.iter_rows(named=True):
             # Construct the BED3 or BED4 string dynamically
             bed_entry = f"{row['contig']}\t{row['strand']}\t{row['filter_start']}\t{row['filter_end']}\n"
 
             # Save the BED entry to a file
-            bed_file_path = os.path.join(self.genome._methylation_data_dir, f"{row['contig']}_{row['strand']}_{row['filter_start']}_{row['filter_end']}.bed")
+            bed_file_path = os.path.join(self.genome._bam_dir, f"{row['contig']}_{row['strand']}_{row['filter_start']}_{row['filter_end']}.bed")
             with open(bed_file_path, 'w') as bed_file:
                 bed_file.write(bed_entry)
 
