@@ -156,13 +156,38 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     pivot_df2 = methyl_data.pivot(index=position_cols, columns='modified base code and motif', values='Ncanonical')
 
     # If there was no methylation of one type add Nulls
-    for meth_type in readable_modification_name.keys():
-        if meth_type not in pivot_df2.columns:
-            pivot_df2 = pivot_df2.with_columns(pl.lit(pl.Null, allow_object=True).alias(meth_type))
+    for meth_type in readable_methylation_name.keys():
+        if meth_type not in pivot_df1.columns:
+            pivot_df1 = pivot_df1.with_columns(pl.lit(None).alias(meth_type))
 
-    pivot_df = (pivot_df2.with_columns(pl.sum_horizontal(*base_methylation_map["C"]).alias("Ncanonical_C"))
-                .rename({"a": "Ncanonical_A"})
-                .select(*position_cols, "Ncanonical_C", "Ncanonical_A"))
+    # Handle renaming columns to canonical
+    for base, meth_group in base_methylation_map.items():
+        assert len(meth_group) > 0, f"No methylation types specified for base {base} in base_methylation_map"
+
+        if len(meth_group) == 1:
+            if meth_group[0] not in pivot_df2.columns:
+                pivot_df2 = pivot_df2.with_columns(pl.lit(None).alias("Ncanonical_" + base))
+            else:
+                pivot_df2 = pivot_df2.with_columns(pl.col(meth_group[0]).alias(f"Ncanonical_{base}"))
+        else:
+            # Create f"Ncanonical_{base}" with the first non-null value, row wise in columns of meth_group
+            # This works because Ncanonical is the same for modifications of the same base.
+            # This is required because not all modifications possible for a base are present for each instance of it.
+            expr = None
+            for col in meth_group:
+                if col in pivot_df2.columns:
+                    if expr is None:
+                        expr = pl.col(col)
+                    else:
+                        expr = expr.fill_null(pl.col(col))
+
+            # Add the expression as a new column
+            if expr is None:
+                pivot_df2 = pivot_df2.with_columns(pl.lit(None).alias(f"Ncanonical_{base}"))
+            else:
+                pivot_df2 = pivot_df2.with_columns(expr.alias(f"Ncanonical_{base}"))
+
+    pivot_df2 = pivot_df2.select(*position_cols, *[f"Ncanonical_{base}" for base in base_methylation_map.keys()])
     pivot_df = pivot_df1.join(pivot_df2, on=position_cols, how='inner').lazy()
 
     # Select is needed to ensure order for vstack
