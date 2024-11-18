@@ -43,7 +43,7 @@ def get_dataset_genes(genome: Genome) -> pl.LazyFrame:
     Returns:
     pandas.DataFrame: DataFrame with gene functions.
     """
-    data_dir = genome._data_dir
+    data_dir = genome._methylation_data_dir
     gene_calls = pl.scan_csv(data_dir / "gene-calls.txt", separator="\t")
 
     # Map direction to +/-

@@ -4,8 +4,12 @@ from src.utilities.utils import add_gene_caller_id, readable_modification_name
 from Bio import SeqRecord
 from src.utilities.data_loading import get_dataset_genes
 import polars as pl
-
+import os
 from typing import TYPE_CHECKING
+from io import StringIO
+import glob
+import subprocess
+from Path import Path
 
 if TYPE_CHECKING:  # Only for type hints
     from gene import Gene
@@ -65,7 +69,7 @@ class GeneCollection(object):
     def _load_data(self) -> None:
         self.gene_caller_df: pl.LazyFrame = get_dataset_genes(self.genome).filter(
             pl.col("gene_callers_id").is_in(self.ids))
-        self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._data_dir}/function-calls.txt", separator="\t").filter(
+        self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._methylation_data_dir}/function-calls.txt", separator="\t").filter(
             pl.col("gene_callers_id").is_in(self.ids))
 
 
@@ -360,7 +364,7 @@ class GeneCollection(object):
 
 
     @lru_cache
-    def load_flanking_methylation_data(self, relative_position: int, meth_range: tuple[int, int] | tuple[pl.Expr, int] | tuple[pl.Expr, pl.Expr] | tuple[int, pl.Expr]) -> pl.LazyFrame:
+    def load_flanking_methylation_data(self, relative_position: int, meth_range: tuple[int, int] | tuple[pl.Expr, int] | tuple[pl.Expr, pl.Expr] | tuple[int, pl.Expr], triplicates_only: bool = True, common_only: bool = False) -> pl.LazyFrame:
         """
         Extracts the methylationd data from the contig around a relative position in the gene.
         All coordinates are relative to the gene's tran direction.
@@ -402,7 +406,7 @@ class GeneCollection(object):
         region_filter = df.select("contig", "strand", "filter_start", "filter_end")
         region_filter = region_filter.rename({"contig": "filter_contig", "strand": "filter_strand"})
 
-        methyl_data = self.genome.load_region_methylation_data(region_filter=region_filter)
+        methyl_data = self.genome.load_region_methylation_data(region_filter=region_filter, triplicates_only=triplicates_only, common_only=common_only)
 
         # Add gene info
         methyl_data = methyl_data.join_where(df,
@@ -417,4 +421,85 @@ class GeneCollection(object):
                                                .otherwise(pl.col("stop") - relative_position - 1 - pl.col("position")).alias("position"))
 
         return methyl_data.select("gene_callers_id", "position", "sample", *readable_modification_name.keys())
+
+
+    def get_entropy_for_region(self, relative_position: int, range: tuple[int, int] | tuple[pl.Expr, int] | tuple[pl.Expr, pl.Expr] | tuple[int, pl.Expr]) -> pl.DataFrame:
+        start_offset, end_offset = range
+        if type(start_offset) is int and type(end_offset) is int:
+            assert start_offset <= end_offset, "Give a gene slice meth-range in order"
+
+        # Get the gene information we need
+        df = self.gene_caller_df.select("gene_callers_id", "contig", "start", "stop", "strand")
+
+        # Add RBS if needed, filter for RBS spacer length non-null
+        if type(start_offset) is pl.Expr or type(end_offset) is pl.Expr:
+            df = df.join(self.rbs_motif_and_relative_position.lazy(),
+                         on="gene_callers_id")  # In case, expr uses RBS spacer length
+            df = df.filter(pl.col("rbs_motif_position").is_not_null())
+
+        # If relative position is negative handle that as being from gene end
+        if relative_position < 0:
+            relative_position = pl.col("stop") + relative_position + 1  # -1 should be the end
+
+        # Figure out coordinates for each gene. The + 1's are needed because stop is exclusive, and we want inclusive.
+        df = df.with_columns(pl.when(pl.col("strand"))
+                             .then(pl.col("start").add(relative_position + start_offset))
+                             .otherwise(pl.col("stop").sub(relative_position + end_offset + 1)).alias("filter_start"))
+
+        df = df.with_columns(pl.when(pl.col("strand"))
+                             .then(pl.col("start").add(relative_position + end_offset))
+                             .otherwise(pl.col("stop").sub(relative_position + start_offset + 1)).alias("filter_end"))
+
+        # Get methylation data and filter using the filter df we built
+        region_filter = df.select("contig", "strand", "filter_start", "filter_end").collect(streaming=True)
+
+        # Iterate over rows and execute modkit command
+        bam_files = [Path(f) for f in glob.glob(str(self.genome._methylation_data_dir / self.genome.name / "*.bam"))]
+        results = []
+        for row in region_filter.iter_rows(named=True):
+            # Construct the BED3 or BED4 string dynamically
+            bed_entry = f"{row['contig']}\t{row['strand']}\t{row['filter_start']}\t{row['filter_end']}\n"
+
+            # Save the BED entry to a file
+            bed_file_path = os.path.join(self.genome._methylation_data_dir, f"{row['contig']}_{row['strand']}_{row['filter_start']}_{row['filter_end']}.bed")
+            with open(bed_file_path, 'w') as bed_file:
+                bed_file.write(bed_entry)
+
+            for mod_bam in bam_files:
+                for base in ["A", "C"]:
+
+                    # Construct the modkit entropy command
+                    cmd = (
+                        f"modkit entropy "
+                        f"--in-bam {mod_bam} "
+                        f"--regions {bed_file_path} "
+                        f"--base {base} "
+                        f"--ref {self.genome.genome_path} "
+                        f"--threads 8"
+                    )
+
+                    # Execute the command and capture output
+                    try:
+                        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True).stdout
+
+                        schema = ["chrom", "start", "end", "entropy", "num_reads"]
+                        try:
+                            df = pl.read_csv(StringIO(result), separator="\t", has_header=False, new_columns=schema)
+                            df = df.with_columns(pl.lit(row['gene_callers_id']).alias("gene_callers_id"), pl.lit(base).alias("base"))
+                            results.append(df)
+
+                        except Exception as e:
+                            print(f"Error parsing output: {e}")
+                            raise Exception
+
+                    except subprocess.CalledProcessError as e:
+                        print(f"Error running command for row {row}: {e.stderr}")
+                        raise Exception
+
+            # Delete the bed file
+            os.remove(bed_file_path)
+
+            # Concat results
+            results = pl.concat(results).rename({"chrom": "contig"})
+            return results
 
