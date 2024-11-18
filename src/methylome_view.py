@@ -13,10 +13,6 @@ def plot_methylation_dist_by_sample_violin(genome):
 
     data = genome.load_all_methylation_data()
 
-    if data.height == 0:
-        print(f"No data for {genome.name}")
-        return
-
     # Preprocess the data. Sort, rename, filter, and make position absolute to genome.
     data = data.sort("strand", "contig", "position", descending=False)
     data = data.with_columns(pl.col('sample').replace(barcode_replicate_map))
