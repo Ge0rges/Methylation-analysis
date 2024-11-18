@@ -114,7 +114,7 @@ def plot_methylation_by_coverage(genome):
 
 
 def plot_methylation_genic_intergenic(genome: Genome):
-    data = genome.gene_caller_df.select("start", "stop", "strand", "contig").sort("start", descending=False).collect(streaming=True).
+    data = genome.gene_caller_df.select("start", "stop", "strand", "contig").sort("start", descending=False).collect(streaming=True)
     if data.height == 0:
         print(f"No data for {genome.name}")
         return
