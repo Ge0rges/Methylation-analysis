@@ -1,5 +1,3 @@
-from unicodedata import normalize
-
 import polars as pl
 from itertools import product
 from random import randint
@@ -55,10 +53,10 @@ class BarnacleDataManager:
 
         methyl_data = self.position_df
         if boot_id is not None:
-            methyl_data = self.generate_cross_validation_sets(methyl_data, None, "treatment", "sample", boot_id)
+            methyl_data = self.generate_cross_validation_sets(methyl_data, None, "treatment", "sample", boot_id).sort("position", "treatment", "methylation_type")
 
         # Mean
-        methyl_data = methyl_data.group_by(["position", "treatment", "methylation_type"]).agg(pl.col("value").mean())
+        methyl_data = methyl_data.group_by(["position", "treatment", "methylation_type"], maintain_order=True).agg(pl.col("value").mean())
 
         # Convert to xarray
         return self.xarray_from_df(methyl_data)
@@ -86,10 +84,10 @@ class BarnacleDataManager:
 
         methyl_data = self.gene_df
         if boot_id is not None:
-            methyl_data = self.generate_cross_validation_sets(methyl_data, ["gene_callers_id", "position"], "treatment", "sample", boot_id)
+            methyl_data = self.generate_cross_validation_sets(methyl_data, ["gene_callers_id", "position"], "treatment", "sample", boot_id).sort("position", "treatment", "methylation_type", "gene_callers_id")
 
         # Mean
-        methyl_data = methyl_data.group_by(["position", "treatment", "methylation_type", "gene_callers_id"]).agg(pl.col("value").mean())
+        methyl_data = methyl_data.group_by(["position", "treatment", "methylation_type", "gene_callers_id"], maintain_order=True).agg(pl.col("value").mean())
 
         # Convert to xarray
         return self.xarray_from_df(methyl_data)
@@ -286,7 +284,8 @@ class BarnacleVisualizer:
             alpha=0.5
             #     label=lamb,
         )
-
+        
+        axis.set_yscale('log')
         plt.title('model fit vs. parameterization')
         plt.xlabel('R')
         plt.ylabel('CV SSE')
@@ -462,7 +461,7 @@ if __name__ == "__main__":
     # Paramaters
     GENOME_NAME = "Pelagibacter_r-contigs"
     LAMBDAS = [0]#[0, 0.001, 0.01, 0.1, 1, 0.05, 0.5]  # Adjust lambdas as needed
-    RANKS = list(range(1,12)) + [12, 15, 20, 25, 30, 35, 40, 45, 50, 100]
+    RANKS = list(range(1,30))
     N_BOOTSTRAPS = 27
     OUTPUT_DIR = Path(__file__).parent.resolve() / Path(f'../../data/models/{GENOME_NAME}/')
 
