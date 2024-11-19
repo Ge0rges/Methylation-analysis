@@ -40,8 +40,6 @@ def plot_methylation_dist_by_sample_violin(genome):
                          value_name="Normalized methylation fraction")
                 .filter(pl.col("Normalized methylation fraction").gt(0))).collect(streaming=True).to_pandas()
 
-    print(f"Data collected for methylome distribution plot  for {genome.name}")
-
     # Plot the strand in two seperate columns, one row per methylation type
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
     # g = sns.relplot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand",
@@ -90,8 +88,6 @@ def plot_methylation_by_coverage(genome):
                         index=["Sample", "Coverage"],
                         variable_name="Methylation type",
                         value_name="Fraction methylated").collect(streaming=True)
-
-    print(f"Data collected for methylome by coverage  for {genome.name}")
 
     # Show only coverage that is in the 90% percentile (filter outliers)
     data = data.filter(pl.col("Coverage").lt(data.get_column("Coverage").quantile(0.9)))
@@ -504,4 +500,4 @@ if __name__ == "__main__":
         positions_by_threshold_common(genome)
         number_of_positions_switched(genome)
         positions_by_methylation(genome)
-        break
+        print(f"Done plotting methylome of {name}")

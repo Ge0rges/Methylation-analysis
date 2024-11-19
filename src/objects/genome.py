@@ -23,16 +23,19 @@ class Genome(object):
         __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/bams/"))
 
     def __init__(self, name: str):
-        self._methylation_data_dir: Path = Genome.__methylation_data_dir
-        self._bam_dir: Path = Genome.__bam_dir
+        self.name: str = name
+        self._methylation_data_dir: Path = Genome.__methylation_data_dir / self.name
+        
         if not self._is_valid_genome_name(name):
             raise ValueError(f"Genome {name} not found in the data directory.")
 
-        self.name: str = name
-        self.readable_name: str = name.capitalize().replace("_r-contigs", " sp.")
+        self.readable_name: str = name.capitalize().split("_r-contigs")[0] +  " sp."
         self.plot_dir: Path = Path(f"../plots/{self.name}")
         self.plot_dir.mkdir(exist_ok=True, parents=True)
-        self.genome_path: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{self.name}.fna"))
+        
+        path_name = f"{self.name.split('-contigs')[0]}-contigs".replace("_novirus", "")
+        self._bam_dir: Path = Genome.__bam_dir / path_name
+        self.genome_path: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{path_name}.fna"))
 
 
     @classmethod
@@ -43,7 +46,8 @@ class Genome(object):
 
     def _is_valid_genome_name(self, name: str) -> bool:
         # Check if genome exists in the data directory
-        return os.path.exists(os.path.join(self._methylation_data_dir, name))
+        print(f"Checking is {self._methylation_data_dir} exists")
+        return os.path.exists(self._methylation_data_dir)
 
 
     @cached_property
@@ -79,8 +83,7 @@ class Genome(object):
     @cached_property
     def gene_ids(self) -> list[int]:
         # This works because modkit takes a reference and then does pileup one area within that reference only.
-        bed_files = [Path(f) for f in glob.glob(os.path.join(self._methylation_data_dir, self.name, "*.bed")) if
-                     '-bedgraph' not in os.path.basename(f)]
+        bed_files = [Path(f) for f in glob.glob(str(self._methylation_data_dir / "*.bed")) if '-bedgraph' not in os.path.basename(f)]
 
         all_data = []
         for bed_file in bed_files:
@@ -111,8 +114,7 @@ class Genome(object):
                                      treatments: list[str] = __default_treatments, triplicates_only: bool = True,
                                      common_only: bool = False) -> pl.LazyFrame | None:
         # Get all the bed files for this genome
-        bed_files = [Path(f) for f in glob.glob(str(self._methylation_data_dir / self.name / "*.bed")) if
-            '-bedgraph' not in os.path.basename(f)]
+        bed_files = [Path(f) for f in glob.glob(str(self._methylation_data_dir / "*.bed")) if '-bedgraph' not in os.path.basename(f)]
 
         all_data = []
         for bed_file in bed_files:

@@ -69,7 +69,7 @@ class GeneCollection(object):
     def _load_data(self) -> None:
         self.gene_caller_df: pl.LazyFrame = get_dataset_genes(self.genome).filter(
             pl.col("gene_callers_id").is_in(self.ids))
-        self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._methylation_data_dir}/function-calls.txt", separator="\t").filter(
+        self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._methylation_data_dir}/../function-calls.txt", separator="\t").filter(
             pl.col("gene_callers_id").is_in(self.ids))
 
 
@@ -454,20 +454,20 @@ class GeneCollection(object):
         region_filter = df.select("contig", "strand", "filter_start", "filter_end").collect(streaming=True)
 
         # Iterate over rows and execute modkit command
-        bam_files = [Path(f) for f in glob.glob(str(self.genome._bam_dir / self.genome.name / "*.bam"))]
+        bam_files = [Path(f) for f in glob.glob(str(self.genome._bam_dir / "*.bam"))]
         results = []
         for row in region_filter.iter_rows(named=True):
             # Construct the BED3 or BED4 string dynamically
-            bed_entry = f"{row['contig']}\t{row['strand']}\t{row['filter_start']}\t{row['filter_end']}\n"
+            bed_entry = f"{row['contig']}\t{row['filter_start']}\t{row['filter_end']}\n"
 
             # Save the BED entry to a file
-            bed_file_path = os.path.join(self.genome._bam_dir, f"{row['contig']}_{row['strand']}_{row['filter_start']}_{row['filter_end']}.bed")
+            bed_file_path = os.path.join(self.genome._bam_dir, f"{row['contig']}_{row['filter_start']}_{row['filter_end']}.bed")
             with open(bed_file_path, 'w') as bed_file:
                 bed_file.write(bed_entry)
 
             for mod_bam in bam_files:
                 for base in ["A", "C"]:
-
+                    out = os.path.join(self.genome._bam_dir, f"{row['contig']}_{row['filter_start']}_{row['filter_end']}_out")
                     # Construct the modkit entropy command
                     cmd = (
                         f"modkit entropy "
@@ -475,18 +475,22 @@ class GeneCollection(object):
                         f"--regions {bed_file_path} "
                         f"--base {base} "
                         f"--ref {self.genome.genome_path} "
-                        f"--threads 8"
+                        "--threads 8 "
+                        f"-o {out} "
                     )
 
                     # Execute the command and capture output
                     try:
-                        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True).stdout
+                        stdout = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True, env=os.environ.copy()).stdout
 
-                        schema = ["chrom", "start", "end", "entropy", "num_reads"]
+                        schema = ["contig", "start", "end", "entropy", "strands", "un1", "un2", "un3", "un4", "un4", "un5", "un6"]
                         try:
-                            df = pl.read_csv(StringIO(result), separator="\t", has_header=False, new_columns=schema)
+                            df = pl.read_csv(out + "/regions.bed", separator="\t", has_header=False, new_columns=schema)
                             df = df.with_columns(pl.lit(row['gene_callers_id']).alias("gene_callers_id"), pl.lit(base).alias("base"))
+                            df = df.filter(pl.col("strand").eq(row["strand"])).select("entropy", "gene_callers_id", "start", "end", "strand", "base")
                             results.append(df)
+
+                            os.remove(out)
 
                         except Exception as e:
                             print(f"Error parsing output: {e}")
@@ -500,6 +504,9 @@ class GeneCollection(object):
             os.remove(bed_file_path)
 
             # Concat results
-            results = pl.concat(results).rename({"chrom": "contig"})
+            if len(results) == 0:
+                return pl.DataFrame()
+
+            results = pl.concat(results)
             return results
 
