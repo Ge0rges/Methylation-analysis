@@ -482,7 +482,7 @@ class GeneCollection(object):
                     try:
                         stdout = subprocess.run(cmd, capture_output=True, check=True)
 
-                        schema = ["contig", "start", "end", "entropy", "strands", "un1", "un2", "un3", "un4", "un5", "un6", "un7"]
+                        schema = ["contig", "start", "end", "entropy", "strand", "un1", "un2", "un3", "un4", "un5", "un6", "un7"]
                         try:
                             df = pl.read_csv(out + "/regions.bed", separator="\t", has_header=False, new_columns=schema)
                             df = df.with_columns(pl.lit(row['gene_callers_id']).alias("gene_callers_id"), pl.lit(base).alias("base"))
