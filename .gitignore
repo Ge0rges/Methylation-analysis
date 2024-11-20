@@ -1,9 +1,6 @@
 __pycache__/*
-plots/*
 .idea/*
 data/methylation*
-/plots/plots_10
-/plots/plots_5
 /R
 data/._.DS_Store
 data/._methylation_5

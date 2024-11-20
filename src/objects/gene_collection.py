@@ -450,7 +450,7 @@ class GeneCollection(object):
                              .otherwise(pl.col("stop").sub(relative_position + start_offset + 1)).alias("filter_end"))
 
         # Get methylation data and filter using the filter df we built
-        region_filter = df.select("contig", "strand", "filter_start", "filter_end").collect(streaming=True)
+        region_filter = df.select("contig", "strand", "filter_start", "filter_end", "gene_callers_id").collect(streaming=True)
 
         # Iterate over rows and execute modkit command
         bam_files = [Path(f) for f in glob.glob(str(self.genome._bam_dir / "*.bam"))]
@@ -470,19 +470,19 @@ class GeneCollection(object):
                     # Construct the modkit entropy command
                     cmd = ["modkit",
                            "entropy",
-                           f"--in-bam {mod_bam}",
-                           f"--regions {bed_file_path}",
-                           f"--base {base}",
-                           f"--ref {self.genome.genome_path}",
-                           "--threads 8",
-                           f"-o {out}"
+                           "--threads", "8",
+                           "--regions", bed_file_path,
+                           "--base", base,
+                           "--in-bam", mod_bam,
+                           "--ref", self.genome.genome_path,
+                           "-o", out
                     ]
 
                     # Execute the command and capture output
                     try:
                         stdout = subprocess.run(cmd, capture_output=True, check=True)
 
-                        schema = ["contig", "start", "end", "entropy", "strands", "un1", "un2", "un3", "un4", "un4", "un5", "un6"]
+                        schema = ["contig", "start", "end", "entropy", "strands", "un1", "un2", "un3", "un4", "un5", "un6", "un7"]
                         try:
                             df = pl.read_csv(out + "/regions.bed", separator="\t", has_header=False, new_columns=schema)
                             df = df.with_columns(pl.lit(row['gene_callers_id']).alias("gene_callers_id"), pl.lit(base).alias("base"))
