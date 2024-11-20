@@ -6,7 +6,6 @@ from src.utilities.data_loading import get_dataset_genes
 import polars as pl
 import os
 from typing import TYPE_CHECKING
-from io import StringIO
 import glob
 import subprocess
 from pathlib import Path
@@ -69,7 +68,7 @@ class GeneCollection(object):
     def _load_data(self) -> None:
         self.gene_caller_df: pl.LazyFrame = get_dataset_genes(self.genome).filter(
             pl.col("gene_callers_id").is_in(self.ids))
-        self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._methylation_data_dir}/../function-calls.txt", separator="\t").filter(
+        self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._methylation_data_dir}/function-calls.txt", separator="\t").filter(
             pl.col("gene_callers_id").is_in(self.ids))
 
 

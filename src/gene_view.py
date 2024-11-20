@@ -205,23 +205,31 @@ def identify_interesting_genes(genome: Genome):
 
 
 if __name__ == "__main__":
-    for name in Genome.valid_genome_names():
-        if "metagenome" in name:
-            continue
+    import os
+    from pathlib import Path
 
-        genome = Genome(name)
-        gene_collection = GeneCollection(genome.gene_ids, genome)
+    data_path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/methylation_data/"))
+    for methylation_path in data_path.iterdir():
+        if methylation_path.is_dir():
+            Genome._Genome__methylation_data_dir = methylation_path
 
-        print(f"Plotting all gene start for {name}")
-        plot_genes_regions(gene_collection, 0, -40, 10)
-        
-        if "Pelagibacter" in name or "polaribacter" in name:
-            print(f"Getting interesting genes for {name}")
-            interesting_ids = identify_interesting_genes(genome)
-       
-            for gene_id in interesting_ids:
-                print(f"Plotting gene {gene_id} for {name}")
-                plot_gene_region(Gene(gene_id, genome), 0, -40, 10)
-        
-        print(f"Done with {genome.name}")
+            for name in Genome.valid_genome_names():
+                if "metagenome" in name:
+                    continue
+
+                genome = Genome(name)
+                gene_collection = GeneCollection(genome.gene_ids, genome)
+
+                print(f"Plotting all gene start for {name}")
+                plot_genes_regions(gene_collection, 0, -40, 10)
+
+                if "Pelagibacter" in name or "polaribacter" in name:
+                    print(f"Getting interesting genes for {name}")
+                    interesting_ids = identify_interesting_genes(genome)
+
+                    for gene_id in interesting_ids:
+                        print(f"Plotting gene {gene_id} for {name}")
+                        plot_gene_region(Gene(gene_id, genome), 0, -40, 10)
+
+                print(f"Done with {genome.name}")
 

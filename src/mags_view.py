@@ -1,3 +1,5 @@
+import os
+
 import matplotlib.pyplot as plt
 
 from src.objects.genome import Genome
@@ -49,6 +51,14 @@ def plot_start_codon_dist(genomes: list[Genome]):
 
 
 if __name__ == "__main__":
-    genomes = [Genome(n) for n in Genome.valid_genome_names() if "metagenome" not in n]
-    plot_mags_by_gc_content(genomes)
-    plot_start_codon_dist(genomes)
+    from pathlib import Path
+
+    data_path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/methylation_data/"))
+    for methylation_path in data_path.iterdir():
+        if methylation_path.is_dir():
+            Genome._Genome__methylation_data_dir = methylation_path
+
+            genomes = [Genome(n) for n in Genome.valid_genome_names() if "metagenome" not in n]
+
+            plot_mags_by_gc_content(genomes)
+            plot_start_codon_dist(genomes)

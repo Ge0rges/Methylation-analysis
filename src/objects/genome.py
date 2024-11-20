@@ -19,34 +19,32 @@ class Genome(object):
     __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../bams/aligned"))
 
     if system() == "Darwin":
-        __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
+        __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/"))
         __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/bams/"))
 
     def __init__(self, name: str):
         self.name: str = name
         self._methylation_data_dir: Path = Genome.__methylation_data_dir / self.name
-        
-        if not self._is_valid_genome_name(name):
-            raise ValueError(f"Genome {name} not found in the data directory.")
 
-        self.readable_name: str = name.capitalize().split("_r-contigs")[0] +  " sp."
-        self.plot_dir: Path = Path(f"../plots/{self.name}")
+        if not self._is_valid_genome_name():
+            raise ValueError(f"Genome {self.name} not found in the data directory.")
+
+        self.readable_name: str = name.capitalize().split("_r-contigs")[0] + " sp."
+        self.plot_dir: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../plots/{Genome.__methylation_data_dir.stem}/{self.name}"))
         self.plot_dir.mkdir(exist_ok=True, parents=True)
-        
-        path_name = f"{self.name.split('-contigs')[0]}-contigs".replace("_novirus", "")
-        self._bam_dir: Path = Genome.__bam_dir / path_name
-        self.genome_path: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{path_name}.fna"))
+
+        self._bam_dir: Path = Genome.__bam_dir / self.name
+        self.genome_path: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{self.name}.fna"))
 
 
     @classmethod
     def valid_genome_names(cls) -> list[str]:
         # Check if genome exists in the data directory
-        return [name for name in os.listdir(cls.__methylation_data_dir) if os.path.isdir(cls.__methylation_data_dir / name)]
+        return [str(name.stem) for name in cls.__methylation_data_dir.iterdir() if (cls.__methylation_data_dir / name).is_dir()]
 
 
-    def _is_valid_genome_name(self, name: str) -> bool:
+    def _is_valid_genome_name(self) -> bool:
         # Check if genome exists in the data directory
-        print(f"Checking is {self._methylation_data_dir} exists")
         return os.path.exists(self._methylation_data_dir)
 
 

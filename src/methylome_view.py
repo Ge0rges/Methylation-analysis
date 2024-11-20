@@ -464,7 +464,8 @@ def positions_by_methylation(genome: Genome):
 
     # Set up the seaborn plot
     plt.figure(figsize=(12, 8), layout="constrained")
-    g = sns.displot(data.to_pandas(), x="methylation_value", hue="treatment", row="methylation_type", kind="hist", kde=True, stat="count")
+    hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
+    g = sns.displot(data.to_pandas(), x="methylation_value", hue="treatment", row="methylation_type", kind="hist", kde=True, stat="count", hue_order=hue_order)
 
     # Add titles and labels
     g.set_axis_labels("Methylation value", "Count")
@@ -475,7 +476,13 @@ def positions_by_methylation(genome: Genome):
         ax.set_yscale("log")
         ax.set_ylim(1, 1e4)
 
-    g.fig.suptitle(f"Methylation value distribution of common positions in {genome.readable_name}")
+    g.fig.suptitle(
+        f"Methylation value distribution of common positions in {genome.readable_name}",
+        y=1.02,  # Adjust the vertical position of the figure title
+    )
+
+    g.fig.subplots_adjust(top=0.9)  # Adjust subplot layout to avoid overlap
+
     if system() == "Darwin":
         plt.show()
     else:
@@ -483,21 +490,29 @@ def positions_by_methylation(genome: Genome):
 
 
 if __name__ == "__main__":
-    for name in Genome.valid_genome_names():
-        if "metagenome" in name:
-            continue
+    import os
+    from pathlib import Path
 
-        genome = Genome(name)
-        print(f"Plotting methylome of {name}")
-        plot_methylation_dist_by_sample_violin(genome)
-        plot_methylation_by_coverage(genome)
-        plot_methylation_genic_intergenic(genome)
-        uniquely_methylated_positions(genome)
-        always_methylated_positions(genome)
-        methylation_counts(genome)
-        positions_by_threshold(genome)
-        positions_by_threshold_triplicates(genome)
-        positions_by_threshold_common(genome)
-        number_of_positions_switched(genome)
-        positions_by_methylation(genome)
-        print(f"Done plotting methylome of {name}")
+    data_path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/methylation_data/"))
+    for methylation_path in data_path.iterdir():
+        if methylation_path.is_dir():
+            Genome._Genome__methylation_data_dir = methylation_path
+
+            for name in Genome.valid_genome_names():
+                if "metagenome" in name:
+                    continue
+
+                genome = Genome(name)
+                print(f"Plotting methylome of {name}")
+                plot_methylation_dist_by_sample_violin(genome)
+                plot_methylation_by_coverage(genome)
+                plot_methylation_genic_intergenic(genome)
+                uniquely_methylated_positions(genome)
+                always_methylated_positions(genome)
+                methylation_counts(genome)
+                positions_by_threshold(genome)
+                positions_by_threshold_triplicates(genome)
+                positions_by_threshold_common(genome)
+                number_of_positions_switched(genome)
+                positions_by_methylation(genome)
+                print(f"Done plotting methylome of {name}")
