@@ -468,19 +468,19 @@ class GeneCollection(object):
                 for base in ["A", "C"]:
                     out = os.path.join(self.genome._bam_dir, f"{row['contig']}_{row['filter_start']}_{row['filter_end']}_out")
                     # Construct the modkit entropy command
-                    cmd = (
-                        f"modkit entropy "
-                        f"--in-bam {mod_bam} "
-                        f"--regions {bed_file_path} "
-                        f"--base {base} "
-                        f"--ref {self.genome.genome_path} "
-                        "--threads 8 "
-                        f"-o {out} "
-                    )
+                    cmd = ["modkit",
+                           "entropy",
+                           f"--in-bam {mod_bam}",
+                           f"--regions {bed_file_path}",
+                           f"--base {base}",
+                           f"--ref {self.genome.genome_path}",
+                           "--threads 8",
+                           f"-o {out}"
+                    ]
 
                     # Execute the command and capture output
                     try:
-                        stdout = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True, env=os.environ.copy()).stdout
+                        stdout = subprocess.run(cmd, capture_output=True, check=True)
 
                         schema = ["contig", "start", "end", "entropy", "strands", "un1", "un2", "un3", "un4", "un4", "un5", "un6"]
                         try:
