@@ -30,7 +30,7 @@ class Genome(object):
             raise ValueError(f"Genome {self.name} not found in the data directory.")
 
         self.readable_name: str = name.capitalize().split("_r-contigs")[0] + " sp."
-        self.plot_dir: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../plots/{Genome.__methylation_data_dir.stem}/{self.name}"))
+        self.plot_dir: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../plots/{Genome.__methylation_data_dir.name}/{self.name}"))
         self.plot_dir.mkdir(exist_ok=True, parents=True)
 
         self._bam_dir: Path = Genome.__bam_dir / self.name
@@ -40,7 +40,7 @@ class Genome(object):
     @classmethod
     def valid_genome_names(cls) -> list[str]:
         # Check if genome exists in the data directory
-        return [str(name.stem) for name in cls.__methylation_data_dir.iterdir() if (cls.__methylation_data_dir / name).is_dir()]
+        return [str(name.name) for name in cls.__methylation_data_dir.iterdir() if (cls.__methylation_data_dir / name).is_dir()]
 
 
     def _is_valid_genome_name(self) -> bool:
