@@ -190,14 +190,14 @@ def identify_interesting_genes(genome: Genome):
         dmr_genes = GeneCollection(dmr_ids, genome)
 
         # Get entropy of promoter
-        entropies = dmr_genes.get_entropy_for_region(0, (-40, 20)).join(dmr_result, on="gene_callers_id")
-        if entropies.height > 0:
-            entropies.select("gene_callers_id", "entropy", "base", "sample").sort("gene_callers_id", "base", "entropy", descending=True).write_csv(genome.plot_dir / "entropy_genes.csv")
+        #entropies = dmr_genes.get_entropy_for_region(0, (-40, 20))
+        #if entropies.height > 0:
+        #    entropies.select("gene_callers_id", "entropy", "base", "sample").sort("gene_callers_id", "base", "entropy", descending=True).write_csv(genome.plot_dir / "entropy_genes.csv")
 
         # Get functions
-        dmr_genes = (dmr_genes.get_function()
+        dmr_genes = (dmr_genes.get_function().join(dmr_result.lazy(), on="gene_callers_id")
                      .select("gene_callers_id", "function", "rao_score", "source", "test_result").unique() 
-                     .sort("entropy", "rao_score", descending=True))
+                     .sort("rao_score", descending=True))
 
         # Write to CSV
         dmr_genes.sink_csv(genome.plot_dir / "dmred_genes_rao_entropy.csv")
