@@ -158,7 +158,7 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     # If there was no methylation of one type add Nulls
     for meth_type in readable_methylation_name.keys():
         if meth_type not in pivot_df1.columns:
-            pivot_df1 = pivot_df1.with_columns(pl.lit(None).alias(meth_type))
+            pivot_df1 = pivot_df1.with_columns(pl.lit(None).cast(pl.Int64).alias(meth_type))
 
     # Handle renaming columns to canonical
     for base, meth_group in base_methylation_map.items():
@@ -166,7 +166,7 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
 
         if len(meth_group) == 1:
             if meth_group[0] not in pivot_df2.columns:
-                pivot_df2 = pivot_df2.with_columns(pl.lit(None).alias("Ncanonical_" + base))
+                pivot_df2 = pivot_df2.with_columns(pl.lit(None).cast(pl.Int64).alias("Ncanonical_" + base))
             else:
                 pivot_df2 = pivot_df2.with_columns(pl.col(meth_group[0]).alias(f"Ncanonical_{base}"))
         else:
@@ -183,7 +183,7 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
 
             # Add the expression as a new column
             if expr is None:
-                pivot_df2 = pivot_df2.with_columns(pl.lit(None).alias(f"Ncanonical_{base}"))
+                pivot_df2 = pivot_df2.with_columns(pl.lit(None).cast(pl.Int64).alias(f"Ncanonical_{base}"))
             else:
                 pivot_df2 = pivot_df2.with_columns(expr.alias(f"Ncanonical_{base}"))
 

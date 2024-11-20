@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 import glob
 import subprocess
 from pathlib import Path
+import shutil
 
 if TYPE_CHECKING:  # Only for type hints
     from gene import Gene
@@ -68,7 +69,7 @@ class GeneCollection(object):
     def _load_data(self) -> None:
         self.gene_caller_df: pl.LazyFrame = get_dataset_genes(self.genome).filter(
             pl.col("gene_callers_id").is_in(self.ids))
-        self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._methylation_data_dir}/function-calls.txt", separator="\t").filter(
+        self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._methylation_data_dir}/../function-calls.txt", separator="\t").filter(
             pl.col("gene_callers_id").is_in(self.ids))
 
 
@@ -465,6 +466,7 @@ class GeneCollection(object):
                 bed_file.write(bed_entry)
 
             for mod_bam in bam_files:
+                sample = mod_bam.stem
                 for base in ["A", "C"]:
                     out = os.path.join(self.genome._bam_dir, f"{row['contig']}_{row['filter_start']}_{row['filter_end']}_out")
                     # Construct the modkit entropy command
@@ -480,19 +482,26 @@ class GeneCollection(object):
 
                     # Execute the command and capture output
                     try:
-                        stdout = subprocess.run(cmd, capture_output=True, check=True)
+                        process = subprocess.run(cmd, capture_output=True, check=True)
 
-                        schema = ["contig", "start", "end", "entropy", "strand", "un1", "un2", "un3", "un4", "un5", "un6", "un7"]
+                        schema = ["contig", "start", "end", "name", "entropy", "strand", "un1", "un2", "un3", "un4", "un5", "un6", "un7"]
                         try:
                             df = pl.read_csv(out + "/regions.bed", separator="\t", has_header=False, new_columns=schema)
-                            df = df.with_columns(pl.lit(row['gene_callers_id']).alias("gene_callers_id"), pl.lit(base).alias("base"))
-                            df = df.filter(pl.col("strand").eq(row["strand"])).select("entropy", "gene_callers_id", "start", "end", "strand", "base")
+                            df = df.with_columns(pl.lit(row['gene_callers_id']).cast(pl.Int64).alias("gene_callers_id"), 
+                                                 pl.lit(base).alias("base"), pl.col("entropy").cast(pl.Float64),
+                                                 pl.lit(sample).alias("sample"))
+                            df = df.filter(pl.col("strand").eq(row["strand"])).select("entropy", "gene_callers_id", "start", "end", "strand", "base", "sample")
                             results.append(df)
 
-                            os.remove(out)
+                            shutil.rmtree(out)
 
                         except Exception as e:
+                            if type(e) is pl.exceptions.NoDataError:
+                                print("empty csv")
+                                continue
+
                             print(f"Error parsing output: {e}")
+                            print(f"Got std: {process.stdout}")
                             raise Exception
 
                     except subprocess.CalledProcessError as e:

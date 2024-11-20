@@ -191,12 +191,13 @@ def identify_interesting_genes(genome: Genome):
 
         # Get entropy of promoter
         entropies = dmr_genes.get_entropy_for_region(0, (-40, 20)).join(dmr_result, on="gene_callers_id")
-        print(f"Got entropy {entropies}")
+        if entropies.height > 0:
+            entropies.select("gene_callers_id", "entropy", "base", "sample").sort("gene_callers_id", "base", "entropy", descending=True).write_csv(genome.plot_dir / "entropy_genes.csv")
 
         # Get functions
-        dmr_genes = (dmr_genes.get_function().join(entropies.lazy(), on="gene_callers_id")
-                     .select("gene_callers_id", "function", "rao_score", "source", "test_result", "entropy", "num_reads", "base").unique()
-                     .sort("entropy", "rao_score", "num_reads", descending=True))
+        dmr_genes = (dmr_genes.get_function()
+                     .select("gene_callers_id", "function", "rao_score", "source", "test_result").unique() 
+                     .sort("entropy", "rao_score", descending=True))
 
         # Write to CSV
         dmr_genes.sink_csv(genome.plot_dir / "dmred_genes_rao_entropy.csv")
@@ -227,9 +228,9 @@ if __name__ == "__main__":
                     print(f"Getting interesting genes for {name}")
                     interesting_ids = identify_interesting_genes(genome)
 
-                    for gene_id in interesting_ids:
-                        print(f"Plotting gene {gene_id} for {name}")
-                        plot_gene_region(Gene(gene_id, genome), 0, -40, 10)
+                    #for gene_id in interesting_ids:
+                    #    print(f"Plotting gene {gene_id} for {name}")
+                    #    plot_gene_region(Gene(gene_id, genome), 0, -40, 10)
 
                 print(f"Done with {genome.name}")
 
