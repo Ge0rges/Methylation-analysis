@@ -1,3 +1,5 @@
+import os
+
 import matplotlib.pyplot as plt
 
 from src.objects.genome import Genome
@@ -32,12 +34,12 @@ def plot_mags_by_gc_content(genomes: list[Genome]):
 
 def plot_start_codon_dist(genomes: list[Genome]):
     gene_collections = [GeneCollection(g.gene_ids, g) for g in genomes]
-    starts = [gc.start_codon_sequence.with_columns(pl.lit(gc.genome.name).alias("MAG")) for gc in gene_collections]
-    starts = pl.concat(starts)
+    starts = [gc.start_codon_sequence.with_columns(pl.lit(gc.genome.name).alias("MAG")).group_by("MAG", "start_codon_sequence").agg(pl.len()) for gc in gene_collections]
+    starts = pl.concat(starts).collect(streaming=True)
 
     plt.subplots(1, 1, figsize=(10, 10), layout="constrained")
 
-    sns.barplot(data=starts.collect(streaming=True).to_pandas(), x="start_codon_sequence", hue="MAG")
+    sns.barplot(data=starts.to_pandas(), x="start_codon_sequence", y="len", hue="MAG")
 
     plt.title("Start codon distribution in each MAG")
 
@@ -49,6 +51,14 @@ def plot_start_codon_dist(genomes: list[Genome]):
 
 
 if __name__ == "__main__":
-    genomes = [Genome(n) for n in Genome.valid_genome_names() if "metagenome" not in n]
-    plot_mags_by_gc_content(genomes)
-    plot_start_codon_dist(genomes)
+    from pathlib import Path
+
+    data_path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/methylation_data/"))
+    for methylation_path in data_path.iterdir():
+        if methylation_path.is_dir():
+            Genome._Genome__methylation_data_dir = methylation_path
+
+            genomes = [Genome(n) for n in Genome.valid_genome_names() if "metagenome" not in n]
+
+            plot_mags_by_gc_content(genomes)
+            plot_start_codon_dist(genomes)

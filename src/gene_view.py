@@ -24,12 +24,11 @@ def plot_genes_regions(gene_collection: GeneCollection, relative_position: int =
 
     # Get DF for all genes
     data = methyl_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
-    data = data.filter(pl.col("sample").is_in(["top", "middle", "bottom"]))
     data = data.rename(readable_methylation_name).rename({"sample": "Sample", "position": "Position"})
     data = data.with_columns(pl.col('Sample').replace(readable_sample_name)).collect(streaming=True)
 
     if data.height == 0:
-        print(f"No data for {gene_collection.ids} in genome {gene_collection.genome.name} in region {relative_position} +- {relative_start}, {relative_end}")
+        print(f"No data for genes in genome {gene_collection.genome.name} in region {relative_position} +- {relative_start}, {relative_end}")
         return
 
     # All types plot
@@ -176,10 +175,6 @@ def identify_interesting_genes(genome: Genome):
     all_data = all_genes.load_flanking_methylation_data(0, (-40, 40))
     all_data = all_data.with_columns(pl.col('sample').replace(barcode_replicate_map))
 
-    if all_data.height == 0:
-        print(f"No data for {gene_collection.ids} in genome {gene_collection.genome.name}")
-        return
-
     # Get the ones that are DMRed
     dmr_ids = []
     s = all_data.collect(streaming=True).get_column("sample").unique().to_list()
@@ -188,15 +183,21 @@ def identify_interesting_genes(genome: Genome):
                       .filter(pl.col("test_result").eq(True)))
         dmr_ids = dmr_result.get_column("gene_callers_id").to_list()
 
+        if len(dmr_ids) == 0:
+            print(f"No DMRed genes for {genome.name}")
+            return []
+
         dmr_genes = GeneCollection(dmr_ids, genome)
 
         # Get entropy of promoter
-        entropies = dmr_genes.get_entropy_for_region(0, (-40, 20)).join(dmr_result, on="gene_callers_id")
+        #entropies = dmr_genes.get_entropy_for_region(0, (-40, 20))
+        #if entropies.height > 0:
+        #    entropies.select("gene_callers_id", "entropy", "base", "sample").sort("gene_callers_id", "base", "entropy", descending=True).write_csv(genome.plot_dir / "entropy_genes.csv")
 
         # Get functions
-        dmr_genes = (dmr_genes.get_function().join(entropies.lazy(), on="gene_callers_id")
-                     .select("gene_callers_id", "function", "rao_score", "source", "test_result", "entropy", "num_reads", "base").unique()
-                     .sort("entropy", "rao_score", "num_reads", descending=True))
+        dmr_genes = (dmr_genes.get_function().join(dmr_result.lazy(), on="gene_callers_id")
+                     .select("gene_callers_id", "function", "rao_score", "source", "test_result").unique() 
+                     .sort("rao_score", descending=True))
 
         # Write to CSV
         dmr_genes.sink_csv(genome.plot_dir / "dmred_genes_rao_entropy.csv")
@@ -205,21 +206,31 @@ def identify_interesting_genes(genome: Genome):
 
 
 if __name__ == "__main__":
-    for name in Genome.valid_genome_names():
-        if "metagenome" in name:
-            continue
+    import os
+    from pathlib import Path
 
-        genome = Genome(name)
-        gene_collection = GeneCollection(genome.gene_ids, genome)
+    data_path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/methylation_data/"))
+    for methylation_path in data_path.iterdir():
+        if methylation_path.is_dir():
+            Genome._Genome__methylation_data_dir = methylation_path
 
-        print(f"Plotting all gene start for {name}")
-        plot_genes_regions(gene_collection, 0, -40, 10)
-        
-        if "Pelagibacter" in name or "polaribacter" in name:
-            print(f"Getting interesting genes for {name}")
-            interesting_ids = [] #identify_interesting_genes(genome)
-       
-            for gene_id in interesting_ids:
-                print(f"Plotting gene {gene_id} for {name}")
-                plot_gene_region(Gene(gene_id, genome), 0, -40, 10)
+            for name in Genome.valid_genome_names():
+                if "metagenome" in name:
+                    continue
+
+                genome = Genome(name)
+                gene_collection = GeneCollection(genome.gene_ids, genome)
+
+                print(f"Plotting all gene start for {name}")
+                plot_genes_regions(gene_collection, 0, -40, 10)
+
+                if "Pelagibacter" in name or "polaribacter" in name:
+                    print(f"Getting interesting genes for {name}")
+                    interesting_ids = identify_interesting_genes(genome)
+
+                    #for gene_id in interesting_ids:
+                    #    print(f"Plotting gene {gene_id} for {name}")
+                    #    plot_gene_region(Gene(gene_id, genome), 0, -40, 10)
+
+                print(f"Done with {genome.name}")
 

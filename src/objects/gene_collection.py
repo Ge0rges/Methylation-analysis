@@ -6,10 +6,10 @@ from src.utilities.data_loading import get_dataset_genes
 import polars as pl
 import os
 from typing import TYPE_CHECKING
-from io import StringIO
 import glob
 import subprocess
 from pathlib import Path
+import shutil
 
 if TYPE_CHECKING:  # Only for type hints
     from gene import Gene
@@ -69,7 +69,7 @@ class GeneCollection(object):
     def _load_data(self) -> None:
         self.gene_caller_df: pl.LazyFrame = get_dataset_genes(self.genome).filter(
             pl.col("gene_callers_id").is_in(self.ids))
-        self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._methylation_data_dir}/function-calls.txt", separator="\t").filter(
+        self.functional_df: pl.lazyframe = pl.scan_csv(f"{self.genome._methylation_data_dir}/../function-calls.txt", separator="\t").filter(
             pl.col("gene_callers_id").is_in(self.ids))
 
 
@@ -451,45 +451,57 @@ class GeneCollection(object):
                              .otherwise(pl.col("stop").sub(relative_position + start_offset + 1)).alias("filter_end"))
 
         # Get methylation data and filter using the filter df we built
-        region_filter = df.select("contig", "strand", "filter_start", "filter_end").collect(streaming=True)
+        region_filter = df.select("contig", "strand", "filter_start", "filter_end", "gene_callers_id").collect(streaming=True)
 
         # Iterate over rows and execute modkit command
-        bam_files = [Path(f) for f in glob.glob(str(self.genome._bam_dir / self.genome.name / "*.bam"))]
+        bam_files = [Path(f) for f in glob.glob(str(self.genome._bam_dir / "*.bam"))]
         results = []
         for row in region_filter.iter_rows(named=True):
             # Construct the BED3 or BED4 string dynamically
-            bed_entry = f"{row['contig']}\t{row['strand']}\t{row['filter_start']}\t{row['filter_end']}\n"
+            bed_entry = f"{row['contig']}\t{row['filter_start']}\t{row['filter_end']}\n"
 
             # Save the BED entry to a file
-            bed_file_path = os.path.join(self.genome._bam_dir, f"{row['contig']}_{row['strand']}_{row['filter_start']}_{row['filter_end']}.bed")
+            bed_file_path = os.path.join(self.genome._bam_dir, f"{row['contig']}_{row['filter_start']}_{row['filter_end']}.bed")
             with open(bed_file_path, 'w') as bed_file:
                 bed_file.write(bed_entry)
 
             for mod_bam in bam_files:
+                sample = mod_bam.stem
                 for base in ["A", "C"]:
-
+                    out = os.path.join(self.genome._bam_dir, f"{row['contig']}_{row['filter_start']}_{row['filter_end']}_out")
                     # Construct the modkit entropy command
-                    cmd = (
-                        f"modkit entropy "
-                        f"--in-bam {mod_bam} "
-                        f"--regions {bed_file_path} "
-                        f"--base {base} "
-                        f"--ref {self.genome.genome_path} "
-                        f"--threads 8"
-                    )
+                    cmd = ["modkit",
+                           "entropy",
+                           "--threads", "8",
+                           "--regions", bed_file_path,
+                           "--base", base,
+                           "--in-bam", mod_bam,
+                           "--ref", self.genome.genome_path,
+                           "-o", out
+                    ]
 
                     # Execute the command and capture output
                     try:
-                        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True).stdout
+                        process = subprocess.run(cmd, capture_output=True, check=True)
 
-                        schema = ["chrom", "start", "end", "entropy", "num_reads"]
+                        schema = ["contig", "start", "end", "name", "entropy", "strand", "un1", "un2", "un3", "un4", "un5", "un6", "un7"]
                         try:
-                            df = pl.read_csv(StringIO(result), separator="\t", has_header=False, new_columns=schema)
-                            df = df.with_columns(pl.lit(row['gene_callers_id']).alias("gene_callers_id"), pl.lit(base).alias("base"))
+                            df = pl.read_csv(out + "/regions.bed", separator="\t", has_header=False, new_columns=schema)
+                            df = df.with_columns(pl.lit(row['gene_callers_id']).cast(pl.Int64).alias("gene_callers_id"), 
+                                                 pl.lit(base).alias("base"), pl.col("entropy").cast(pl.Float64),
+                                                 pl.lit(sample).alias("sample"))
+                            df = df.filter(pl.col("strand").eq(row["strand"])).select("entropy", "gene_callers_id", "start", "end", "strand", "base", "sample")
                             results.append(df)
 
+                            shutil.rmtree(out)
+
                         except Exception as e:
+                            if type(e) is pl.exceptions.NoDataError:
+                                print("empty csv")
+                                continue
+
                             print(f"Error parsing output: {e}")
+                            print(f"Got std: {process.stdout}")
                             raise Exception
 
                     except subprocess.CalledProcessError as e:
@@ -500,6 +512,9 @@ class GeneCollection(object):
             os.remove(bed_file_path)
 
             # Concat results
-            results = pl.concat(results).rename({"chrom": "contig"})
+            if len(results) == 0:
+                return pl.DataFrame()
+
+            results = pl.concat(results)
             return results
 

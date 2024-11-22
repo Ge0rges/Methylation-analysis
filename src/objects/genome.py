@@ -19,31 +19,33 @@ class Genome(object):
     __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../bams/aligned"))
 
     if system() == "Darwin":
-        __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/methylation_5"))
+        __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/"))
         __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/bams/"))
 
     def __init__(self, name: str):
-        self._methylation_data_dir: Path = Genome.__methylation_data_dir
-        self._bam_dir: Path = Genome.__bam_dir
-        if not self._is_valid_genome_name(name):
-            raise ValueError(f"Genome {name} not found in the data directory.")
-
         self.name: str = name
-        self.readable_name: str = name.capitalize().replace("_r-contigs", " sp.")
-        self.plot_dir: Path = Path(f"../plots/{self.name}")
+        self._methylation_data_dir: Path = Genome.__methylation_data_dir / self.name
+
+        if not self._is_valid_genome_name():
+            raise ValueError(f"Genome {self.name} not found in the data directory.")
+
+        self.readable_name: str = name.capitalize().split("_r-contigs")[0] + " sp."
+        self.plot_dir: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../plots/{Genome.__methylation_data_dir.name}/{self.name}"))
         self.plot_dir.mkdir(exist_ok=True, parents=True)
+
+        self._bam_dir: Path = Genome.__bam_dir / self.name
         self.genome_path: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{self.name}.fna"))
 
 
     @classmethod
     def valid_genome_names(cls) -> list[str]:
         # Check if genome exists in the data directory
-        return [name for name in os.listdir(cls.__methylation_data_dir) if os.path.isdir(cls.__methylation_data_dir / name)]
+        return [str(name.name) for name in cls.__methylation_data_dir.iterdir() if (cls.__methylation_data_dir / name).is_dir()]
 
 
-    def _is_valid_genome_name(self, name: str) -> bool:
+    def _is_valid_genome_name(self) -> bool:
         # Check if genome exists in the data directory
-        return os.path.exists(os.path.join(self._methylation_data_dir, name))
+        return os.path.exists(self._methylation_data_dir)
 
 
     @cached_property
@@ -79,8 +81,7 @@ class Genome(object):
     @cached_property
     def gene_ids(self) -> list[int]:
         # This works because modkit takes a reference and then does pileup one area within that reference only.
-        bed_files = [Path(f) for f in glob.glob(os.path.join(self._methylation_data_dir, self.name, "*.bed")) if
-                     '-bedgraph' not in os.path.basename(f)]
+        bed_files = [Path(f) for f in glob.glob(str(self._methylation_data_dir / "*.bed")) if '-bedgraph' not in os.path.basename(f)]
 
         all_data = []
         for bed_file in bed_files:
@@ -111,8 +112,7 @@ class Genome(object):
                                      treatments: list[str] = __default_treatments, triplicates_only: bool = True,
                                      common_only: bool = False) -> pl.LazyFrame | None:
         # Get all the bed files for this genome
-        bed_files = [Path(f) for f in glob.glob(str(self._methylation_data_dir / self.name / "*.bed")) if
-            '-bedgraph' not in os.path.basename(f)]
+        bed_files = [Path(f) for f in glob.glob(str(self._methylation_data_dir / "*.bed")) if '-bedgraph' not in os.path.basename(f)]
 
         all_data = []
         for bed_file in bed_files:
@@ -146,9 +146,12 @@ class Genome(object):
             # Filter for coverage and no full Null/NaN values
             modification_types = list(readable_modification_name.keys())
             methyl_data = (methyl_data.filter(
-                pl.any_horizontal(pl.col(modification_types).is_not_null() &
-                                  pl.col(modification_types).is_not_nan()) &
-                pl.concat_list(modification_types).list.sum().ge(coverage)))
+                pl.any_horizontal(
+                    pl.col(modification_types).is_not_null() &
+                    pl.col(modification_types).cast(pl.Float64, strict=False).is_not_nan()
+                ) &
+                pl.concat_list(modification_types).list.sum().ge(coverage))
+            )
 
             # Add sample column
             methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
@@ -248,26 +251,4 @@ class Genome(object):
         return GeneCollection(gene_collection.pribnow_box_position_and_sequence
                               .filter(pl.col("pribnow_box_position").is_not_null())
                               .collect(streaming=True).get_column("gene_callers_id").to_list(), self)
-
-
-if __name__ == "__main__":
-    genome = Genome("Pelagibacter_r-contigs")
-    df = genome.load_all_methylation_data().collect().filter(pl.col("sample").replace_strict(barcode_replicate_map).is_in(["top", "middle", "bottom"]))
-    meth_types = list(readable_methylation_name.keys())
-
-    print(df.unique(["contig", "strand", "position"]).height)
-
-    data = (df.select(*meth_types, "contig", "strand", "position")
-     .filter(pl.any_horizontal(pl.col(meth_types).is_not_null() & pl.col(meth_types).is_not_nan())).unique(["contig", "strand", "position"]))
-
-    print(data.height)
-
-    # Keep only names (positions) that are in all samples
-    labels_in_all_groups = (df.group_by("contig", "strand", "position")
-                            .agg(pl.col("sample").n_unique().alias("unique_groups"))
-                            .filter(pl.col("unique_groups") == df.get_column("sample").n_unique())
-                            .select("contig", "strand", "position"))
-
-    print(labels_in_all_groups.height)
-
 
