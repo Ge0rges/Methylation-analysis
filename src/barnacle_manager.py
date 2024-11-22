@@ -77,8 +77,29 @@ class BarnacleDataManager:
             # Filter out NaNs
             methyl_data = methyl_data.filter(pl.col("value").is_not_nan())
 
-            self.gene_df = methyl_data.select("position", "treatment", "methylation_type", "sample", "gene_callers_id", "value").collect(streaming=True)
-            self.gene_df = self.gene_df.filter(pl.col("methylation_type").eq("m"))
+            self.gene_df = methyl_data.select("position", "treatment", "methylation_type", "sample", "gene_callers_id", "value")
+            self.gene_df = self.gene_df.filter(pl.col("methylation_type").eq("m")).collect(streaming=True)
+
+            # Create the Cartesian product of all combinations
+            position_range = pl.DataFrame({"position": range(-50, 501)})
+            treatments = self.gene_df.select("treatment").unique()
+            samples = self.gene_df.select("sample").unique()
+            gene_callers_ids = self.gene_df.select("gene_callers_id").unique()
+
+            default_df = (
+                treatments
+                .join(samples, how="cross")  # Cartesian join with "sample"
+                .join(gene_callers_ids, how="cross")  # Cartesian join with "gene_callers_id"
+                .join(position_range, how="cross")  # Cartesian join with positions
+                .with_columns([
+                    pl.lit("m").alias("methylation_type"),  # Add methylation_type column
+                    pl.lit(0).alias("value")  # Add value column
+                ])
+            )
+
+            # Merge the default_df with the gene_df, when value is null replace with 0
+            self.gene_df = self.gene_df.join(default_df, on=["position", "treatment", "methylation_type", "sample", "gene_callers_id"], how="right").with_columns(pl.col("value").fill_null(0)).drop("value_right")
+
 
         methyl_data = self.gene_df
         if boot_id is not None:
@@ -282,7 +303,7 @@ class BarnacleVisualizer:
             alpha=0.5
             #     label=lamb,
         )
-        
+
         axis.set_yscale('log')
         plt.title('model fit vs. parameterization')
         plt.xlabel('R')
@@ -457,8 +478,8 @@ def execute_bootstrap(boot_id, model_manager, data_manager, dataset, replicate_l
 
 if __name__ == "__main__":
     # Paramaters
-    GENOME_NAME = "Pelagibacter_r-contigs"
-    RANKS = list(range(1,10,1)) + list(range(15, 30))
+    GENOME_NAME = "methylation_0.1p/pelagibacter_r-contigs"
+    RANKS = list(range(1,10,1)) + list(range(15, 30, 5))
     LAMBDAS = [0]#[0, 0.001, 0.005, 0.01, 0.1, 1, 0.05, 0.5, 0.8, 1, 2, 4] + list(np.arange(0.02, 0.6, 0.02))  # Adjust lambdas as needed
     N_BOOTSTRAPS = 1
     OUTPUT_DIR = Path(__file__).parent.resolve() / Path(f'../../data/models/{GENOME_NAME}/')
