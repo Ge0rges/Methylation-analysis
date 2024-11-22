@@ -36,7 +36,6 @@ class BarnacleDataManager:
 
             # Filter samples
             methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map, return_dtype=pl.String).alias("treatment"))
-            methyl_data = methyl_data.filter(pl.col("treatment").is_in(["top", "middle", "bottom"]))
 
             # Add absolute position
             methyl_data = self.genome.add_genome_relative_position(methyl_data).drop("position").rename({"genome_position": "position"})
@@ -64,12 +63,10 @@ class BarnacleDataManager:
 
     def get_gene_based_data(self, boot_id: int = None) -> xr.DataArray:
         if self.gene_df is None:
-            methyl_data = self.genome.load_all_methylation_data(normalize=True, common_only=True)
+            methyl_data = GeneCollection(self.genome.gene_ids, self.genome).load_flanking_methylation_data(0, (-50, 500), common_only=True)
 
             # Filter samples
-            methyl_data = methyl_data.with_columns(
-                pl.col("sample").replace_strict(barcode_replicate_map, default=pl.first()).alias("treatment"))
-            methyl_data = methyl_data.filter(pl.col("treatment").is_in(["top", "middle", "bottom"]))
+            methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map, default=pl.first()).alias("treatment"))
 
             # Pivot the dataframe
             methyl_data = methyl_data.unpivot(index=["position", "treatment", "gene_callers_id", "sample"],
@@ -81,13 +78,14 @@ class BarnacleDataManager:
             methyl_data = methyl_data.filter(pl.col("value").is_not_nan())
 
             self.gene_df = methyl_data.select("position", "treatment", "methylation_type", "sample", "gene_callers_id", "value").collect(streaming=True)
+            self.gene_df = self.gene_df.filter(pl.col("methylation_type").eq("m"))
 
         methyl_data = self.gene_df
         if boot_id is not None:
             methyl_data = self.generate_cross_validation_sets(methyl_data, ["gene_callers_id", "position"], "treatment", "sample", boot_id).sort("position", "treatment", "methylation_type", "gene_callers_id")
 
         # Mean
-        methyl_data = methyl_data.group_by(["position", "treatment", "methylation_type", "gene_callers_id"], maintain_order=True).agg(pl.col("value").mean())
+        methyl_data = methyl_data.group_by(["position", "treatment", "gene_callers_id"], maintain_order=True).agg(pl.col("value").mean())
 
         # Convert to xarray
         return self.xarray_from_df(methyl_data)
@@ -460,9 +458,9 @@ def execute_bootstrap(boot_id, model_manager, data_manager, dataset, replicate_l
 if __name__ == "__main__":
     # Paramaters
     GENOME_NAME = "Pelagibacter_r-contigs"
-    LAMBDAS = [0]#[0, 0.001, 0.01, 0.1, 1, 0.05, 0.5]  # Adjust lambdas as needed
-    RANKS = list(range(1,30))
-    N_BOOTSTRAPS = 27
+    RANKS = list(range(1,10,1)) + list(range(15, 30))
+    LAMBDAS = [0]#[0, 0.001, 0.005, 0.01, 0.1, 1, 0.05, 0.5, 0.8, 1, 2, 4] + list(np.arange(0.02, 0.6, 0.02))  # Adjust lambdas as needed
+    N_BOOTSTRAPS = 1
     OUTPUT_DIR = Path(__file__).parent.resolve() / Path(f'../../data/models/{GENOME_NAME}/')
 
     # Initialize genome and manager
@@ -471,7 +469,7 @@ if __name__ == "__main__":
 
     # Run Barnacle cross-validation with the specified parameters
     result = bm.run(
-        dataset="position",
+        dataset="gene",
         lambdas=LAMBDAS,
         ranks=RANKS,
         n_bootstraps=N_BOOTSTRAPS,
