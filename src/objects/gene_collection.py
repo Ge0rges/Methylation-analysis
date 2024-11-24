@@ -86,9 +86,15 @@ class GeneCollection(object):
 
     @cached_property
     def methylation_data(self) -> pl.LazyFrame:
-        # TODO: This loading step could be made more efficient by pushing down the filtering to the data loading step
-        # That would require building a regional filter for each gene, and then concatenate those expressions
-        methylation_data: pl.LazyFrame = self.genome.load_all_methylation_data()
+        # Figure out coordinates
+        region_filter = (self.gene_caller_df
+                         .select("gene_callers_id", "contig", "start", "stop", "strand")
+                         .with_columns(pl.col("stop").sub(1))  # in gene caller df stop is exclusive, in filter it is inclusive
+                         .rename({"contig": "filter_contig", "strand": "filter_strand",
+                                  "start": "filter_start", "stop": "filter_end"
+                                  }))
+
+        methylation_data: pl.LazyFrame = self.genome.load_region_methylation_data(region_filter=region_filter)
 
         methylation_data = add_gene_caller_id(methylation_data, self.gene_caller_df)
         methylation_data = methylation_data.drop("position", "strand", "contig")
@@ -487,7 +493,7 @@ class GeneCollection(object):
                         schema = ["contig", "start", "end", "name", "entropy", "strand", "un1", "un2", "un3", "un4", "un5", "un6", "un7"]
                         try:
                             df = pl.read_csv(out + "/regions.bed", separator="\t", has_header=False, new_columns=schema)
-                            df = df.with_columns(pl.lit(row['gene_callers_id']).cast(pl.Int64).alias("gene_callers_id"), 
+                            df = df.with_columns(pl.lit(row['gene_callers_id']).cast(pl.Int64).alias("gene_callers_id"),
                                                  pl.lit(base).alias("base"), pl.col("entropy").cast(pl.Float64),
                                                  pl.lit(sample).alias("sample"))
                             df = df.filter(pl.col("strand").eq(row["strand"])).select("entropy", "gene_callers_id", "start", "end", "strand", "base", "sample")
