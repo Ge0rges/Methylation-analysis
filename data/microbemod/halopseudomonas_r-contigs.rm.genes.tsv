@@ -1,0 +1,25 @@
+Operon	Gene	System Type	Gene type	HMM	Evalue	REBASE homolog	Homolog identity(%)	Homolog methylation	Homolog motif
+RM Operon #1	contig_108726_87	RM_Type_II	RE	Type_II_REase06	5.8e-10				
+RM Operon #1	contig_108726_85	RM_Type_II	MT	Type_II_MTases_FAM_2	1.3e-26	M.Tac106ORF3195P	67.085	m5C	
+RM Operon #1	contig_108726_88	RM_Type_II	RE	Type_II_REase02	1.1e-16	RdeR2I	51.034		GCNGC
+RM Operon #2	contig_74085_390	RM_Type_I	MT	Type_I_MTases_FAM_3	6.9e-281	M.PstRCH2II	96.809	m6A	CAGCNNNNNNNTCTY
+RM Operon #2	contig_74085_395	RM_Type_I	RE	Type_I_REases_FAM_1.einsi_trimmed	0.0	PfuSB1ORFDP	94.816		
+RM Operon #2	contig_74085_391	RM_Type_I	SP	Type_I_S_52	2.3e-89	S.PaePA7II	69.584		
+RM Operon #3	contig_75144_175	RM_Type_I	SP	Type_I_S_06	1.1e-56				
+RM Operon #3	contig_75144_174	RM_Type_I	MT	Type_I_MTases_FAM_0	7.5e-175	M.Pspc21ORF18310P	97.328	m6A	
+RM Operon #3	contig_75144_180	RM_Type_I	RE	Type_I_REases_FAM_0.einsi_trimmed	1.7e-269	PspOIL1ORF9665P	91.544		
+RM Operon #4	contig_75145_415	RM_Type_I	RE	Type_I_REases_FAM_0.einsi_trimmed	2.3e-245	AchHR1ORF23605P	85.977		
+RM Operon #4	contig_75145_421	RM_Type_I	MT	Type_I_MTases_FAM_0	5.7e-175	M.Pst29243ORF3940P	83.717	m6A	
+RM Operon #4	contig_75145_417	RM_Type_IV	RE	FAM_2-RM_Type_IV__Type_IV_REases	1.5e-29	PflUK4McrBCP_(PflUK4McrCP)	68.116		
+RM Operon #4	contig_75145_419	RM_Type_IV	RE	FAM_1-RM_Type_IV__Type_IV_REases	4.6e-78	PspS1G1McrBCP_(PspS1G1McrBP)	62.939		
+RM Operon #4	contig_75145_420	RM_Type_I	SP	Type_I_S_06	2.3e-62	S.Pav3491ORF28445P	60.6		
+RM Operon #5	contig_75145_468	RM_Type_I	MT	Type_I_MTases_FAM_0	9.1e-168	M1.BspJ329ORF5625P	96.2	m6A	
+RM Operon #5	contig_75145_467	RM_Type_I	MT	Type_I_MTases_FAM_0	3.1e-155	M2.TspXSGORF56P	94.685	m6A	
+RM Operon #5	contig_75145_461	RM_Type_IV	RE	FAM_2-RM_Type_IV__Type_IV_REases	5.1e-31	Pspc21McrBCP_(Pspc21McrCP)	91.803		
+RM Operon #5	contig_75145_464	RM_Type_I	RE	Type_I_REases_FAM_0.einsi_trimmed	9.9e-61	Pst55ORF20210P	99.215		
+RM Operon #5	contig_75145_466	RM_Type_I	SP	Type_I_S_02	2.5e-60	S.Pae14692ORFJP	91.294		
+RM Operon #5	contig_75145_465	RM_Type_I	RE	Type_I_REases_FAM_0.einsi_trimmed	9e-96	SraA1ORF1441P	96.339		GCCNNNNNGTCC
+RM Operon #6	contig_86868_700	RM_Type_III	MT	Type_III_MTases_FAM_0	4.7e-162	M.MspES1ORF11235P	70.146	m6A	
+RM Operon #6	contig_86868_698	RM_Type_III	RE	Type_III_REases_FAM_0.einsi_trimmed	7.1e-219	MspES1ORF11235P	80.444		
+Singleton #1	contig_108726_125	RM_Type_II	RE	Type_II_REase06	5e-12				
+Singleton #2	contig_74085_232	RM_Type_II	MT	Type_II_MTases_FAM_13	6.1e-07				

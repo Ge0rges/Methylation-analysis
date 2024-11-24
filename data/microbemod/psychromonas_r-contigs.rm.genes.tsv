@@ -1,0 +1,21 @@
+Operon	Gene	System Type	Gene type	HMM	Evalue	REBASE homolog	Homolog identity(%)	Homolog methylation	Homolog motif
+RM Operon #1	contig_111854_12	RM_Type_II	MT	Type_II_MTases_FAM_0	2.6e-56	M.SspYLB08ORF3315P	80.153	m5C	
+RM Operon #1	contig_111854_14	RM_Type_II	RE	Type_II_REase21	1.3e-23	PaqP86ORF18270P	80.11		
+RM Operon #2	contig_75319_176	RM_Type_I	RE	Type_I_REases_FAM_0.einsi_trimmed	7.2e-12	AwoDORF1175P	82.353		
+RM Operon #2	contig_75319_180	RM_Type_I	MT	Type_I_MTases_FAM_0	3.9e-166	M.Asa1238ORF10665P	80.574	m6A	
+RM Operon #2	contig_75319_178	RM_Type_I	SP	Type_I_S_51	2.3e-33	S.Vru14531ORFHP	64.122		
+RM Operon #2	contig_75319_175	RM_Type_I	RE	Type_I_REases_FAM_0.einsi_trimmed	6.4e-14	VcaLB102ORF20660P	85.075		
+RM Operon #3	contig_83809_36	RM_Type_II	MT	Type_II_MTases_FAM_33	1.5e-05	M.SpuJNE2ORF18275P	89.474	m6A	
+RM Operon #3	contig_83809_35	RM_Type_II	MT	Type_II_MTases_FAM_33	2e-10	M.SspMTB7ORF2080P	91.129	m6A	
+RM Operon #3	contig_83809_37	RM_Type_I	MT	Type_I_MTases_FAM_2	9.3e-95	M.SspMTB7ORF2080P	81.967	m6A	
+RM Operon #3	contig_83809_33	RM_Type_I	RE	Type_I_REases_FAM_2.einsi_trimmed	4.7e-185	MspBBA51ORFEP	76.329		
+RM Operon #3	contig_83809_38	RM_Type_I	SP	Type_I_S_52	1.5e-62	S2.TspASORF7130P	53.589		
+Singleton #1	contig_111854_161	RM_Type_I	RE	Type_I_REases_FAM_2.einsi_trimmed	5.6e-13	Pin37ORF2523P	89.397		
+Singleton #2	contig_75319_598	RM_Type_II	RE	Type_II_REase06	2.8e-09				
+Singleton #3	contig_75319_804	RM_Type_II	MT	Type_II_MTases_FAM_1	4.8e-41	M.Pin37ORF705P	95.909		
+Singleton #4	contig_75320_49	RM_Type_I	MT	Type_I_MTases_FAM_0	3.7e-48	M.Asa1238ORF10665P	89.157	m6A	
+Singleton #4	contig_75320_50	RM_Type_II	MT	Type_II_MTases_FAM_33	7.5e-07	M.Mya5ORF3140P	94.915	m6A	
+Singleton #5	contig_77881_47	RM_Type_II	MT	Type_II_MTases_FAM_36	2.8e-32	M.Van286ORF15360P	60.317		
+Singleton #6	contig_83809_936	RM_Type_I	RE	Type_I_REases_FAM_2.einsi_trimmed	1.5e-20	Ssp21906ORF2431P	73.611		
+Singleton #7	contig_89423_40	RM_Type_I	RE	Type_I_REases_FAM_2.einsi_trimmed	3.8e-29				
+Singleton #8	contig_90870_130	RM_Type_II	RE	Type_II_REase09	8.7e-08				

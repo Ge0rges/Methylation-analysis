@@ -1,0 +1,3 @@
+Operon	Gene	System Type	Gene type	HMM	Evalue	REBASE homolog	Homolog identity(%)	Homolog methylation	Homolog motif
+Singleton #1	contig_132567_66	RM_Type_II	MT	Type_II_MTases_FAM_4	1.1e-84	M.Csp7635ORF1185P	93.358		
+Singleton #2	contig_76336_79	RM_Type_II	RE	Type_II_REase19	2.3e-13				
