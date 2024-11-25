@@ -9,9 +9,9 @@ from src.utilities.utils import (readable_modification_name, normalize_data_by_p
 sns.set_theme(context="poster", style="white")
 
 
-def plot_methylation_dist_by_sample_violin(genome):
+def plot_methylation_dist_by_sample_violin(genome, triplicates=False):
 
-    data = genome.load_all_methylation_data()
+    data = genome.load_all_methylation_data(triplicates_only=triplicates)
 
     # Preprocess the data. Sort, rename, filter, and make position absolute to genome.
     data = data.sort("strand", "contig", "position", descending=False)
@@ -42,30 +42,16 @@ def plot_methylation_dist_by_sample_violin(genome):
 
     # Plot the strand in two seperate columns, one row per methylation type
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-    # g = sns.relplot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand",
-    #             hue="Sample", height=8, aspect=2, row_order=[True, False], hue_order=hue_order)
-
-    # # Add vertical lines marking contigs
-    # for ax in g.axes.flatten():
-    #     for contig in offsets.keys():
-    #         ax.axvline(x=offsets[contig], color='black', linestyle='--', alpha=0.7)
-
-
     g = sns.catplot(data, x="Sample", y="Normalized methylation fraction", col="Methylation type", height=8, aspect=2, row_order=[True, False], order=hue_order, hue="Sample", kind="violin")
-    g.fig.suptitle(f"{genome.readable_name} methylome violin")
+    # Set the overall figure title
+    g.fig.suptitle(f"{genome.readable_name} {'triplicate' if triplicates else ''} methylome violin")  # Increase `y` for more space
 
     if system() == "Darwin":
+        plt.tight_layout()
         plt.show()
     else:
-        plt.savefig(genome.plot_dir / "violin_methylome.pdf", format="pdf")
-
-    g = sns.displot(data, x="Position", y="Normalized methylation fraction", col="Methylation type", row="Strand", height=8, hue="Sample", aspect=2, row_order=[True, False], hue_order=hue_order, kind="kde")
-    g.fig.suptitle(f"{genome.readable_name} methylome KDE")
-
-    if system() == "Darwin":
-        plt.show()
-    else:
-        plt.savefig(genome.plot_dir / "kde_methylome.pdf", format="pdf")
+        plt.tight_layout()
+        plt.savefig(genome.plot_dir / f"violin_methylome{'_triplicate' if triplicates else ''}.pdf", format="pdf")
 
 
 def plot_methylation_by_coverage(genome):
@@ -303,7 +289,7 @@ def methylation_counts(genome: Genome):
 
 def positions_by_threshold(genome: Genome):
     df = []
-    for coverage in [5, 10, 20, 30, 50, 100]:
+    for coverage in [2, 5, 8, 10, 20, 30, 50, 100]:
         data = genome.load_all_methylation_data(coverage=coverage, triplicates_only=False)
         data = data.group_by("sample").agg(pl.len().alias("count")).with_columns(pl.lit(coverage).alias("coverage"))
         df.append(data)
@@ -330,7 +316,7 @@ def positions_by_threshold(genome: Genome):
 
 def positions_by_threshold_triplicates(genome: Genome):
     df = []
-    for coverage in [5, 10, 20, 30, 50, 100]:
+    for coverage in [2, 5, 8, 10, 20, 30, 50, 100]:
         data = genome.load_all_methylation_data(coverage=coverage, triplicates_only=True)
         data = data.group_by("sample").agg(pl.len().alias("count")).with_columns(pl.lit(coverage).alias("coverage"))
         df.append(data)
@@ -358,7 +344,7 @@ def positions_by_threshold_triplicates(genome: Genome):
 
 def positions_by_threshold_common(genome: Genome):
     df = []
-    for coverage in range(5, 50, 5):
+    for coverage in [2, 5, 8, 10, 20, 30, 50, 100]:
         data = genome.load_all_methylation_data(coverage=coverage, common_only=True)
         data = data.group_by("sample").agg(pl.len().alias("count")).with_columns(pl.lit(coverage).alias("coverage"))
         df.append(data)
@@ -474,16 +460,12 @@ def positions_by_methylation(genome: Genome):
     # Make axis log
     for ax in g.axes.flatten():
         ax.set_yscale("log")
-        ax.set_ylim(1, 1e4)
+        ax.set_ylim(bottom=1)
 
-    g.fig.suptitle(
-        f"Methylation value distribution of common positions in {genome.readable_name}",
-        y=1.02,  # Adjust the vertical position of the figure title
-    )
-
-    g.fig.subplots_adjust(top=0.9)  # Adjust subplot layout to avoid overlap
+    g.fig.suptitle(f"Methylation value distribution of common positions in {genome.readable_name}")
 
     if system() == "Darwin":
+        plt.tight_layout()
         plt.show()
     else:
         plt.savefig(genome.plot_dir / "positions_by_methylation.pdf", format="pdf")
@@ -504,7 +486,8 @@ if __name__ == "__main__":
 
                 genome = Genome(name)
                 print(f"Plotting methylome of {name}")
-                plot_methylation_dist_by_sample_violin(genome)
+                plot_methylation_dist_by_sample_violin(genome, triplicates=False)
+                plot_methylation_dist_by_sample_violin(genome, triplicates=True)
                 plot_methylation_by_coverage(genome)
                 plot_methylation_genic_intergenic(genome)
                 uniquely_methylated_positions(genome)
