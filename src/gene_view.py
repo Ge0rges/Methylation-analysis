@@ -7,11 +7,11 @@ from utilities.utils import *
 from src.objects.genome import Genome
 from platform import system
 
-
 sns.set_theme(context="poster", style="white")
 
 
-def plot_genes_regions(gene_collection: GeneCollection, relative_position: int = 0, relative_start: int = -40, relative_end: int = 20):
+def plot_genes_regions(gene_collection: GeneCollection, relative_position: int = 0, relative_start: int = -40,
+                       relative_end: int = 20):
     # Keep genes that have a start if relative_start is negative
     keep_ids = (gene_collection.is_start_missing.filter(pl.col("partial_begin").eq(False))
                 .collect(streaming=True).get_column("gene_callers_id").to_list())
@@ -28,27 +28,34 @@ def plot_genes_regions(gene_collection: GeneCollection, relative_position: int =
     data = data.with_columns(pl.col('Sample').replace(readable_sample_name)).collect(streaming=True)
 
     if data.height == 0:
-        print(f"No data for genes in genome {gene_collection.genome.name} in region {relative_position} +- {relative_start}, {relative_end}")
+        print(
+            f"No data for genes in genome {gene_collection.genome.name} in region {relative_position} +- {relative_start}, {relative_end}")
         return
 
     # All types plot
-    long_form = data.unpivot(on=list(readable_methylation_name.values()),
-                             index=["Sample", "Position"],
-                             variable_name="Methylation type",
-                             value_name="Normalized methylation fraction")
+    long_form = (data.unpivot(on=list(readable_methylation_name.values()),
+                              index=["Sample", "Position"],
+                              variable_name="Methylation type",
+                              value_name="Normalized methylation fraction")
+                 .filter(pl.col("Normalized methylation fraction").is_not_null() &
+                         pl.col("Normalized methylation fraction").is_not_nan()))
 
     # Get the most frequent nucleotide at each position
     sequence = gene_collection.get_flanking_sequence(relative_position, (relative_start, relative_end))
     sequence = sequence.with_columns(pl.col("sequence").str.split("")).explode("sequence")
-    sequence = sequence.with_columns((pl.cum_count("gene_callers_id") - 1 + relative_start).over("gene_callers_id").alias("position"))
+    sequence = sequence.with_columns(
+        (pl.cum_count("gene_callers_id") - 1 + relative_start).over("gene_callers_id").alias("position"))
     sequence_str = sequence.group_by("position").agg(pl.col("sequence").mode().first().alias("mode"))
     sequence_str = sequence_str.sort("position").collect().get_column("mode").str.join("").item()
 
     # Get DF for promoter distribution
-    promoter_positions = gene_collection.pribnow_box_position_and_sequence.drop("gene_callers_id", "pribnow_box_sequence").filter(pl.col("pribnow_box_position").is_not_null()).collect().to_pandas()
+    promoter_positions = gene_collection.pribnow_box_position_and_sequence.drop("gene_callers_id",
+                                                                                "pribnow_box_sequence").filter(
+        pl.col("pribnow_box_position").is_not_null()).collect().to_pandas()
 
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-    fig, axes = plt.subplots(7, 1, figsize=(int((relative_end - relative_start) * 0.4), 45), layout="constrained", sharex=True)
+    fig, axes = plt.subplots(7, 1, figsize=(int((relative_end - relative_start) * 0.4), 45), layout="constrained",
+                             sharex=True)
     fig.suptitle(f"All gene promoter methylation in {genome.readable_name}", fontsize=28)
 
     # Promoter position distribution plot
@@ -67,8 +74,10 @@ def plot_genes_regions(gene_collection: GeneCollection, relative_position: int =
     sns.histplot(data, x="Position", hue="Sample", ax=axes[5], discrete=True, multiple="stack", hue_order=hue_order)
 
     # Plot distribution of nucleotides
-    nucleotide_freq = sequence.select("sequence", "position").rename({"sequence": "Nucleotide"}).collect(streaming=True).to_pandas()
-    sns.histplot(nucleotide_freq, x="position", hue="Nucleotide", ax=axes[6], discrete=True, multiple="stack", hue_order=["A", "T", "G", "C"], palette="Paired")
+    nucleotide_freq = sequence.select("sequence", "position").rename({"sequence": "Nucleotide"}).collect(
+        streaming=True).to_pandas()
+    sns.histplot(nucleotide_freq, x="position", hue="Nucleotide", ax=axes[6], discrete=True, multiple="stack",
+                 hue_order=["A", "T", "G", "C"], palette="Paired")
 
     # Plot the sequence as X ticks
     ticks = np.linspace(relative_start, relative_end, len(sequence_str))
@@ -109,19 +118,21 @@ def plot_gene_region(gene: Gene, relative_position: int = 0, relative_start: int
     data = data.collect(streaming=True)
 
     if data.height == 0:
-        print(f"No data for {gene_collection.ids} in genome {gene_collection.genome.name} in region {relative_position} +- {relative_start}, {relative_end}")
+        print(
+            f"No data for {gene_collection.ids} in genome {gene_collection.genome.name} in region {relative_position} +- {relative_start}, {relative_end}")
         return
 
     long_form = (data.unpivot(on=list(readable_methylation_name.values()),
-                             index=["Sample", "Position"],
-                             variable_name="Methylation type",
-                             value_name="Normalized methylation fraction")
-                 .filter(pl.col("Normalized methylation fraction").gt(0)))
-
+                              index=["Sample", "Position"],
+                              variable_name="Methylation type",
+                              value_name="Normalized methylation fraction")
+                 .filter(pl.col("Normalized methylation fraction").is_not_null() & pl.col("Normalized methylation fraction").is_not_nan())
+                 .filter(pl.col("Normalized methylation fraction").ge(0)))
 
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
     ticks = np.linspace(relative_start, relative_end, len(sequence))
-    fig, axes = plt.subplots(4, 1, figsize=(int((relative_end - relative_start) * 0.4), 25), layout="constrained", sharex=True, sharey=True)
+    fig, axes = plt.subplots(4, 1, figsize=(int((relative_end - relative_start) * 0.4), 25),
+                             layout="constrained", sharex=True, sharey=True)
 
     fig.suptitle(f"Gene {gene.id} methylation - {gene.genome.readable_name}", fontsize=16)
 
@@ -135,7 +146,6 @@ def plot_gene_region(gene: Gene, relative_position: int = 0, relative_start: int
         else:
             sns.pointplot(df, x="Position", y=meth_type, hue="Sample", ax=axes[i], hue_order=hue_order,
                           native_scale=True, linestyles="None")
-
 
     # All types plot
     sns.scatterplot(long_form.to_pandas(), x="Position", y="Normalized methylation fraction", hue="Sample",
@@ -190,13 +200,15 @@ def identify_interesting_genes(genome: Genome):
         dmr_genes = GeneCollection(dmr_ids, genome)
 
         # Get entropy of promoter
-        #entropies = dmr_genes.get_entropy_for_region(0, (-40, 20))
-        #if entropies.height > 0:
-        #    entropies.select("gene_callers_id", "entropy", "base", "sample").sort("gene_callers_id", "base", "entropy", descending=True).write_csv(genome.plot_dir / "entropy_genes.csv")
+        entropies = dmr_genes.get_entropy_for_region(0, (-40, 20))
+        if entropies.height > 0:
+            (entropies.select("gene_callers_id", "entropy", "base", "sample")
+                      .sort("gene_callers_id", "base", "entropy", descending=True)
+                      .write_csv(genome.plot_dir / "entropy_genes.csv"))
 
         # Get functions
         dmr_genes = (dmr_genes.get_function().join(dmr_result.lazy(), on="gene_callers_id")
-                     .select("gene_callers_id", "function", "rao_score", "source", "test_result").unique() 
+                     .select("gene_callers_id", "function", "rao_score", "source", "test_result").unique()
                      .sort("rao_score", descending=True))
 
         # Write to CSV
@@ -233,4 +245,3 @@ if __name__ == "__main__":
                     #    plot_gene_region(Gene(gene_id, genome), 0, -40, 10)
 
                 print(f"Done with {genome.name}")
-

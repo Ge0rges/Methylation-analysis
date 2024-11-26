@@ -212,6 +212,27 @@ class Genome(object):
         return df.with_columns(pl.col("position").add(pl.col("contig").replace_strict(offsets, return_dtype=pl.UInt64)).alias("genome_position"))
 
 
+    def add_sequence_around_position(self, df: pl.LazyFrame, before: int, after: int) -> pl.LazyFrame:
+        # Make dataframe of the sequence of each contig
+        sequences = {}
+        com_sequences = {}
+        for key, value in self.sequence.items():
+            sequences[key] = str(value.seq)
+            com_sequences[key] = str(value.seq.complement())
+        sequences = {"contig": sequences.keys(), "sequence": sequences.values(),
+                     "complement_sequence": com_sequences.values()}
+        sequences = pl.from_dict(sequences, schema=["contig", "sequence", "complement_sequence"]).lazy()
+
+        # Merge the data with the sequences, get the sequence of the 4 nucelotides around
+        data = df.join(sequences, on="contig")
+        data = data.with_columns(pl.when(pl.col("strand"))
+                                 .then(pl.col("sequence").str.slice(pl.col("position") - before, before+after+1))
+                                 .otherwise(pl.col("complement_sequence").str.slice(pl.col("position") - before, before+after+1)).alias(
+            "Sequence"))
+
+        return data
+
+
     def add_gene_caller_id(self, df: pl.LazyFrame) -> pl.LazyFrame:
         genes = get_dataset_genes(self)
         return add_gene_caller_id(df, genes)
