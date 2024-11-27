@@ -508,6 +508,8 @@ class GeneCollection(object):
 
                             print(f"Error parsing output: {e}")
                             print(f"Got std: {process.stdout}")
+                            if "length is 1" in str(process.stdout):
+                                continue
                             raise Exception
 
                     except subprocess.CalledProcessError as e:
