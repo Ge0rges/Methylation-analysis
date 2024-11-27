@@ -70,7 +70,7 @@ def add_rao_score_by_gene(df: pl.DataFrame, samples: list[str], baseline: str | 
 
     # Add the score and comparison to the df
     df_t = df.with_columns(
- pl.col("gene_callers_id").replace_strict(significance_dict, default=np.NAN, return_dtype=pl.Boolean).alias("test_result"),
+        pl.col("gene_callers_id").replace_strict(significance_dict, default=None, return_dtype=pl.Boolean).alias("test_result"),
         pl.col("gene_callers_id").replace_strict(score_dict, default=np.NAN).alias("rao_score"),
         pl.lit(comp_str).alias("comparison"))
 
