@@ -207,12 +207,10 @@ def identify_interesting_genes(genome: Genome):
                       .write_csv(genome.plot_dir / "entropy_genes.csv"))
 
         # Get functions
-        dmr_genes = (dmr_genes.get_function().join(dmr_result.lazy(), on="gene_callers_id")
-                     .select("gene_callers_id", "function", "rao_score", "source", "test_result").unique()
-                     .sort("rao_score", descending=True))
-
-        # Write to CSV
-        dmr_genes.sink_csv(genome.plot_dir / "dmred_genes_rao_entropy.csv")
+        (dmr_genes.get_function().join(dmr_result.lazy(), on="gene_callers_id")
+                  .select("gene_callers_id", "function", "rao_score", "source", "test_result").unique()
+                  .sort("rao_score", descending=True)
+                  .sink_csv(genome.plot_dir / "dmred_genes.csv"))
 
     return dmr_ids
 
