@@ -508,12 +508,12 @@ class GeneCollection(object):
 
                             print(f"Error parsing output: {e}")
                             print(f"Got std: {process.stdout}")
-                            if "length is 1" in str(process.stdout):
-                                continue
                             raise Exception
 
                     except subprocess.CalledProcessError as e:
-                        print(f"Error running command for row {row}: {e.stderr}")
+                        print(f"Error running command for row {row}: {e.stderr}") 
+                        if "length is 1" in str(e.stderr):
+                            continue
                         raise Exception
 
             # Delete the bed file
