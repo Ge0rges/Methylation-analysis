@@ -462,68 +462,63 @@ class GeneCollection(object):
         # Iterate over rows and execute modkit command
         bam_files = [Path(f) for f in glob.glob(str(self.genome._bam_dir / "*.bam"))]
         results = []
-        for row in region_filter.iter_rows(named=True):
-            # Construct the BED3 or BED4 string dynamically
-            bed_entry = f"{row['contig']}\t{row['filter_start']}\t{row['filter_end']}\n"
 
-            # Save the BED entry to a file
-            bed_file_path = os.path.join(self.genome._bam_dir, f"{row['contig']}_{row['filter_start']}_{row['filter_end']}.bed")
-            with open(bed_file_path, 'w') as bed_file:
-                bed_file.write(bed_entry)
+        # Write the region filter to a TSV
+        bed_file_path = self.genome._bam_dir / "region_filter.bed"
+        region_filter.select("contig", "filter_start", "filter_end").write_csv(separator="\t", path=bed_file_path)
 
-            for mod_bam in bam_files:
-                sample = mod_bam.stem
-                for base in ["A", "C"]:
-                    out = os.path.join(self.genome._bam_dir, f"{row['contig']}_{row['filter_start']}_{row['filter_end']}_out")
-                    # Construct the modkit entropy command
-                    cmd = ["modkit",
-                           "entropy",
-                           "--threads", "8",
-                           "--regions", bed_file_path,
-                           "--base", base,
-                           "--in-bam", mod_bam,
-                           "--ref", self.genome.genome_path,
-                           "-o", out
-                    ]
+        for mod_bam in bam_files:
+            sample = mod_bam.stem
+            for base in ["A", "C"]:
+                out = os.path.join(self.genome._bam_dir, f"region_filter")
+                # Construct the modkit entropy command
+                cmd = ["modkit",
+                       "entropy",
+                       "--threads", "8",
+                       "--regions", bed_file_path,
+                       "--base", base,
+                       "--in-bam", mod_bam,
+                       "--ref", self.genome.genome_path,
+                       "-o", out
+                ]
 
-                    # Execute the command and capture output
+                # Execute the command and capture output
+                try:
+                    process = subprocess.run(cmd, capture_output=True, check=True)
+
+                    # Entropy in reality is mean_entropy
+                    schema = ["contig", "filter_start", "filter_end", "region_name", "entropy", "strand", "median_entropy", "min_entropy", "max_entropy", "mean_num_reads", "min_num_reads", "max_num_reads", "successful_window_count", "failed_window_count"]
                     try:
-                        process = subprocess.run(cmd, capture_output=True, check=True)
+                        df = pl.read_csv(out + "/regions.bed", separator="\t", has_header=False, new_columns=schema)
+                        df = df.with_columns(pl.lit(base).alias("base"), pl.col("entropy").cast(pl.Float64),
+                                             pl.lit(sample).alias("sample"))
+                        df = df.join(region_filter, on=["contig", "filter_start", "filter_end", "strand"]).select("entropy", "gene_callers_id", "filter_start", "filter_end", "strand", "base", "sample").rename({"filter_start": "start", "filter_end": "end"})
+                        results.append(df)
 
-                        # Entropy in reality is mean_entropy
-                        schema = ["contig", "start", "end", "region_name", "entropy", "strand", "median_entropy", "min_entropy", "max_entropy", "mean_num_reads", "min_num_reads", "max_num_reads", "successful_window_count", "failed_window_count"]
-                        try:
-                            df = pl.read_csv(out + "/regions.bed", separator="\t", has_header=False, new_columns=schema)
-                            df = df.with_columns(pl.lit(row['gene_callers_id']).cast(pl.Int64).alias("gene_callers_id"),
-                                                 pl.lit(base).alias("base"), pl.col("entropy").cast(pl.Float64),
-                                                 pl.lit(sample).alias("sample"))
-                            df = df.filter(pl.col("strand").eq(row["strand"])).select("entropy", "gene_callers_id", "start", "end", "strand", "base", "sample")
-                            results.append(df)
+                        shutil.rmtree(out)
 
-                            shutil.rmtree(out)
-
-                        except Exception as e:
-                            if type(e) is pl.exceptions.NoDataError:
-                                print("empty csv")
-                                continue
-
-                            print(f"Error parsing output: {e}")
-                            print(f"Got std: {process.stdout}")
-                            raise Exception
-
-                    except subprocess.CalledProcessError as e:
-                        print(f"Error running command for row {row}: {e.stderr}")
-                        if "length is 1" in str(e.stderr):
+                    except Exception as e:
+                        if type(e) is pl.exceptions.NoDataError:
+                            print("empty csv")
                             continue
+
+                        print(f"Error parsing output: {e}")
+                        print(f"Got std: {process.stdout}")
                         raise Exception
 
-            # Delete the bed file
-            os.remove(bed_file_path)
+                except subprocess.CalledProcessError as e:
+                    print(f"Error running command: {e.stderr}")
+                    if "length is 1" in str(e.stderr):
+                        continue
+                    raise Exception
 
-            # Concat results
-            if len(results) == 0:
-                return pl.DataFrame()
+        # Delete the bed file
+        os.remove(bed_file_path)
 
-            results = pl.concat(results)
-            return results
+        # Concat results
+        if len(results) == 0:
+            return pl.DataFrame()
+
+        results = pl.concat(results)
+        return results
 
