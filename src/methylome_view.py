@@ -492,57 +492,58 @@ def positions_by_methylation(genome: Genome):
         plt.savefig(genome.plot_dir / "positions_by_methylation.pdf", format="pdf")
 
 
-def genome_methylation(genome: Genome):
-    data = genome.load_all_methylation_data(normalize=True, common_only=True)
-    data = data.with_columns(pl.col("sample").replace(barcode_replicate_map).alias("treatment"))
-    data = data.with_columns(pl.col("treatment").replace(readable_sample_name).alias("treatment"))
-    data = data.rename(readable_methylation_name).collect(streaming=True)
+def genome_methylation_at_coverages(genome: Genome):
+    for coverage in [2, 5, 6, 7, 8]:
+        data = genome.load_all_methylation_data(normalize=True, common_only=True, coverage=coverage)
+        data = data.with_columns(pl.col("sample").replace(barcode_replicate_map).alias("treatment"))
+        data = data.with_columns(pl.col("treatment").replace(readable_sample_name).alias("treatment"))
+        data = data.rename(readable_methylation_name).collect(streaming=True)
 
-    if data.height == 0:
-        print(f"No data for {genome.name}")
-        return
+        if data.height == 0:
+            print(f"No data for {genome.name}")
+            return
 
-    data = genome.add_genome_relative_position(data.lazy()).drop("position").rename(
-        {"genome_position": "position"}).collect()
-    data = data.unpivot(
-        index=["contig", "strand", "position", "treatment"],
-        on=readable_methylation_name.values(),
-        variable_name="Methylation type",
-        value_name="Normalized methylation fraction"
+        data = genome.add_genome_relative_position(data.lazy()).drop("position").rename(
+            {"genome_position": "position"}).collect()
+        data = data.unpivot(
+            index=["contig", "strand", "position", "treatment"],
+            on=readable_methylation_name.values(),
+            variable_name="Methylation type",
+            value_name="Normalized methylation fraction"
 
-    ).filter(pl.col("Normalized methylation fraction").is_not_null() & pl.col(
-        "Normalized methylation fraction").is_not_nan())
+        ).filter(pl.col("Normalized methylation fraction").is_not_null() &
+                 pl.col("Normalized methylation fraction").is_not_nan())
 
-    # Set up the seaborn plot
-    plt.figure(figsize=(12, 8), layout="constrained")
-    hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-    g = sns.relplot(data.to_pandas(), x="position", y="Normalized methylation fraction", hue="treatment",
-                    row="Methylation type", hue_order=hue_order)
+        # Set up the seaborn plot
+        hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
+        g = sns.relplot(data.to_pandas(), x="position", y="Normalized methylation fraction", hue="treatment",
+                        row="Methylation type", hue_order=hue_order, height=12, aspect=2)
 
-    # Draw vertical lines at contig limits
-    # Get contigs cumsum
-    contigs = list(genome.sequence.keys())
-    contigs.sort()
-    cum_sum = 0
-    offsets = {}
-    for key in contigs:
-        offsets[key] = cum_sum
-        cum_sum += len(genome.sequence[key])
+        # Draw vertical lines at contig limits
+        # Get contigs cumsum
+        contigs = list(genome.sequence.keys())
+        contigs.sort()
+        cum_sum = 0
+        offsets = {}
+        for key in contigs:
+            offsets[key] = cum_sum
+            cum_sum += len(genome.sequence[key])
 
-    for ax in g.axes.flatten():
-        for value in offsets.values():
-            ax.axvline(x=value, color='black', linestyle='--', alpha=0.7)
+        for ax in g.axes.flatten():
+            for value in offsets.values():
+                ax.axvline(x=value, color='black', linestyle='--', alpha=0.7)
 
-    # Add titles and labels
-    g.set_axis_labels("Genomic position", "Methylation value")
-    g.set_titles("{row_name}")
+        # Add titles and labels
+        g.set_axis_labels("Genomic position", "Methylation value")
+        g.set_titles("{row_name}")
 
-    g.fig.suptitle(f"Methylation value across genome of common positions in {genome.readable_name}")
+        g.fig.suptitle(f"Methylation value across genome of common positions in {genome.readable_name} coverage {coverage}")
 
-    if system() == "Darwin":
-        plt.show()
-    else:
-        plt.savefig(genome.plot_dir / "genome_methylation.pdf", format="pdf")
+        plt.tight_layout()
+        if system() == "Darwin":
+            plt.show()
+        else:
+            plt.savefig(genome.plot_dir / f"genome_methylation_{coverage}.pdf", format="pdf")
 
 
 if __name__ == "__main__":
@@ -572,5 +573,5 @@ if __name__ == "__main__":
                 positions_by_threshold_common(genome)
                 number_of_positions_switched(genome)
                 positions_by_methylation(genome)
-                genome_methylation(genome)
+                genome_methylation_at_coverages(genome)
                 print(f"Done plotting methylome of {name}")
