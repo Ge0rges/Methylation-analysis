@@ -41,12 +41,12 @@ def plot_start_codon_dist(genomes: list[Genome]):
 
     sns.barplot(data=starts.to_pandas(), x="start_codon_sequence", y="len", hue="MAG")
 
-    plt.title("Start codon distribution in each MAG")
+    plt.title("Start codon count in each MAG")
 
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(genomes[0].plot_dir / ".." / "mags_start_dist.pdf", format="pdf")
+        plt.savefig(genomes[0].plot_dir / ".." / "mags_start_count.pdf", format="pdf")
 
 
 

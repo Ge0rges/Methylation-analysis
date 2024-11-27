@@ -167,9 +167,6 @@ class Genome(object):
         # Rename
         result = result.rename({"inclusive start position": "position"})
 
-        #result = result.filter(pl.col("contig").eq("contig_112356"), pl.col("strand").eq(False), pl.col("position").eq(260)).collect()
-
-        # Keep only positions that occur in triplicate within a treatment
         # Keep only positions that are in all samples
         if common_only:
             og_columns = result.collect_schema().names()
@@ -180,6 +177,7 @@ class Genome(object):
             result = (result.join(triplicate_positions, on=["contig", "strand", "position"], how="inner")
                       .select(*og_columns))
 
+        # Keep only positions that occur in triplicate within a treatment
         elif triplicates_only:
             og_columns = result.collect_schema().names()
             triplicate_positions = result.with_columns(pl.col("sample").replace_strict(barcode_replicate_map).alias("treatment"))

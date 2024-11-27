@@ -9,9 +9,8 @@ from src.utilities.utils import (readable_modification_name, normalize_data_by_p
 sns.set_theme(context="poster", style="white")
 
 
-def plot_methylation_dist_by_sample_violin(genome, triplicates=False):
-
-    data = genome.load_all_methylation_data(triplicates_only=triplicates)
+def plot_methylation_dist_by_sample_violin(genome, common_only=False):
+    data = genome.load_all_methylation_data(common_only=common_only)
 
     # Preprocess the data. Sort, rename, filter, and make position absolute to genome.
     data = data.sort("strand", "contig", "position", descending=False)
@@ -23,36 +22,31 @@ def plot_methylation_dist_by_sample_violin(genome, triplicates=False):
     data = data.rename(readable_methylation_name).rename({"sample": "Sample", "strand": "Strand"})
 
     # Get contigs cumsum
-    contigs = data.select("contig").unique().collect(streaming=True).get_column("contig")
-    cum_sum = 0
-    offsets = {}
-    for key in contigs:
-        offsets[key] = cum_sum
-        cum_sum += len(genome.sequence[key])
-
-    # Convert positiont to absolute
-    data = data.with_columns(pl.col("position").add(pl.col("contig").replace_strict(offsets)).alias("Position"))
+    data = genome.add_genome_relative_position(data).rename({"genome_position": "Position"})
 
     # Long form the data
     data = (data.unpivot(on=list(readable_methylation_name.values()),
                          index=["Sample", "Position", "Strand"],
                          variable_name="Methylation type",
                          value_name="Normalized methylation fraction")
-                .filter(pl.col("Normalized methylation fraction").is_not_null() & pl.col("Normalized methylation fraction").is_not_nan())
-                .collect(streaming=True).to_pandas())
+            .filter(pl.col("Normalized methylation fraction").is_not_null() & pl.col(
+        "Normalized methylation fraction").is_not_nan())
+            .collect(streaming=True).to_pandas())
 
     # Plot the strand in two seperate columns, one row per methylation type
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
     g = sns.catplot(data, x="Sample", y="Normalized methylation fraction", row="Methylation type", height=8, aspect=2,
                     order=hue_order, hue="Sample", kind="violin")
     # Set the overall figure title
-    g.fig.suptitle(f"{genome.readable_name} {'triplicate' if triplicates else ''} methylome violin")  # Increase `y` for more space
+    g.fig.suptitle(
+        f"{genome.readable_name} {'common' if common_only else 'triplicate'} methylome violin")  # Increase `y` for more space
 
     plt.tight_layout()
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(genome.plot_dir / f"violin_methylome{'_triplicate' if triplicates else ''}.pdf", format="pdf")
+        plt.savefig(genome.plot_dir / f"violin_methylome{'_common' if common_only else '_triplicate'}.pdf",
+                    format="pdf")
 
 
 def plot_methylation_by_coverage(genome):
@@ -72,10 +66,11 @@ def plot_methylation_by_coverage(genome):
 
     # Long form it
     data = (data.unpivot(on=list(readable_methylation_name.keys()),
-                        index=["Sample", "Coverage"],
-                        variable_name="Methylation type",
-                        value_name="Normalized methylation fraction")
-            .filter(pl.col("Normalized methylation fraction").is_not_null() & pl.col("Normalized methylation fraction").is_not_nan())
+                         index=["Sample", "Coverage"],
+                         variable_name="Methylation type",
+                         value_name="Normalized methylation fraction")
+            .filter(pl.col("Normalized methylation fraction").is_not_null() & pl.col(
+        "Normalized methylation fraction").is_not_nan())
             .collect(streaming=True))
 
     # Show only coverage that is in the 95% percentile (filter outliers)
@@ -86,8 +81,10 @@ def plot_methylation_by_coverage(genome):
 
     for meth_type in readable_methylation_name.keys():
         df = data.filter(pl.col("Methylation type").eq(meth_type)).to_pandas()
-        g = sns.jointplot(df, x="Normalized methylation fraction", y="Coverage", hue="Sample", hue_order=hue_order, height=16, kind="scatter")
-        g.fig.suptitle(f"{readable_methylation_name[meth_type]} coverage (95%) vs. methylation in {genome.readable_name}")
+        g = sns.jointplot(df, x="Normalized methylation fraction", y="Coverage", hue="Sample", hue_order=hue_order,
+                          height=16, kind="scatter")
+        g.fig.suptitle(
+            f"{readable_methylation_name[meth_type]} coverage (95%) vs. methylation in {genome.readable_name}")
 
         if system() == "Darwin":
             plt.show()
@@ -96,7 +93,8 @@ def plot_methylation_by_coverage(genome):
 
 
 def plot_methylation_genic_intergenic(genome: Genome):
-    data = genome.gene_caller_df.select("start", "stop", "strand", "contig").sort("start", descending=False).collect(streaming=True)
+    data = genome.gene_caller_df.select("start", "stop", "strand", "contig").sort("start", descending=False).collect(
+        streaming=True)
     if data.height == 0:
         print(f"No data for {genome.name}")
         return
@@ -165,8 +163,10 @@ def plot_methylation_genic_intergenic(genome: Genome):
     intergenic_data = genome.load_region_methylation_data(region_filter=ranges_df)
     genic_data = GeneCollection(genome.gene_ids, genome).methylation_data
 
-    intergenic_data = intergenic_data.with_columns(pl.lit("Intra-genic").alias("Region")).select(*readable_methylation_name.keys(), "sample", "Region")
-    genic_data = genic_data.with_columns(pl.lit("Genic").alias("Region")).select(*readable_methylation_name.keys(), "sample", "Region")
+    intergenic_data = intergenic_data.with_columns(pl.lit("Intra-genic").alias("Region")).select(
+        *readable_methylation_name.keys(), "sample", "Region")
+    genic_data = genic_data.with_columns(pl.lit("Genic").alias("Region")).select(*readable_methylation_name.keys(),
+                                                                                 "sample", "Region")
 
     data = pl.concat([intergenic_data, genic_data])
 
@@ -176,20 +176,23 @@ def plot_methylation_genic_intergenic(genome: Genome):
 
     # Long form it
     data = (data.unpivot(on=list(readable_methylation_name.keys()),
-                        index=["Sample", "Region"],
-                        variable_name="Methylation type",
-                        value_name="Normalized methylation fraction")
-            .filter(pl.col("Normalized methylation fraction").is_not_null() & pl.col("Normalized methylation fraction").is_not_nan())
+                         index=["Sample", "Region"],
+                         variable_name="Methylation type",
+                         value_name="Normalized methylation fraction")
+            .filter(pl.col("Normalized methylation fraction").is_not_null() & pl.col(
+        "Normalized methylation fraction").is_not_nan())
             .collect(streaming=True))
     data = data.with_columns(pl.col('Methylation type').replace(readable_methylation_name))
 
     # Plot
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-    sns.catplot(data.to_pandas(), x="Region", y="Normalized methylation fraction", col="Methylation type", hue="Sample", kind="bar", height=8, aspect=2, hue_order=hue_order)
+    sns.catplot(data.to_pandas(), x="Region", y="Normalized methylation fraction", row="Methylation type", hue="Sample",
+                kind="bar", height=8, aspect=2, hue_order=hue_order)
 
     # Show genic ration in title
     plt.suptitle(f"{genome.readable_name} genic ratio: {genic_ratio:.2f}")
 
+    plt.tight_layout()
     if system() == "Darwin":
         plt.show()
     else:
@@ -212,7 +215,8 @@ def uniquely_methylated_positions(genome: Genome):
         df.append(unique)
 
     df = pl.concat(df).collect(streaming=True)
-    df = df.with_columns(pl.col("meth_type").replace(readable_methylation_name), pl.col("sample").replace(readable_sample_name))
+    df = df.with_columns(pl.col("meth_type").replace(readable_methylation_name),
+                         pl.col("sample").replace(readable_sample_name))
 
     plt.subplots(figsize=(12, 8), layout="constrained")
     hue_order = ["S2-1", "S3-1", "S4-1", "S2-2", "S3-2", "S4-2", "S2-3", "S3-3", "S4-3"]
@@ -221,7 +225,8 @@ def uniquely_methylated_positions(genome: Genome):
         "#457b9d", "#3a6c89", "#2e5c75",  # Shades of blue
         "#2a9d8f", "#228779", "#1a7064"  # Shades of teal-green
     ]
-    sns.histplot(df.to_pandas(), x="meth_type", stat="count", hue="sample", multiple="stack", hue_order=hue_order, palette=custom_palette)
+    sns.histplot(df.to_pandas(), x="meth_type", stat="count", hue="sample", multiple="stack", hue_order=hue_order,
+                 palette=custom_palette)
     plt.title(f"Number of positions 95% methylated in only 1 treatment in {genome.readable_name}")
 
     if system() == "Darwin":
@@ -242,7 +247,8 @@ def always_methylated_positions(genome: Genome):
         df.append(unique)
 
     df = pl.concat(df).collect(streaming=True)
-    df = df.with_columns(pl.col("meth_type").replace(readable_methylation_name), pl.col("sample").replace(readable_sample_name))
+    df = df.with_columns(pl.col("meth_type").replace(readable_methylation_name),
+                         pl.col("sample").replace(readable_sample_name))
 
     plt.subplots(figsize=(12, 8), layout="constrained")
     hue_order = ["S2-1", "S3-1", "S4-1", "S2-2", "S3-2", "S4-2", "S2-3", "S3-3", "S4-3"]
@@ -251,7 +257,8 @@ def always_methylated_positions(genome: Genome):
         "#457b9d", "#3a6c89", "#2e5c75",  # Shades of blue
         "#2a9d8f", "#228779", "#1a7064"  # Shades of teal-green
     ]
-    sns.histplot(df.to_pandas(), x="meth_type", stat="count", hue="sample", multiple="stack", hue_order=hue_order, palette=custom_palette)
+    sns.histplot(df.to_pandas(), x="meth_type", stat="count", hue="sample", multiple="stack", hue_order=hue_order,
+                 palette=custom_palette)
 
     plt.title(f"Number of positions 95% methylated in all 3 treatments in {genome.readable_name}")
 
@@ -267,13 +274,14 @@ def methylation_counts(genome: Genome):
 
     # Longform it
     data = (data.unpivot(on=list(readable_modification_name.keys()),
-                        index="sample",
-                        variable_name="Methylation type",
-                        value_name="Methylation count")
-                .filter(pl.col("Methylation count").is_not_null() & pl.col("Methylation count").is_not_nan()))
+                         index="sample",
+                         variable_name="Methylation type",
+                         value_name="Methylation count")
+            .filter(pl.col("Methylation count").is_not_null() & pl.col("Methylation count").is_not_nan()))
 
     data = data.group_by("sample", "Methylation type").agg(pl.col("Methylation count").sum())
-    data = data.with_columns(pl.col("Methylation type").replace_strict(readable_modification_name)).collect(streaming=True)
+    data = data.with_columns(pl.col("Methylation type").replace_strict(readable_modification_name)).collect(
+        streaming=True)
 
     hue_order = ["S2-1", "S3-1", "S4-1", "S2-2", "S3-2", "S4-2", "S2-3", "S3-3", "S4-3"]
     custom_palette = [
@@ -310,7 +318,8 @@ def positions_by_threshold(genome: Genome):
         "#457b9d", "#3a6c89", "#2e5c75",  # Shades of blue
         "#2a9d8f", "#228779", "#1a7064"  # Shades of teal-green
     ]
-    sns.barplot(df.to_pandas(), x="coverage", y="count", hue="sample", ax=ax, hue_order=hue_order, palette=custom_palette)
+    sns.barplot(df.to_pandas(), x="coverage", y="count", hue="sample", ax=ax, hue_order=hue_order,
+                palette=custom_palette)
     ax.set_yscale("log")
 
     plt.title(f"Number of positions with coverage above threshold in {genome.readable_name}")
@@ -319,6 +328,7 @@ def positions_by_threshold(genome: Genome):
         plt.show()
     else:
         plt.savefig(genome.plot_dir / "positions_by_coverage.pdf", format="pdf")
+
 
 def positions_by_threshold_triplicates(genome: Genome):
     df = []
@@ -337,7 +347,8 @@ def positions_by_threshold_triplicates(genome: Genome):
         "#457b9d", "#3a6c89", "#2e5c75",  # Shades of blue
         "#2a9d8f", "#228779", "#1a7064"  # Shades of teal-green
     ]
-    sns.barplot(df.to_pandas(), x="coverage", y="count", hue="sample", ax=ax, hue_order=hue_order, palette=custom_palette)
+    sns.barplot(df.to_pandas(), x="coverage", y="count", hue="sample", ax=ax, hue_order=hue_order,
+                palette=custom_palette)
     ax.set_yscale("log")
 
     plt.title(f"Number of triplicate positions with coverage above threshold in {genome.readable_name}")
@@ -365,7 +376,8 @@ def positions_by_threshold_common(genome: Genome):
         "#457b9d", "#3a6c89", "#2e5c75",  # Shades of blue
         "#2a9d8f", "#228779", "#1a7064"  # Shades of teal-green
     ]
-    sns.barplot(df.to_pandas(), x="coverage", y="count", hue="sample", ax=ax, hue_order=hue_order, palette=custom_palette)
+    sns.barplot(df.to_pandas(), x="coverage", y="count", hue="sample", ax=ax, hue_order=hue_order,
+                palette=custom_palette)
     ax.set_yscale("log")
 
     plt.title(f"Number of common positions with coverage above threshold in {genome.readable_name}")
@@ -377,7 +389,8 @@ def positions_by_threshold_common(genome: Genome):
 
 
 def number_of_positions_switched(genome: Genome):
-    data = genome.load_all_methylation_data(normalize=True, common_only=True, treatments=["top", "bottom"]).collect(streaming=True)
+    data = genome.load_all_methylation_data(normalize=True, common_only=True, treatments=["top", "bottom"]).collect(
+        streaming=True)
     if data.height == 0:
         print(f"No data for {genome.name}")
         return
@@ -394,10 +407,10 @@ def number_of_positions_switched(genome: Genome):
 
     # Count the number of transitions between each possibility in a treatment
     data = data.sort("treatment").group_by("contig", "strand", "position", maintain_order=True).agg(
-                pl.col("A").alias("A_bottom"),
-                pl.col("C").alias("C_bottom"),
-                pl.col("A").shift(-1).alias("A_top"),
-                pl.col("C").shift(-1).alias("C_top")
+        pl.col("A").alias("A_bottom"),
+        pl.col("C").alias("C_bottom"),
+        pl.col("A").shift(-1).alias("A_top"),
+        pl.col("C").shift(-1).alias("C_top")
     ).explode(pl.col("A_bottom"), pl.col("C_bottom"), pl.col("A_top"), pl.col("C_top"))
 
     # Count transitions
@@ -405,8 +418,10 @@ def number_of_positions_switched(genome: Genome):
     Ctransition_counts = data.group_by(["C_bottom", "C_top"]).len().rename({"len": "transition_count"})
 
     # Convert to pandas and then pivot
-    Atransition_counts = Atransition_counts.to_pandas().pivot(index="A_bottom", columns="A_top", values="transition_count")
-    Ctransition_counts = Ctransition_counts.to_pandas().pivot(index="C_bottom", columns="C_top", values="transition_count")
+    Atransition_counts = Atransition_counts.to_pandas().pivot(index="A_bottom", columns="A_top",
+                                                              values="transition_count")
+    Ctransition_counts = Ctransition_counts.to_pandas().pivot(index="C_bottom", columns="C_top",
+                                                              values="transition_count")
 
     # Plot the heatmap
     plt.figure(figsize=(8, 6))
@@ -453,7 +468,8 @@ def positions_by_methylation(genome: Genome):
     # Set up the seaborn plot
     plt.figure(figsize=(12, 8), layout="constrained")
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-    g = sns.displot(data.to_pandas(), x="Normalized methylation fraction", hue="treatment", row="Methylation type", kind="hist", kde=True, stat="count", hue_order=hue_order)
+    g = sns.displot(data.to_pandas(), x="Normalized methylation fraction", hue="treatment", row="Methylation type",
+                    kind="hist", kde=True, stat="count", hue_order=hue_order)
 
     # Add titles and labels
     g.set_axis_labels("Methylation value", "Count")
@@ -483,20 +499,36 @@ def genome_methylation(genome: Genome):
         print(f"No data for {genome.name}")
         return
 
-    data = genome.add_genome_relative_position(data.lazy()).drop("position").rename({"genome_position": "position"}).collect()
+    data = genome.add_genome_relative_position(data.lazy()).drop("position").rename(
+        {"genome_position": "position"}).collect()
     data = data.unpivot(
         index=["contig", "strand", "position", "treatment"],
         on=readable_methylation_name.values(),
         variable_name="Methylation type",
         value_name="Normalized methylation fraction"
 
-    ).filter(pl.col("Normalized methylation fraction").is_not_null() & pl.col("Normalized methylation fraction").is_not_nan())
-
+    ).filter(pl.col("Normalized methylation fraction").is_not_null() & pl.col(
+        "Normalized methylation fraction").is_not_nan())
 
     # Set up the seaborn plot
     plt.figure(figsize=(12, 8), layout="constrained")
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-    g = sns.relplot(data.to_pandas(), x="position", y="Normalized methylation fraction", hue="treatment", row="Methylation type", hue_order=hue_order)
+    g = sns.relplot(data.to_pandas(), x="position", y="Normalized methylation fraction", hue="treatment",
+                    row="Methylation type", hue_order=hue_order)
+
+    # Draw vertical lines at contig limits
+    # Get contigs cumsum
+    contigs = list(genome.sequence.keys())
+    contigs.sort()
+    cum_sum = 0
+    offsets = {}
+    for key in contigs:
+        offsets[key] = cum_sum
+        cum_sum += len(genome.sequence[key])
+
+    for ax in g.axes.flatten():
+        for value in offsets.values():
+            ax.axvline(x=value, color='black', linestyle='--', alpha=0.7)
 
     # Add titles and labels
     g.set_axis_labels("Genomic position", "Methylation value")
@@ -504,7 +536,6 @@ def genome_methylation(genome: Genome):
 
     g.fig.suptitle(f"Methylation value across genome of common positions in {genome.readable_name}")
 
-    plt.tight_layout()
     if system() == "Darwin":
         plt.show()
     else:
@@ -526,8 +557,8 @@ if __name__ == "__main__":
 
                 genome = Genome(name)
                 print(f"Plotting methylome of {name}")
-                plot_methylation_dist_by_sample_violin(genome, triplicates=False)
-                plot_methylation_dist_by_sample_violin(genome, triplicates=True)
+                plot_methylation_dist_by_sample_violin(genome, common_only=False)
+                plot_methylation_dist_by_sample_violin(genome, common_only=True)
                 plot_methylation_by_coverage(genome)
                 plot_methylation_genic_intergenic(genome)
                 uniquely_methylated_positions(genome)
