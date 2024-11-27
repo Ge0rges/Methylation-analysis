@@ -272,7 +272,7 @@ def methylation_counts(genome: Genome):
                         value_name="Methylation count")
                 .filter(pl.col("Methylation count").is_not_null() & pl.col("Methylation count").is_not_nan()))
 
-    data = data.group_by("sample", "Methylation type").agg(pl.col("mMethylation count").sum())
+    data = data.group_by("sample", "Methylation type").agg(pl.col("Methylation count").sum())
     data = data.with_columns(pl.col("Methylation type").replace_strict(readable_modification_name)).collect(streaming=True)
 
     hue_order = ["S2-1", "S3-1", "S4-1", "S2-2", "S3-2", "S4-2", "S2-3", "S3-3", "S4-3"]
