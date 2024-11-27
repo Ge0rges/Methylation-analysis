@@ -490,7 +490,8 @@ class GeneCollection(object):
                     try:
                         process = subprocess.run(cmd, capture_output=True, check=True)
 
-                        schema = ["contig", "start", "end", "name", "entropy", "strand", "un1", "un2", "un3", "un4", "un5", "un6", "un7"]
+                        # Entropy in reality is mean_entropy
+                        schema = ["contig", "start", "end", "region_name", "entropy", "strand", "median_entropy", "min_entropy", "max_entropy", "mean_num_reads", "min_num_reads", "max_num_reads", "successful_window_count", "failed_window_count"]
                         try:
                             df = pl.read_csv(out + "/regions.bed", separator="\t", has_header=False, new_columns=schema)
                             df = df.with_columns(pl.lit(row['gene_callers_id']).cast(pl.Int64).alias("gene_callers_id"),
@@ -511,7 +512,7 @@ class GeneCollection(object):
                             raise Exception
 
                     except subprocess.CalledProcessError as e:
-                        print(f"Error running command for row {row}: {e.stderr}") 
+                        print(f"Error running command for row {row}: {e.stderr}")
                         if "length is 1" in str(e.stderr):
                             continue
                         raise Exception

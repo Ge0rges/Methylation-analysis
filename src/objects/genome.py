@@ -2,7 +2,7 @@ import os
 from src.utilities.utils import *
 from src.utilities.data_loading import get_pileup, get_dataset_genes
 from platform import system
-from functools import lru_cache, cached_property
+from functools import cached_property
 import glob
 from Bio import SeqRecord, SeqUtils
 from src.objects.gene_collection import GeneCollection

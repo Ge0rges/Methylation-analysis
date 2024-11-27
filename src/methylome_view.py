@@ -33,6 +33,9 @@ def plot_methylation_dist_by_sample_violin(genome, common_only=False):
         "Normalized methylation fraction").is_not_nan())
             .collect(streaming=True).to_pandas())
 
+    if data.height == 0:
+        return # No data to plot
+
     # Plot the strand in two seperate columns, one row per methylation type
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
     g = sns.catplot(data, x="Sample", y="Normalized methylation fraction", row="Methylation type", height=8, aspect=2,
