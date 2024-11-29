@@ -239,7 +239,7 @@ def uniquely_methylated_positions(genome: Genome):
 
 
 def always_methylated_positions(genome: Genome):
-    data = genome.load_all_methylation_data(triplicates_only=True)
+    data = genome.load_all_methylation_data()
 
     # Per type
     df = []
@@ -469,7 +469,6 @@ def positions_by_methylation(genome: Genome):
     ).filter(pl.col("Normalized methylation fraction").is_not_null())
 
     # Set up the seaborn plot
-    plt.figure(figsize=(12, 8), layout="constrained")
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
     g = sns.displot(data.to_pandas(), x="Normalized methylation fraction", hue="treatment", row="Methylation type",
                     kind="hist", kde=True, stat="count", hue_order=hue_order)

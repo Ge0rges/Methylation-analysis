@@ -24,3 +24,4 @@ src/auxiliary_analyses/.cache.sqlite
 /src/objects/__pycache__
 data/virus_data/geNomad_summary/RZlFKw18HlFqUXP5_virus.fna
 data/virus_data/checkv/viruses.fna
+/plots/Default coverage 8
