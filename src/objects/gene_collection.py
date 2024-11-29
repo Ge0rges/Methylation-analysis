@@ -465,7 +465,7 @@ class GeneCollection(object):
 
         # Write the region filter to a TSV
         bed_file_path = self.genome._bam_dir / "region_filter.bed"
-        region_filter.select("contig", "filter_start", "filter_end").write_csv(separator="\t", path=bed_file_path)
+        region_filter.select("contig", "filter_start", "filter_end").write_csv(separator="\t", file=bed_file_path)
 
         for mod_bam in bam_files:
             sample = mod_bam.stem
@@ -491,7 +491,7 @@ class GeneCollection(object):
                     try:
                         df = pl.read_csv(out + "/regions.bed", separator="\t", has_header=False, new_columns=schema)
                         df = df.with_columns(pl.lit(base).alias("base"), pl.col("entropy").cast(pl.Float64),
-                                             pl.lit(sample).alias("sample"))
+                                             pl.lit(sample).alias("sample"), pl.col("strand").eq("+").alias("strand"))
                         df = df.join(region_filter, on=["contig", "filter_start", "filter_end", "strand"]).select("entropy", "gene_callers_id", "filter_start", "filter_end", "strand", "base", "sample").rename({"filter_start": "start", "filter_end": "end"})
                         results.append(df)
 
