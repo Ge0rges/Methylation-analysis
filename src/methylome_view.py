@@ -39,12 +39,12 @@ def plot_methylation_dist_by_sample_violin(genome, common_only=False):
     # Plot the strand in two seperate columns, one row per methylation type
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
     g = sns.catplot(data, x="Sample", y="Normalized methylation fraction", row="Methylation type", height=8, aspect=2,
-                    order=hue_order, hue="Sample", kind="violin")
+                    order=hue_order, hue="Sample", kind="violin", hue_order=hue_order)
     # Set the overall figure title
     g.fig.suptitle(
-        f"{genome.readable_name} {'common' if common_only else 'triplicate'} methylome violin")  # Increase `y` for more space
+        f"{genome.readable_name} {'common' if common_only else 'triplicate'} methylome")
 
-    plt.tight_layout()
+    g.fig.set_constrained_layout(True)
     if system() == "Darwin":
         plt.show()
     else:
@@ -189,13 +189,13 @@ def plot_methylation_genic_intergenic(genome: Genome):
 
     # Plot
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
-    sns.catplot(data.to_pandas(), x="Region", y="Normalized methylation fraction", row="Methylation type", hue="Sample",
+    g = sns.catplot(data.to_pandas(), x="Region", y="Normalized methylation fraction", row="Methylation type", hue="Sample",
                 kind="bar", height=8, aspect=2, hue_order=hue_order)
 
     # Show genic ration in title
     plt.suptitle(f"{genome.readable_name} genic ratio: {genic_ratio:.2f}")
 
-    plt.tight_layout()
+    g.fig.set_constrained_layout(True)
     if system() == "Darwin":
         plt.show()
     else:
@@ -482,9 +482,9 @@ def positions_by_methylation(genome: Genome):
         ax.set_yscale("log")
         ax.set_ylim(bottom=1)
 
-    g.fig.suptitle(f"Methylation value distribution of common positions in {genome.readable_name}")
+    g.fig.suptitle(f"Methylation value distribution\n of common positions in {genome.readable_name}")
 
-    plt.tight_layout()
+    g.fig.set_constrained_layout(True)
     if system() == "Darwin":
         plt.show()
     else:
@@ -536,9 +536,11 @@ def genome_methylation_at_coverages(genome: Genome):
         g.set_axis_labels("Genomic position", "Methylation value")
         g.set_titles("{row_name}")
 
-        g.fig.suptitle(f"Methylation value across genome of common positions in {genome.readable_name} coverage {coverage}")
+        sns.move_legend(g, "center right", bbox_to_anchor=(1, 0.5))
+        g.fig.subplots_adjust(top=0.96)
+        g._legend.set_frame_on(False)
+        g.fig.suptitle(f"Methylation value across genome of common positions in {genome.readable_name} coverage {coverage}", y=0.98)
 
-        plt.tight_layout()
         if system() == "Darwin":
             plt.show()
         else:
@@ -560,17 +562,17 @@ if __name__ == "__main__":
 
                 genome = Genome(name)
                 print(f"Plotting methylome of {name}")
-                plot_methylation_dist_by_sample_violin(genome, common_only=False)
-                plot_methylation_dist_by_sample_violin(genome, common_only=True)
-                plot_methylation_by_coverage(genome)
-                plot_methylation_genic_intergenic(genome)
-                uniquely_methylated_positions(genome)
-                always_methylated_positions(genome)
-                methylation_counts(genome)
-                positions_by_threshold(genome)
-                positions_by_threshold_triplicates(genome)
-                positions_by_threshold_common(genome)
-                number_of_positions_switched(genome)
-                positions_by_methylation(genome)
+                # plot_methylation_dist_by_sample_violin(genome, common_only=False)
+                # plot_methylation_dist_by_sample_violin(genome, common_only=True)
+                # plot_methylation_by_coverage(genome)
+                # plot_methylation_genic_intergenic(genome)
+                # uniquely_methylated_positions(genome)
+                # always_methylated_positions(genome)
+                # methylation_counts(genome)
+                # positions_by_threshold(genome)
+                # positions_by_threshold_triplicates(genome)
+                # positions_by_threshold_common(genome)
+                # number_of_positions_switched(genome)
+                # positions_by_methylation(genome)
                 genome_methylation_at_coverages(genome)
                 print(f"Done plotting methylome of {name}")
