@@ -289,16 +289,15 @@ class Genome(object):
             )
 
             # Get nearest gene for start and end
-            nearest_start = genes.sort("distance_to_start").head(1)
-            nearest_end = genes.sort("distance_to_end").head(1)
+            nearest_start = genes.sort("distance_to_start").head(1).rename({"gene_callers_id": "gene_callers_id_start"}).select("gene_callers_id_start", "distance_to_start")
+            nearest_end = genes.sort("distance_to_end").head(1).rename({"gene_callers_id": "gene_callers_id_end"}).select("gene_callers_id_end", "distance_to_end")
 
             # Combine results and include original query information
-            nearest_combined = pl.concat([nearest_start, nearest_end])
+            nearest_combined = pl.concat([nearest_start, nearest_end], how="horizontal")
 
             results.append(nearest_combined)
 
         # Concatenate all results into a single DataFrame
         results = pl.concat(results, how="vertical")
-        results = results.select("gene_callers_id", "distance_to_start", "distance_to_end").rename({"gene_callers_id": "nearest_gene_callers_id"})
         return pl.concat([positions_df, results], how="horizontal")
 
