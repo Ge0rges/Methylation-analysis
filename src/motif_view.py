@@ -61,7 +61,7 @@ def motif_view(genome: Genome, motif: str):
 
     # Get sequence
     data = genome.add_sequence_around_position(data, 2, 2)
-    data = data.select("contig", "position", *list(readable_methylation_name.keys()), "Sequence", "Treatment")
+    data = data.select("contig", "position", "strand", *list(readable_methylation_name.keys()), "Sequence", "Treatment")
 
     data = data.with_columns(pl.col('Treatment').replace(readable_sample_name)).rename(readable_methylation_name)
 

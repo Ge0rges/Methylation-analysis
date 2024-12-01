@@ -203,27 +203,30 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
     # Filter rows where merged_df start and end values are within sequence_range start and end.
     # Gene sequence_range is inclusive of end, modkit bed is not.
     og_columns = df.collect_schema().names() + keep_cols
-    result = df.join_where(genes,
+
+    if include_intragenic:
+        result = df.join(genes, how="left", on="contig")
+        result = result.with_columns(pl.when(pl.col('position').ge(pl.col('start')) &
+                                         pl.col('position').lt(pl.col('stop')) &
+                                         pl.col('strand').eq(pl.col('strand_right')))
+                                   .then(pl.col("gene_callers_id"))
+                                   .otherwise(pl.lit(None).alias("gene_callers_id"))
+                                 )
+    
+    else:
+        result = df.join_where(genes,
                            pl.col('position').ge(pl.col('start')),
                            pl.col('position').lt(pl.col('stop')),
                            pl.col("contig").eq(pl.col("contig_right")),
                            pl.col('strand').eq(pl.col('strand_right')))
 
-    if include_intragenic:
-        intragenic = df.join_where(genes,
-                               pl.col('position').lt(pl.col('start')),
-                               pl.col("contig").eq(pl.col("contig_right")),
-                               pl.col('strand').eq(pl.col('strand_right')))
-
-        intragenic = intragenic.with_columns(pl.lit("intragenic").alias("gene_callers_id"))
-        result = pl.concat([intragenic, result])
-
     # If there are still multiple gene_callers_id for the same name, pick the first one
-    result = result.unique(subset=og_columns, keep="first")
+    result = result.unique(subset=og_columns + ["gene_callers_id"], keep="first")
 
     # Toss superfluous columns
     result = result.select(*og_columns, "gene_callers_id")
-
+    
+    assert not include_intragenic |  result.collect().height == df.collect().height
     return result
 
 
