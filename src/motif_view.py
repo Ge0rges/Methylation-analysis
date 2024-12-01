@@ -72,7 +72,7 @@ def motif_view(genome: Genome, motif: str):
     data = data.filter(pl.col("Sequence").is_in(motifs)).head(10)
 
     # Add function
-    data = genome.add_gene_caller_id(data, include_intragenic=False).collect(streaming=True)
+    data = genome.add_gene_caller_id(data, include_intragenic=True).collect(streaming=True)
     gc = GeneCollection(data.get_column("gene_callers_id").unique().to_list(), genome)
     data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id", how="left")
 
