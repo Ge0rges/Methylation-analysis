@@ -233,7 +233,7 @@ class Genome(object):
 
     def add_gene_caller_id(self, df: pl.LazyFrame, include_intragenic: bool = False) -> pl.LazyFrame:
         genes = get_dataset_genes(self)
-        return add_gene_caller_id(df, genes, include_intragenic=include_intragenic)
+        return add_gene_caller_id(df, genes, include_intergenic=include_intragenic)
 
 
     @cached_property
@@ -298,5 +298,7 @@ class Genome(object):
             results.append(nearest_combined)
 
         # Concatenate all results into a single DataFrame
-        return pl.concat([positions_df, pl.concat(results, how="vertical")], how="horizontal")
+        results = pl.concat(results, how="vertical")
+        results = results.select("gene_callers_id", "distance_to_start", "distance_to_end").rename({"gene_callers_id": "nearest_gene_callers_id"})
+        return pl.concat([positions_df, results], how="horizontal")
 

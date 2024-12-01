@@ -195,38 +195,39 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     return pivot_df.select("contig", "strand", "inclusive start position", *readable_modification_name.keys())
 
 
-def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[str] = [], include_intragenic: bool = False) -> pl.LazyFrame:
+def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[str] = [],
+                       include_intergenic: bool = False) -> pl.LazyFrame:
     """
     Add the gene caller id.
     """
     # Merge merged_df with ranges based on conditions
     # Filter rows where merged_df start and end values are within sequence_range start and end.
     # Gene sequence_range is inclusive of end, modkit bed is not.
-    og_columns = df.collect_schema().names() + keep_cols
+    og_columns = df.collect_schema().names() + keep_cols + ["gene_callers_id"]
 
-    if include_intragenic:
+    if include_intergenic:
         result = df.join(genes, how="left", on="contig")
         result = result.with_columns(pl.when(pl.col('position').ge(pl.col('start')) &
-                                         pl.col('position').lt(pl.col('stop')) &
-                                         pl.col('strand').eq(pl.col('strand_right')))
-                                   .then(pl.col("gene_callers_id"))
-                                   .otherwise(pl.lit(None).alias("gene_callers_id"))
-                                 )
-    
+                                             pl.col('position').lt(pl.col('stop')) &
+                                             pl.col('strand').eq(pl.col('strand_right')))
+                                     .then(pl.col("gene_callers_id"))
+                                     .otherwise(pl.lit(None).alias("gene_callers_id"))
+                                     )
+
     else:
         result = df.join_where(genes,
-                           pl.col('position').ge(pl.col('start')),
-                           pl.col('position').lt(pl.col('stop')),
-                           pl.col("contig").eq(pl.col("contig_right")),
-                           pl.col('strand').eq(pl.col('strand_right')))
+                               pl.col('position').ge(pl.col('start')),
+                               pl.col('position').lt(pl.col('stop')),
+                               pl.col("contig").eq(pl.col("contig_right")),
+                               pl.col('strand').eq(pl.col('strand_right')))
 
     # If there are still multiple gene_callers_id for the same name, pick the first one
-    result = result.unique(subset=og_columns + ["gene_callers_id"], keep="first")
+    result = result.unique(subset=og_columns, keep="first")
 
     # Toss superfluous columns
-    result = result.select(*og_columns, "gene_callers_id")
-    
-    assert not include_intragenic |  result.collect().height == df.collect().height
+    result = result.select(*og_columns)
+
+    assert not include_intergenic | result.collect().height == df.collect().height
     return result
 
 
