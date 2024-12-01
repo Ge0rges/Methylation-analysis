@@ -1,41 +1,21 @@
-contig,position,strand,4mC,5mC,6mA,Sequence,Treatment,gene_callers_id,function,source
-contig_70393,4940,false,,,0.003955696202531646,GAATC,Sackhole Bottom (160 cm),,,
-contig_70393,4708,true,0.05263157894736842,0.0,,GACTC,Sackhole Middle (70 cm),,,
-contig_70393,6535,false,0.0,0.0,0.0,GAATC,Sackhole Middle (70 cm),,,
-contig_70393,7143,false,0.0,0.0,0.017872340425531916,GAATC,Sackhole Bottom (160 cm),,,
-contig_70393,6327,false,,,0.009950248756218905,GAATC,Sackhole Middle (70 cm),,,
-contig_70393,6535,false,0.0,0.0,0.0,GAATC,Sackhole Top (40 cm),,,
-contig_70393,6535,false,0.09722222222222222,0.015361638574781308,0.011864406779661017,GAATC,Sackhole Bottom (160 cm),,,
-contig_70393,4940,false,0.0,0.0,0.0,GAATC,Sackhole Top (40 cm),,,
-contig_70393,4708,true,0.0,0.0,,GACTC,Sackhole Top (40 cm),,,
-contig_70393,4708,true,0.02426470588235294,0.006782091510583442,0.0,GACTC,Sackhole Bottom (160 cm),,,
-contig_70393,7143,false,,,0.041666666666666664,GAATC,Sackhole Top (40 cm),,,
-contig_70393,6327,false,,,0.04526748971193416,GAATC,Sackhole Bottom (160 cm),,,
-contig_70393,6535,false,,,0.0,GAATC,Sackhole Top (40 cm),,,
-contig_70393,7143,false,,,0.01680672268907563,GAATC,Sackhole Bottom (160 cm),,,
-contig_70393,6535,false,0.25,0.0,0.0,GAATC,Sackhole Top (40 cm),,,
-contig_70393,7143,false,,,0.0,GAATC,Sackhole Middle (70 cm),,,
-contig_70393,4940,false,,,0.08333333333333333,GAATC,Sackhole Top (40 cm),,,
-contig_70393,4940,false,0.0,0.0,0.0029411764705882353,GAATC,Sackhole Bottom (160 cm),,,
-contig_70393,7143,false,0.0,0.0,0.014207650273224045,GAATC,Sackhole Bottom (160 cm),,,
-contig_70393,6535,false,0.23076923076923078,0.0,0.003115264797507788,GAATC,Sackhole Bottom (160 cm),,,
-contig_70393,6327,false,,,0.011904761904761904,GAATC,Sackhole Top (40 cm),,,
-contig_70393,6327,false,,,0.0322061191626409,GAATC,Sackhole Bottom (160 cm),,,
-contig_70393,4940,false,,,0.0,GAATC,Sackhole Top (40 cm),,,
-contig_70393,4708,true,0.2,0.0,,GACTC,Sackhole Middle (70 cm),,,
-contig_70393,4708,true,0.08333333333333333,0.0,,GACTC,Sackhole Top (40 cm),,,
-contig_70393,6327,false,,,0.1,GAATC,Sackhole Middle (70 cm),,,
-contig_70393,4940,false,0.0,0.0,0.00333889816360601,GAATC,Sackhole Bottom (160 cm),,,
-contig_70393,7143,false,,,0.0,GAATC,Sackhole Top (40 cm),,,
-contig_70393,4940,false,,,0.0,GAATC,Sackhole Middle (70 cm),,,
-contig_70393,6327,false,,,0.04962243797195254,GAATC,Sackhole Bottom (160 cm),,,
-contig_70393,6327,false,,,0.0,GAATC,Sackhole Top (40 cm),,,
-contig_70393,6327,false,,,0.04,GAATC,Sackhole Top (40 cm),,,
-contig_70393,4708,true,0.025408348457350273,0.001862109286551921,0.0,GACTC,Sackhole Bottom (160 cm),,,
-contig_70393,4708,true,0.026511134676564158,0.00435717264314733,0.3333333333333333,GACTC,Sackhole Bottom (160 cm),,,
-contig_70393,6327,false,,,0.125,GAATC,Sackhole Middle (70 cm),,,
-contig_70393,6535,false,,,0.07692307692307693,GAATC,Sackhole Middle (70 cm),,,
-contig_70393,4708,true,0.0718232044198895,0.0,,GACTC,Sackhole Middle (70 cm),,,
-contig_70393,7143,false,,,0.03571428571428571,GAATC,Sackhole Top (40 cm),,,
-contig_70393,7143,false,,,0.011363636363636364,GAATC,Sackhole Middle (70 cm),,,
-contig_70393,6535,false,0.16363636363636364,0.043324143363528946,0.008353221957040573,GAATC,Sackhole Bottom (160 cm),,,
+contig,position,strand,4mC,5mC,6mA,Sequence,Treatment,gene_callers_id,function,source,nearest_gene_callers_id,distance_to_start,distance_to_end
+contig_70393,4708,true,0.0,0.0,,GACTC,Sackhole Top (40 cm),,,,2749776,595,145
+contig_70393,4940,false,,,0.08333333333333333,GAATC,Sackhole Top (40 cm),,,,2749776,595,145
+contig_70393,6535,false,0.0,0.0,0.0,GAATC,Sackhole Top (40 cm),,,,2749775,1257,1116
+contig_70393,4708,true,0.2,0.0,,GACTC,Sackhole Middle (70 cm),,,,2749775,1257,1116
+contig_70393,4940,false,,,0.0,GAATC,Sackhole Middle (70 cm),,,,2749775,2852,2711
+contig_70393,6327,false,,,0.04,GAATC,Sackhole Top (40 cm),,,,2749775,2852,2711
+contig_70393,7143,false,,,0.0,GAATC,Sackhole Middle (70 cm),,,,2749776,595,145
+contig_70393,6327,false,,,0.1,GAATC,Sackhole Middle (70 cm),,,,2749776,595,145
+contig_70393,7143,false,,,0.041666666666666664,GAATC,Sackhole Top (40 cm),,,,2749775,1257,1116
+contig_70393,6535,false,0.0,0.0,0.0,GAATC,Sackhole Middle (70 cm),,,,2749775,1257,1116
+,,,,,,,,,,,2749775,2644,2503
+,,,,,,,,,,,2749775,2644,2503
+,,,,,,,,,,,2749778,3110,3587
+,,,,,,,,,,,2749775,3460,3319
+,,,,,,,,,,,2749775,2644,2503
+,,,,,,,,,,,2749775,2644,2503
+,,,,,,,,,,,2749778,3110,3587
+,,,,,,,,,,,2749775,3460,3319
+,,,,,,,,,,,2749775,2852,2711
+,,,,,,,,,,,2749775,2852,2711
