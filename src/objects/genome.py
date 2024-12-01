@@ -271,3 +271,32 @@ class Genome(object):
                               .filter(pl.col("pribnow_box_position").is_not_null())
                               .collect(streaming=True).get_column("gene_callers_id").to_list(), self)
 
+
+    def nearest_gene_to_positions(self, positions_df: pl.DataFrame) -> pl.DataFrame:
+        results = []
+
+        for row in positions_df.iter_rows(named=True):  # Iterate over rows
+            contig = row["contig"]
+            position = row["position"]
+            strand = row["strand"]
+
+            genes = self.gene_caller_df.filter(pl.col("contig") == contig).filter(pl.col("strand") == strand).collect()
+
+            # Compute distances
+            genes = genes.with_columns(
+                (pl.col("start") - position).abs().alias("distance_to_start"),
+                (pl.col("stop") - position).abs().alias("distance_to_end"),
+            )
+
+            # Get nearest gene for start and end
+            nearest_start = genes.sort("distance_to_start").head(1)
+            nearest_end = genes.sort("distance_to_end").head(1)
+
+            # Combine results and include original query information
+            nearest_combined = pl.concat([nearest_start, nearest_end])
+
+            results.append(nearest_combined)
+
+        # Concatenate all results into a single DataFrame
+        return pl.concat([positions_df, pl.concat(results, how="vertical")], how="horizontal")
+

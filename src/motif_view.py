@@ -69,12 +69,15 @@ def motif_view(genome: Genome, motif: str):
     motifs = generate_possible_sequences(motif)
 
     # Filter motif
-    data = data.filter(pl.col("Sequence").is_in(motifs))
+    data = data.filter(pl.col("Sequence").is_in(motifs)).head(10)
 
     # Add function
-    data = genome.add_gene_caller_id(data, include_intragenic=True).collect(streaming=True)
+    data = genome.add_gene_caller_id(data, include_intragenic=False).collect(streaming=True)
     gc = GeneCollection(data.get_column("gene_callers_id").unique().to_list(), genome)
     data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id", how="left")
+
+    # Add nearest gene if not in gene
+    data = genome.nearest_gene_to_positions(data)
 
     # Write to CSV
     data.write_csv(genome.plot_dir / f"{motif}_motif_view.csv")
@@ -95,5 +98,5 @@ if __name__ == "__main__":
 
                 motifs = ["GANTC"]
                 genome = Genome(name)
-                motif_methylated_frequency(genome, motifs)
+                # motif_methylated_frequency(genome, motifs)
                 motif_view(genome, motifs[0])
