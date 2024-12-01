@@ -149,7 +149,7 @@ def plot_methylation_genic_intergenic(genome: Genome):
     intergenic_prop = (ranges_df.group_by("filter_contig", "filter_strand")
                        .agg((pl.col("filter_end") - pl.col("filter_start")).sum().alias("length"))
                        .select("filter_contig", "filter_strand", "length")
-                       .with_columns(pl.lit("Intra-genic").alias("Region"))
+                       .with_columns(pl.lit("Inter-genic").alias("Region"))
                        .rename({"filter_strand": "strand", "filter_contig": "contig"})
                        .collect(streaming=True))
 
@@ -166,7 +166,7 @@ def plot_methylation_genic_intergenic(genome: Genome):
     intergenic_data = genome.load_region_methylation_data(region_filter=ranges_df)
     genic_data = GeneCollection(genome.gene_ids, genome).methylation_data
 
-    intergenic_data = intergenic_data.with_columns(pl.lit("Intra-genic").alias("Region")).select(
+    intergenic_data = intergenic_data.with_columns(pl.lit("Inter-genic").alias("Region")).select(
         *readable_methylation_name.keys(), "sample", "Region")
     genic_data = genic_data.with_columns(pl.lit("Genic").alias("Region")).select(*readable_methylation_name.keys(),
                                                                                  "sample", "Region")
@@ -190,7 +190,7 @@ def plot_methylation_genic_intergenic(genome: Genome):
     # Plot
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
     g = sns.catplot(data.to_pandas(), x="Region", y="Normalized methylation fraction", row="Methylation type", hue="Sample",
-                kind="bar", height=8, aspect=2, hue_order=hue_order)
+                kind="bar", height=8, aspect=1, hue_order=hue_order)
 
     # Show genic ration in title
     plt.suptitle(f"{genome.readable_name} genic ratio: {genic_ratio:.2f}")
@@ -474,7 +474,7 @@ def positions_by_methylation(genome: Genome):
                     kind="hist", kde=True, stat="count", hue_order=hue_order)
 
     # Add titles and labels
-    g.set_axis_labels("Methylation value", "Count")
+    g.set_axis_labels("Normalized methylation fraction", "Count")
     g.set_titles("{row_name} distribution")
 
     # Make axis log
@@ -562,17 +562,17 @@ if __name__ == "__main__":
 
                 genome = Genome(name)
                 print(f"Plotting methylome of {name}")
-                # plot_methylation_dist_by_sample_violin(genome, common_only=False)
-                # plot_methylation_dist_by_sample_violin(genome, common_only=True)
-                # plot_methylation_by_coverage(genome)
-                # plot_methylation_genic_intergenic(genome)
-                # uniquely_methylated_positions(genome)
-                # always_methylated_positions(genome)
-                # methylation_counts(genome)
-                # positions_by_threshold(genome)
-                # positions_by_threshold_triplicates(genome)
-                # positions_by_threshold_common(genome)
-                # number_of_positions_switched(genome)
-                # positions_by_methylation(genome)
+                plot_methylation_dist_by_sample_violin(genome, common_only=False)
+                plot_methylation_dist_by_sample_violin(genome, common_only=True)
+                plot_methylation_by_coverage(genome)
+                plot_methylation_genic_intergenic(genome)
+                uniquely_methylated_positions(genome)
+                always_methylated_positions(genome)
+                methylation_counts(genome)
+                positions_by_threshold(genome)
+                positions_by_threshold_triplicates(genome)
+                positions_by_threshold_common(genome)
+                number_of_positions_switched(genome)
+                positions_by_methylation(genome)
                 genome_methylation_at_coverages(genome)
                 print(f"Done plotting methylome of {name}")

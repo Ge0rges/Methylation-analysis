@@ -6,7 +6,9 @@ import matplotlib.pylab as plt
 from src.utilities.data_loading import get_coverage
 from src.utilities.utils import readable_sample_name, barcode_replicate_map, read_counts
 from matplotlib.colors import LogNorm
-sns.set_theme(context="talk", style="white")
+from pathlib import Path
+
+sns.set_theme(context="poster", style="white")
 
 
 def plot_coverage():
@@ -17,7 +19,7 @@ def plot_coverage():
     """
 
     # Load data
-    coverage = get_coverage("../data/").collect().to_pandas()
+    coverage = get_coverage(Path("../data/")).collect().to_pandas()
     coverage.rename(inplace=True, columns=barcode_replicate_map)
     coverage.rename(inplace=True, columns=readable_sample_name)
 
@@ -43,7 +45,7 @@ def plot_coverage():
     axes.set_xlabel("Samples", fontsize=16)
     axes.set_ylabel("MAG names", fontsize=16)
 
-    plt.savefig("../../plots/mag_coverage.pdf", format='pdf', bbox_inches='tight')
+    plt.savefig("../plots/mag_coverage.pdf", format='pdf', bbox_inches='tight')
 
 
 def plot_mag_eval():
@@ -77,7 +79,7 @@ def plot_mag_eval():
     colors = sns.color_palette(["lightgreen", "lightcoral", "lightgreen", "lightcoral"])
 
     # Makea plot
-    fig, axes = plt.subplots(1, 1, figsize=(20, 10))
+    fig, axes = plt.subplots(1, 1, figsize=(27, 10), layout="constrained")
 
     #  Bar chart with Completeness and Contamination percentages
     sns.barplot(data=bar_chart_data, x='Name', y='percent', hue="Metric", palette=colors, ax=axes)
@@ -113,7 +115,7 @@ def plot_mag_eval():
     # axes[2].axis('off')  # Hide the axes for the table
 
     # Display the figure
-    plt.savefig("../../plots/mag_eval.svg", format='svg', bbox_inches='tight')
+    plt.savefig("../plots/mag_eval.pdf", format='pdf', bbox_inches='tight')
 
 
 def read_count_plot():
@@ -153,12 +155,10 @@ def read_count_plot():
     for t, l in zip(g.legend().texts, new_labels):
         t.set_text(l)
 
-    plt.savefig("../../plots/read_counts.pdf", format='pdf', bbox_inches="tight")
+    plt.savefig("../plots/read_counts.pdf", format='pdf', bbox_inches="tight")
 
 
 if __name__ == "__main__":
-    sns.set_theme(context="talk", style="white")
-
     plot_mag_eval()
     plot_coverage()
     read_count_plot()
