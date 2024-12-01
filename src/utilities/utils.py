@@ -2,6 +2,7 @@ import itertools
 import textwrap
 import random
 import polars as pl
+import Bio.Data.IUPACData as bd
 
 readable_modification_name = {"21839": "4mC", "m": "5mC", "a": "6mA", "Ncanonical_A": "A", "Ncanonical_C": "C"}
 readable_methylation_name = {"21839": "4mC", "m": "5mC", "a": "6mA"}
@@ -194,7 +195,7 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
     return pivot_df.select("contig", "strand", "inclusive start position", *readable_modification_name.keys())
 
 
-def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[str] = []) -> pl.LazyFrame:
+def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[str] = [], include_intragenic: bool = False) -> pl.LazyFrame:
     """
     Add the gene caller id.
     """
@@ -208,7 +209,15 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
                            pl.col("contig").eq(pl.col("contig_right")),
                            pl.col('strand').eq(pl.col('strand_right')))
 
-    print("Adding gene calers id REMOVES ALL NON-GENE DATA")
+    if include_intragenic:
+        intragenic = df.join_where(genes,
+                               pl.col('position').lt(pl.col('start')),
+                               pl.col("contig").eq(pl.col("contig_right")),
+                               pl.col('strand').eq(pl.col('strand_right')))
+
+        intragenic = intragenic.with_columns(pl.lit("intragenic").alias("gene_callers_id"))
+        result = pl.concat([intragenic, result])
+
     # If there are still multiple gene_callers_id for the same name, pick the first one
     result = result.unique(subset=og_columns, keep="first")
 
@@ -246,3 +255,9 @@ def generate_cross_validation_sets(df: pl.DataFrame, unique_col: str, treatmeant
     combination = all_permutations[boot_id]
     df = df.filter(pl.col(sample_col).is_in(combination))
     return df
+
+
+def generate_possible_sequences(seq):
+    """return list of all possible sequences given an ambiguous DNA input"""
+    d = bd.ambiguous_dna_values
+    return list(map("".join, itertools.product(*map(d.get, seq))))

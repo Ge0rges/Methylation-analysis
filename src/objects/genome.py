@@ -231,9 +231,9 @@ class Genome(object):
         return data
 
 
-    def add_gene_caller_id(self, df: pl.LazyFrame) -> pl.LazyFrame:
+    def add_gene_caller_id(self, df: pl.LazyFrame, include_intragenic: bool = False) -> pl.LazyFrame:
         genes = get_dataset_genes(self)
-        return add_gene_caller_id(df, genes)
+        return add_gene_caller_id(df, genes, include_intragenic=include_intragenic)
 
 
     @cached_property
