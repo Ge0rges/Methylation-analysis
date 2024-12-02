@@ -205,6 +205,9 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
     # Gene sequence_range is inclusive of end, modkit bed is not.
     og_columns = df.collect_schema().names() + keep_cols + ["gene_callers_id"]
 
+    # Add a unique row ID
+    df = df.with_row_count(name="row_id")
+
     if include_intergenic:
         result = df.join(genes, how="left", on="contig")
         result = result.with_columns(pl.when(pl.col('position').ge(pl.col('start')) &
@@ -221,14 +224,11 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
                                pl.col("contig").eq(pl.col("contig_right")),
                                pl.col('strand').eq(pl.col('strand_right')))
 
-    # If there are still multiple gene_callers_id for the same name, pick the first one
-    result = result.unique(subset=og_columns, keep="first")
+    # If there are still multiple gene_callers_id for the same entry, pick the first one
+    result = result.unique(subset=og_columns + ["row_id"], keep="first")
 
     # Toss superfluous columns
-    result = result.select(*og_columns)
-
-    assert not include_intergenic | result.collect().height == df.collect().height
-    return result
+    return result.select(*og_columns)
 
 
 def normalize_data_by_pileup(df: pl.DataFrame | pl.LazyFrame) -> pl.LazyFrame | pl.DataFrame:
