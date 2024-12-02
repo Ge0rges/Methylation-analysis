@@ -208,21 +208,17 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
     # Add a unique row ID
     df = df.with_row_count(name="row_id")
 
-    if include_intergenic:
-        result = df.join(genes, how="left", on="contig")
-        result = result.with_columns(pl.when(pl.col('position').ge(pl.col('start')) &
-                                             pl.col('position').lt(pl.col('stop')) &
-                                             pl.col('strand').eq(pl.col('strand_right')))
-                                     .then(pl.col("gene_callers_id"))
-                                     .otherwise(pl.lit(None).alias("gene_callers_id"))
-                                     )
+    # Do a join where
+    result = df.join_where(genes,
+                           pl.col('position').ge(pl.col('start')),
+                           pl.col('position').lt(pl.col('stop')),
+                           pl.col("contig").eq(pl.col("contig_right")),
+                           pl.col('strand').eq(pl.col('strand_right')))
 
-    else:
-        result = df.join_where(genes,
-                               pl.col('position').ge(pl.col('start')),
-                               pl.col('position').lt(pl.col('stop')),
-                               pl.col("contig").eq(pl.col("contig_right")),
-                               pl.col('strand').eq(pl.col('strand_right')))
+    # Add back on row ID
+    if include_intergenic:
+        result = df.join(result, how="left", on="row_id")
+        result = result.with_columns(pl.col("gene_callers_id").fill_null(-1))
 
     # If there are still multiple gene_callers_id for the same entry, pick the first one
     result = result.unique(subset=og_columns + ["row_id"], keep="first")
