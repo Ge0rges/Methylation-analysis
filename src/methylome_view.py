@@ -34,7 +34,7 @@ def plot_methylation_dist_by_sample_violin(genome, common_only=False):
             .collect(streaming=True).to_pandas())
 
     if data.size == 0:
-        return # No data to plot
+        return  # No data to plot
 
     # Plot the strand in two seperate columns, one row per methylation type
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]

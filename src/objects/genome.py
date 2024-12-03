@@ -59,11 +59,6 @@ class Genome(object):
         :rtype: pandas.DataFrame
         """
         fasta_dict = SeqIO.index(str(self.genome_path), "fasta")
-
-        # Remove contigs not in this genome
-        my_contigs = self.gene_caller_df.select("contig").unique().collect(streaming=True).get_column("contig").to_list()
-        fasta_dict = {k: v for k, v in fasta_dict.items() if k in my_contigs}
-
         return fasta_dict
 
 
