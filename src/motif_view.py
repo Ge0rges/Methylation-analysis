@@ -14,7 +14,7 @@ sns.set_theme(context="poster", style="white")
 
 
 def motif_methylated_frequency(genome: Genome, motifs: list[str]):
-    data = genome.load_all_methylation_data(common_only=True)
+    data = genome.load_all_methylation_data(in_every_treatment=True)
     data = data.with_columns(pl.col('sample').replace(barcode_replicate_map).alias("Treatment"))
 
     # Get sequence
@@ -56,7 +56,7 @@ def motif_methylated_frequency(genome: Genome, motifs: list[str]):
 
 
 def motif_view(genome: Genome, motif: str):
-    data = genome.load_all_methylation_data(common_only=True)
+    data = genome.load_all_methylation_data(in_every_treatment=True)
     data = data.with_columns(pl.col('sample').replace(barcode_replicate_map).alias("Treatment"))
 
     # Get sequence

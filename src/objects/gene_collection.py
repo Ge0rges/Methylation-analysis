@@ -412,7 +412,7 @@ class GeneCollection(object):
         region_filter = df.select("contig", "strand", "filter_start", "filter_end")
         region_filter = region_filter.rename({"contig": "filter_contig", "strand": "filter_strand"})
 
-        methyl_data = self.genome.load_region_methylation_data(region_filter=region_filter, triplicates_only=triplicates_only, common_only=common_only)
+        methyl_data = self.genome.load_region_methylation_data(region_filter=region_filter, triplicates_only=triplicates_only, in_every_treatment=common_only)
 
         # Add gene info
         methyl_data = methyl_data.join_where(df,

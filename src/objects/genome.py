@@ -13,7 +13,7 @@ from Bio import SeqIO
 
 class Genome(object):
 
-    __min_coverage_default = 8
+    __min_coverage_default = 5
     __default_treatments = ["top", "middle", "bottom"]
     __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/"))
     __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../bams/aligned"))
@@ -95,13 +95,13 @@ class Genome(object):
         return gene_ids
 
 
-    def load_all_methylation_data(self,  triplicates_only: bool = False, common_only: bool = True,
+    def load_all_methylation_data(self, triplicates_only: bool = False, in_every_treatment: bool = True,
                                   coverage: int = __min_coverage_default, normalize: bool = True,
                                   treatments: list[str] = __default_treatments) -> pl.LazyFrame:
-        return self.load_region_methylation_data(triplicates_only, common_only, coverage, None, normalize, treatments)
+        return self.load_region_methylation_data(triplicates_only, in_every_treatment, coverage, None, normalize, treatments)
 
 
-    def load_region_methylation_data(self,  triplicates_only: bool = False, common_only: bool = True,
+    def load_region_methylation_data(self, triplicates_only: bool = False, in_every_treatment: bool = True,
                                      coverage: int = __min_coverage_default,
                                      region_filter: pl.Expr | pl.LazyFrame | None = None, normalize: bool = True,
                                      treatments: list[str] = __default_treatments) -> pl.LazyFrame | None:
@@ -162,7 +162,7 @@ class Genome(object):
         result = result.rename({"inclusive start position": "position"})
 
         # Keep only positions that are in all samples
-        if common_only and triplicates_only:
+        if in_every_treatment and triplicates_only:
             og_columns = result.collect_schema().names()
             triplicate_positions = (result.group_by("contig", "strand", "position")
                                     .agg(pl.col("sample").n_unique().alias("sample_count"))
@@ -184,7 +184,7 @@ class Genome(object):
                       .select(*og_columns))
 
         # Keep any position that occurs at least once in all treatments
-        elif common_only:
+        elif in_every_treatment:
             og_columns = result.collect_schema().names()
             triplicate_positions = result.with_columns(pl.col("sample").replace_strict(barcode_replicate_map).alias("treatment"))
             triplicate_positions = (triplicate_positions.group_by("contig", "strand", "position")

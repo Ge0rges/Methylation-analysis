@@ -9,8 +9,8 @@ from src.utilities.utils import (readable_modification_name, normalize_data_by_p
 sns.set_theme(context="poster", style="white")
 
 
-def plot_methylation_dist_by_sample_violin(genome, common_only=False):
-    data = genome.load_all_methylation_data(common_only=common_only)
+def plot_methylation_dist_by_sample_violin(genome):
+    data = genome.load_all_methylation_data()
 
     # Preprocess the data. Sort, rename, filter, and make position absolute to genome.
     data = data.sort("strand", "contig", "position", descending=False)
@@ -46,18 +46,18 @@ def plot_methylation_dist_by_sample_violin(genome, common_only=False):
                     order=hue_order, hue="Sample", kind="violin", hue_order=hue_order)
     # Set the overall figure title
     g.fig.suptitle(
-        f"{genome.readable_name} {'common' if common_only else 'triplicate'} methylome")
+        f"{genome.readable_name} methylome")
 
     g.fig.set_constrained_layout(True)
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(genome.plot_dir / f"violin_methylome{'_common' if common_only else '_triplicate'}.pdf",
+        plt.savefig(genome.plot_dir / f"violin_methylome.pdf",
                     format="pdf")
 
 
 def plot_methylation_by_coverage(genome):
-    data = genome.load_all_methylation_data(normalize=False, coverage=0)
+    data = genome.load_all_methylation_data(normalize=False, coverage=1)
 
     # Filter to sample we want
     data = data.with_columns(pl.col('sample').replace(barcode_replicate_map).alias("Sample"))
@@ -207,7 +207,7 @@ def plot_methylation_genic_intergenic(genome: Genome):
 
 
 def uniquely_methylated_positions(genome: Genome):
-    data = genome.load_all_methylation_data(triplicates_only=True)
+    data = genome.load_all_methylation_data()
 
     # Per type
     df = []
@@ -275,7 +275,7 @@ def always_methylated_positions(genome: Genome):
         plt.savefig(genome.plot_dir / "always_methylated.pdf", format="pdf")
 
 
-def methylation_counts(genome: Genome):
+def plot_methylation_counts_by_type(genome: Genome):
     data = genome.load_all_methylation_data(normalize=False)
     data = data.with_columns(pl.col("sample").replace_strict(readable_sample_name))
 
@@ -308,68 +308,10 @@ def methylation_counts(genome: Genome):
         plt.savefig(genome.plot_dir / "methylome_counts.pdf", format="pdf")
 
 
-def positions_by_threshold(genome: Genome):
+def positions_by_coverage_common(genome: Genome):
     df = []
-    for coverage in [2, 5, 8, 10, 20, 30, 50, 100]:
-        data = genome.load_all_methylation_data(coverage=coverage, triplicates_only=False)
-        data = data.group_by("sample").agg(pl.len().alias("count")).with_columns(pl.lit(coverage).alias("coverage"))
-        df.append(data)
-
-    df = pl.concat(df).collect(streaming=True)
-    df = df.with_columns(pl.col("sample").replace_strict(readable_sample_name))
-
-    fig, ax = plt.subplots(figsize=(12, 8), layout="constrained")
-    hue_order = ["S2-1", "S3-1", "S4-1", "S2-2", "S3-2", "S4-2", "S2-3", "S3-3", "S4-3"]
-    custom_palette = [
-        "#e63946", "#d62839", "#c2182c",  # Shades of red
-        "#457b9d", "#3a6c89", "#2e5c75",  # Shades of blue
-        "#2a9d8f", "#228779", "#1a7064"  # Shades of teal-green
-    ]
-    sns.barplot(df.to_pandas(), x="coverage", y="count", hue="sample", ax=ax, hue_order=hue_order,
-                palette=custom_palette)
-    ax.set_yscale("log")
-
-    plt.title(f"Number of positions with coverage above threshold in {genome.readable_name}")
-
-    if system() == "Darwin":
-        plt.show()
-    else:
-        plt.savefig(genome.plot_dir / "positions_by_coverage.pdf", format="pdf")
-
-
-def positions_by_threshold_triplicates(genome: Genome):
-    df = []
-    for coverage in [2, 5, 8, 10, 20, 30, 50, 100]:
-        data = genome.load_all_methylation_data(coverage=coverage, triplicates_only=True)
-        data = data.group_by("sample").agg(pl.len().alias("count")).with_columns(pl.lit(coverage).alias("coverage"))
-        df.append(data)
-
-    df = pl.concat(df).collect(streaming=True)
-    df = df.with_columns(pl.col("sample").replace_strict(readable_sample_name))
-
-    fig, ax = plt.subplots(figsize=(12, 8), layout="constrained")
-    hue_order = ["S2-1", "S3-1", "S4-1", "S2-2", "S3-2", "S4-2", "S2-3", "S3-3", "S4-3"]
-    custom_palette = [
-        "#e63946", "#d62839", "#c2182c",  # Shades of red
-        "#457b9d", "#3a6c89", "#2e5c75",  # Shades of blue
-        "#2a9d8f", "#228779", "#1a7064"  # Shades of teal-green
-    ]
-    sns.barplot(df.to_pandas(), x="coverage", y="count", hue="sample", ax=ax, hue_order=hue_order,
-                palette=custom_palette)
-    ax.set_yscale("log")
-
-    plt.title(f"Number of triplicate positions with coverage above threshold in {genome.readable_name}")
-
-    if system() == "Darwin":
-        plt.show()
-    else:
-        plt.savefig(genome.plot_dir / "triplicate_positions_by_coverage.pdf", format="pdf")
-
-
-def positions_by_threshold_common(genome: Genome):
-    df = []
-    for coverage in [2, 5, 8, 10, 20, 30, 50, 100]:
-        data = genome.load_all_methylation_data(coverage=coverage, common_only=True)
+    for coverage in [1, 2, 5, 6, 7, 8, 10, 20, 30, 50]:
+        data = genome.load_all_methylation_data(coverage=coverage, in_every_treatment=True)
         data = data.group_by("sample").agg(pl.len().alias("count")).with_columns(pl.lit(coverage).alias("coverage"))
         df.append(data)
 
@@ -396,7 +338,7 @@ def positions_by_threshold_common(genome: Genome):
 
 
 def number_of_positions_switched(genome: Genome):
-    data = genome.load_all_methylation_data(normalize=True, common_only=True, treatments=["top", "bottom"]).collect(
+    data = genome.load_all_methylation_data(normalize=True, in_every_treatment=True, treatments=["top", "bottom"]).collect(
         streaming=True)
     if data.height == 0:
         print(f"No data for {genome.name}")
@@ -454,8 +396,8 @@ def number_of_positions_switched(genome: Genome):
         plt.savefig(genome.plot_dir / "C_positions_switched.pdf", format="pdf")
 
 
-def positions_by_methylation(genome: Genome):
-    data = genome.load_all_methylation_data(normalize=True, common_only=True).collect(streaming=True)
+def plot_methylation_fraction_count(genome: Genome):
+    data = genome.load_all_methylation_data(normalize=True).collect(streaming=True)
     data = data.with_columns(pl.col("sample").replace(barcode_replicate_map).alias("treatment"))
     data = data.with_columns(pl.col("treatment").replace(readable_sample_name).alias("treatment"))
     data = data.rename(readable_methylation_name)
@@ -497,7 +439,7 @@ def positions_by_methylation(genome: Genome):
 
 def genome_methylation_at_coverages(genome: Genome):
     for coverage in [2, 5, 6, 7, 8]:
-        data = genome.load_all_methylation_data(normalize=True, common_only=True, coverage=coverage)
+        data = genome.load_all_methylation_data(normalize=True, in_every_treatment=True, coverage=coverage)
         data = data.with_columns(pl.col("sample").replace(barcode_replicate_map).alias("treatment"))
         data = data.with_columns(pl.col("treatment").replace(readable_sample_name).alias("treatment"))
         data = data.rename(readable_methylation_name).collect(streaming=True)
@@ -566,17 +508,22 @@ if __name__ == "__main__":
 
                 genome = Genome(name)
                 print(f"Plotting methylome of {name}")
-                plot_methylation_dist_by_sample_violin(genome, common_only=False)
-                plot_methylation_dist_by_sample_violin(genome, common_only=True)
+                # Count distributions
+                positions_by_coverage_common(genome)
+                plot_methylation_dist_by_sample_violin(genome)
+
+                # Methylation distributions
+                plot_methylation_counts_by_type(genome)
                 plot_methylation_by_coverage(genome)
-                plot_methylation_genic_intergenic(genome)
+                #plot_methylation_genic_intergenic(genome)
+                plot_methylation_fraction_count(genome)
+
+                # Positional
                 uniquely_methylated_positions(genome)
                 always_methylated_positions(genome)
-                methylation_counts(genome)
-                positions_by_threshold(genome)
-                positions_by_threshold_triplicates(genome)
-                positions_by_threshold_common(genome)
                 number_of_positions_switched(genome)
-                positions_by_methylation(genome)
+
+                # Genome wide
                 genome_methylation_at_coverages(genome)
+
                 print(f"Done plotting methylome of {name}")

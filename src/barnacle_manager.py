@@ -32,7 +32,7 @@ class BarnacleDataManager:
 
     def get_position_based_data(self, boot_id: int = None) -> xr.DataArray:
         if self.position_df is None:
-            methyl_data = self.genome.load_all_methylation_data(normalize=True, common_only=True)
+            methyl_data = self.genome.load_all_methylation_data(normalize=True, in_every_treatment=True)
 
             # Filter samples
             methyl_data = methyl_data.with_columns(pl.col("sample").replace_strict(barcode_replicate_map, return_dtype=pl.String).alias("treatment"))
