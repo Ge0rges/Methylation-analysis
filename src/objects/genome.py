@@ -95,17 +95,16 @@ class Genome(object):
         return gene_ids
 
 
-    def load_all_methylation_data(self, coverage: int = __min_coverage_default, normalize: bool = True,
-                                  treatments: list[str] = __default_treatments, triplicates_only: bool = True,
-                                  common_only: bool = False) -> pl.LazyFrame:
-        return self.load_region_methylation_data(coverage, None, normalize, treatments, triplicates_only,
-                                                 common_only)
+    def load_all_methylation_data(self,  triplicates_only: bool = False, common_only: bool = True,
+                                  coverage: int = __min_coverage_default, normalize: bool = True,
+                                  treatments: list[str] = __default_treatments) -> pl.LazyFrame:
+        return self.load_region_methylation_data(triplicates_only, common_only, coverage, None, normalize, treatments)
 
 
-    def load_region_methylation_data(self, coverage: int = __min_coverage_default,
+    def load_region_methylation_data(self,  triplicates_only: bool = False, common_only: bool = True,
+                                     coverage: int = __min_coverage_default,
                                      region_filter: pl.Expr | pl.LazyFrame | None = None, normalize: bool = True,
-                                     treatments: list[str] = __default_treatments, triplicates_only: bool = True,
-                                     common_only: bool = False) -> pl.LazyFrame | None:
+                                     treatments: list[str] = __default_treatments) -> pl.LazyFrame | None:
         # Get all the bed files for this genome
         bed_files = [Path(f) for f in glob.glob(str(self._methylation_data_dir / "*.bed")) if '-bedgraph' not in os.path.basename(f)]
 
@@ -163,7 +162,7 @@ class Genome(object):
         result = result.rename({"inclusive start position": "position"})
 
         # Keep only positions that are in all samples
-        if common_only:
+        if common_only and triplicates_only:
             og_columns = result.collect_schema().names()
             triplicate_positions = (result.group_by("contig", "strand", "position")
                                     .agg(pl.col("sample").n_unique().alias("sample_count"))
@@ -178,6 +177,18 @@ class Genome(object):
             triplicate_positions = result.with_columns(pl.col("sample").replace_strict(barcode_replicate_map).alias("treatment"))
             triplicate_positions = (triplicate_positions.group_by("contig", "strand", "position", "treatment")
                                     .agg(pl.col("sample").n_unique().alias("treatment_count"), pl.col("sample"))
+                                    .explode("sample")
+                                    .filter(pl.col("treatment_count").eq(3)))
+
+            result = (result.join(triplicate_positions, on=["contig", "strand", "position", "sample"], how="inner")
+                      .select(*og_columns))
+
+        # Keep any position that occurs at least once in all treatments
+        elif common_only:
+            og_columns = result.collect_schema().names()
+            triplicate_positions = result.with_columns(pl.col("sample").replace_strict(barcode_replicate_map).alias("treatment"))
+            triplicate_positions = (triplicate_positions.group_by("contig", "strand", "position")
+                                    .agg(pl.col("treatment").n_unique().alias("treatment_count"), pl.col("sample"))
                                     .explode("sample")
                                     .filter(pl.col("treatment_count").eq(3)))
 
