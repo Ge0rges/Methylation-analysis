@@ -31,10 +31,14 @@ def plot_methylation_dist_by_sample_violin(genome, common_only=False):
                          value_name="Normalized methylation fraction")
             .filter(pl.col("Normalized methylation fraction").is_not_null() & pl.col(
         "Normalized methylation fraction").is_not_nan())
-            .collect(streaming=True).to_pandas())
+            .collect(streaming=True))
 
-    if data.size == 0:
+    if data.height == 0:
         return  # No data to plot
+
+    assert data.filter(pl.col("Normalized methylation fraction") < 0).height == 0, "Negative values in methylation fraction"
+
+    data = data.to_pandas()
 
     # Plot the strand in two seperate columns, one row per methylation type
     hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
