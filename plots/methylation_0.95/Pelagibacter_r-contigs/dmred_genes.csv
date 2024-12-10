@@ -1,0 +1,79 @@
+gene_callers_id,function,rao_score,source,test_result
+2625712,"2-succinyl-6-hydroxy-2,4-cyclohexadiene-1-carboxylate synthase MenH and related esterases, alpha/beta hydrolase fold (MenH) (PDB:4MYS)",46.00000000000037,COG20_FUNCTION,true
+2625712,Menaquinone biosynthesis,46.00000000000037,COG20_PATHWAY,true
+2625712,Coenzyme transport and metabolism!!!General function prediction only,46.00000000000037,COG20_CATEGORY,true
+2451233,Coenzyme transport and metabolism,41.99999999991923,COG20_CATEGORY,true
+2451233,Gamma-glutamylcysteine synthetase (Gsh2) (PDB:2GWD),41.99999999991923,COG20_FUNCTION,true
+2451233,"Glutathione biosynthesis, glutamate => glutathione",41.99999999991923,KEGG_Module,true
+2451233,KEGG Orthology (KO)>>>09100 Metabolism>>>09105 Amino acid metabolism>>>00270 Cysteine and methionine metabolism [PATH:ko00270]!!!KEGG Orthology (KO)>>>09100 Metabolism>>>09106 Metabolism of other amino acids>>>00480 Glutathione metabolism [PATH:ko00480]!!!Enzymes>>>6. Ligases>>>6.3  Forming carbon-nitrogen bonds>>>6.3.2  Acid-D-amino-acid ligases (peptide synthases)>>>6.3.2.2  glutamate---cysteine ligase,41.99999999991923,KEGG_BRITE,true
+2451233,glutamate--cysteine ligase [EC:6.3.2.2],41.99999999991923,KOfam,true
+2451233,Pathway modules; Amino acid metabolism; Other amino acid metabolism,41.99999999991923,KEGG_Class,true
+2474798,KEGG Orthology (KO)>>>09190 Not Included in Pathway or Brite>>>09191 Unclassified: metabolism>>>99980 Enzymes with EC numbers!!!Enzymes>>>2. Transferases>>>2.3  Acyltransferases>>>2.3.1  Transferring groups other than aminoacyl groups>>>2.3.1.269  apolipoprotein N-acyltransferase,39.99999651854959,KEGG_BRITE,true
+2474798,apolipoprotein N-acyltransferase [EC:2.3.1.269],39.99999651854959,KOfam,true
+2474798,Cell wall/membrane/envelope biogenesis,39.99999651854959,COG20_CATEGORY,true
+2474798,Apolipoprotein N-acyltransferase (Lnt) (PDB:6NWR),39.99999651854959,COG20_FUNCTION,true
+2435791,Pathway modules; Metabolism of cofactors and vitamins; Cofactor and vitamin metabolism!!!Pathway modules; Metabolism of cofactors and vitamins; Cofactor and vitamin metabolism!!!Pathway modules; Metabolism of cofactors and vitamins; Cofactor and vitamin metabolism,39.99999093696434,KEGG_Class,true
+2435791,Heme biosynthesis,39.99999093696434,COG20_PATHWAY,true
+2435791,Uroporphyrinogen-III decarboxylase HemE (HemE) (PDB:2DG5),39.99999093696434,COG20_FUNCTION,true
+2435791,"Heme biosynthesis, animals and fungi, glycine => heme!!!Heme biosynthesis, plants and bacteria, glutamate => heme!!!Heme biosynthesis, bacteria, glutamyl-tRNA => coproporphyrin III => heme",39.99999093696434,KEGG_Module,true
+2435791,KEGG Orthology (KO)>>>09100 Metabolism>>>09108 Metabolism of cofactors and vitamins>>>00860 Porphyrin metabolism [PATH:ko00860]!!!Enzymes>>>4. Lyases>>>4.1  Carbon-carbon lyases>>>4.1.1  Carboxy-lyases>>>4.1.1.37  uroporphyrinogen decarboxylase,39.99999093696434,KEGG_BRITE,true
+2435791,uroporphyrinogen decarboxylase [EC:4.1.1.37],39.99999093696434,KOfam,true
+2435791,Coenzyme transport and metabolism,39.99999093696434,COG20_CATEGORY,true
+2451300,"Cell wall/membrane/envelope biogenesis!!!Posttranslational modification, protein turnover, chaperones",31.99999999999999,COG20_CATEGORY,true
+2451300,"Outer membrane protein chaperone/metalloprotease BepA/YfgC, contains M48 and TPR domains (BepA) (PDB:6AIT) (PUBMED:24003122)",31.99999999999999,COG20_FUNCTION,true
+2435804,Imidazoleglycerol phosphate dehydratase HisB (HisB2) (PDB:1RHY),31.999999999234287,COG20_FUNCTION,true
+2435804,Histidine biosynthesis,31.999999999234287,COG20_PATHWAY,true
+2435804,Amino acid transport and metabolism,31.999999999234287,COG20_CATEGORY,true
+2435804,Pathway modules; Amino acid metabolism; Histidine metabolism,31.999999999234287,KEGG_Class,true
+2435804,"Histidine biosynthesis, PRPP => histidine",31.999999999234287,KEGG_Module,true
+2435804,imidazoleglycerol-phosphate dehydratase [EC:4.2.1.19],31.999999999234287,KOfam,true
+2435804,KEGG Orthology (KO)>>>09100 Metabolism>>>09105 Amino acid metabolism>>>00340 Histidine metabolism [PATH:ko00340]!!!Enzymes>>>4. Lyases>>>4.2  Carbon-oxygen lyases>>>4.2.1  Hydro-lyases>>>4.2.1.19  imidazoleglycerol-phosphate dehydratase,31.999999999234287,KEGG_BRITE,true
+2451371,Pathway modules; Biosynthesis of terpenoids and polyketides; Terpenoid backbone biosynthesis,30.00000000000137,KEGG_Class,true
+2451371,"C10-C20 isoprenoid biosynthesis, bacteria",30.00000000000137,KEGG_Module,true
+2451371,farnesyl diphosphate synthase [EC:2.5.1.1 2.5.1.10],30.00000000000137,KOfam,true
+2451371,Isoprenoid biosynthesis,30.00000000000137,COG20_PATHWAY,true
+2451371,Geranylgeranyl pyrophosphate synthase (IspA) (PDB:2AZJ),30.00000000000137,COG20_FUNCTION,true
+2451371,Coenzyme transport and metabolism,30.00000000000137,COG20_CATEGORY,true
+2451371,"KEGG Orthology (KO)>>>09100 Metabolism>>>09109 Metabolism of terpenoids and polyketides>>>00900 Terpenoid backbone biosynthesis [PATH:ko00900]!!!Enzymes>>>2. Transferases>>>2.5  Transferring alkyl or aryl groups, other than methyl groups>>>2.5.1  Transferring alkyl or aryl groups, other than methyl groups (only sub-subclass identified to date)>>>2.5.1.1  dimethylallyltranstransferase!!!Enzymes>>>2. Transferases>>>2.5  Transferring alkyl or aryl groups, other than methyl groups>>>2.5.1  Transferring alkyl or aryl groups, other than methyl groups (only sub-subclass identified to date)>>>2.5.1.10  (2E,6E)-farnesyl diphosphate synthase!!!Prenyltransferases>>>Terpene biosynthesis>>>Prenyl diphosphate synthase",30.00000000000137,KEGG_BRITE,true
+2625715,Translation initiation factor IF-3 (InfC) (PDB:2IFE),28.000000000000004,COG20_FUNCTION,true
+2625715,"Translation, ribosomal structure and biogenesis",28.000000000000004,COG20_CATEGORY,true
+2625715,Translation factors,28.000000000000004,COG20_PATHWAY,true
+2625715,"Translation factors>>>Prokaryotic type>>>Initiation factors!!!Translation factors>>>Eukaryotic type>>>Initiation factors>>>MTIFs!!!Mitochondrial biogenesis>>>Mitochondrial DNA transcription, translation, and replication factors>>>Mitochondrial transcription and translation factors>>>Mitochondrial translation factors",28.000000000000004,KEGG_BRITE,true
+2625715,translation initiation factor IF-3,28.000000000000004,KOfam,true
+2474813,Urea cycle,27.99999899972637,COG20_PATHWAY,true
+2474813,"CAM (Crassulacean acid metabolism), light!!!C4-dicarboxylic acid cycle, NADP - malic enzyme type",27.99999899972637,KEGG_Module,true
+2474813,Energy production and conversion!!!Energy production and conversion,27.99999899972637,COG20_CATEGORY,true
+2474813,Pathway modules; Energy metabolism; Carbon fixation!!!Pathway modules; Energy metabolism; Carbon fixation,27.99999899972637,KEGG_Class,true
+2474813,malate dehydrogenase (oxaloacetate-decarboxylating)(NADP+) [EC:1.1.1.40],27.99999899972637,KOfam,true
+2474813,KEGG Orthology (KO)>>>09100 Metabolism>>>09101 Carbohydrate metabolism>>>00620 Pyruvate metabolism [PATH:ko00620]!!!KEGG Orthology (KO)>>>09100 Metabolism>>>09102 Energy metabolism>>>00710 Carbon fixation in photosynthetic organisms [PATH:ko00710]!!!Enzymes>>>1. Oxidoreductases>>>1.1  Acting on the CH-OH group of donors>>>1.1.1  With NAD+ or NADP+ as acceptor>>>1.1.1.40  malate dehydrogenase (oxaloacetate-decarboxylating) (NADP+),27.99999899972637,KEGG_BRITE,true
+2474813,"Phosphotransacetylase (includes Pta, EutD and phosphobutyryltransferase) (Pta) (PDB:1QZT) (PUBMED:28754323)!!!Malic enzyme (SfcA) (PDB:1DO8)",27.99999899972637,COG20_FUNCTION,true
+2749781,Pathway modules; Biosynthesis of terpenoids and polyketides; Terpenoid backbone biosynthesis,27.000000030380047,KEGG_Class,true
+2749781,KEGG Orthology (KO)>>>09100 Metabolism>>>09109 Metabolism of terpenoids and polyketides>>>00900 Terpenoid backbone biosynthesis [PATH:ko00900]!!!Enzymes>>>1. Oxidoreductases>>>1.17  Acting on CH or CH2 groups>>>1.17.7  With an iron-sulfur protein as acceptor>>>1.17.7.1  (E)-4-hydroxy-3-methylbut-2-enyl-diphosphate synthase (ferredoxin)!!!Enzymes>>>1. Oxidoreductases>>>1.17  Acting on CH or CH2 groups>>>1.17.7  With an iron-sulfur protein as acceptor>>>1.17.7.3  (E)-4-hydroxy-3-methylbut-2-enyl-diphosphate synthase (flavodoxin),27.000000030380047,KEGG_BRITE,true
+2749781,(E)-4-hydroxy-3-methylbut-2-enyl-diphosphate synthase [EC:1.17.7.1 1.17.7.3],27.000000030380047,KOfam,true
+2749781,Lipid transport and metabolism,27.000000030380047,COG20_CATEGORY,true
+2749781,Isoprenoid biosynthesis,27.000000030380047,COG20_PATHWAY,true
+2749781,4-hydroxy-3-methylbut-2-en-1-yl diphosphate synthase IspG/GcpE (IspG) (PDB:2Y0F),27.000000030380047,COG20_FUNCTION,true
+2749781,"C5 isoprenoid biosynthesis, non-mevalonate pathway",27.000000030380047,KEGG_Module,true
+2515438,Amino acid transport and metabolism,25.999986529390053,COG20_CATEGORY,true
+2515438,"Isoleucine, leucine, valine biosynthesis",25.999986529390053,COG20_PATHWAY,true
+2515438,Aspartate/methionine/tyrosine aminotransferase (AspB) (PDB:2O0R),25.999986529390053,COG20_FUNCTION,true
+2435970,Signal transduction mechanisms!!!Transcription,25.000000000000068,COG20_CATEGORY,true
+2435970,"two-component system, OmpR family, response regulator ChvI",25.000000000000068,KOfam,true
+2435970,"DNA-binding response regulator, OmpR family, contains REC and winged-helix (wHTH) domain (OmpR) (PDB:1XHF)",25.000000000000068,COG20_FUNCTION,true
+2435970,KEGG Orthology (KO)>>>09130 Environmental Information Processing>>>09132 Signal transduction>>>02020 Two-component system [PATH:ko02020]!!!Two-component system>>>OmpR family>>>ChvG-ChvI (acidity sensing),25.000000000000068,KEGG_BRITE,true
+2449655,Cell wall/membrane/envelope biogenesis,24.99999999999994,COG20_CATEGORY,true
+2449655,putative ABC transport system permease protein,24.99999999999994,KOfam,true
+2449655,"KEGG Orthology (KO)>>>09130 Environmental Information Processing>>>09131 Membrane transport>>>02010 ABC transporters [PATH:ko02010]!!!Transporters>>>ABC transporters, prokaryotic type>>>ABC-2 type and other transporters>>>Lipoprotein-releasing transporter",24.99999999999994,KEGG_BRITE,true
+2449655,"Transporters>>>ABC transporters, prokaryotic type>>>ABC-2 type and other transporters>>>Putative ABC transporter",24.99999999999994,KEGG_BRITE,true
+2449655,lipoprotein-releasing system permease protein,24.99999999999994,KOfam,true
+2449655,"ABC-type transport system involved in lipoprotein release, permease component LolC (LolE) (PDB:6F49)",24.99999999999994,COG20_FUNCTION,true
+2451321,Isocitrate dehydrogenase (Icd) (PDB:1IDD),22.00000000000009,COG20_FUNCTION,true
+2451321,Energy production and conversion,22.00000000000009,COG20_CATEGORY,true
+2451321,TCA cycle,22.00000000000009,COG20_PATHWAY,true
+2435885,Lactate dehydrogenase or related 2-hydroxyacid dehydrogenase (LdhA) (PDB:1DXY),20.999999952717324,COG20_FUNCTION,true
+2435885,Pyridoxal phosphate biosynthesis,20.999999952717324,COG20_PATHWAY,true
+2435885,Energy production and conversion!!!Coenzyme transport and metabolism!!!General function prediction only,20.999999952717324,COG20_CATEGORY,true
+2451298,5-oxoprolinase (ATP-hydrolysing) subunit A [EC:3.5.2.9],15.999999999999957,KOfam,true
+2451298,Amino acid transport and metabolism,15.999999999999957,COG20_CATEGORY,true
+2451298,5-oxoprolinase subunit A (PxpA) (PDB:1V6T) (PUBMED:28830929),15.999999999999957,COG20_FUNCTION,true
+2451298,"KEGG Orthology (KO)>>>09100 Metabolism>>>09106 Metabolism of other amino acids>>>00480 Glutathione metabolism [PATH:ko00480]!!!Enzymes>>>3. Hydrolases>>>3.5  Acting on carbon-nitrogen bonds, other than peptide bonds>>>3.5.2  In cyclic amides>>>3.5.2.9  5-oxoprolinase (ATP-hydrolysing)",15.999999999999957,KEGG_BRITE,true
