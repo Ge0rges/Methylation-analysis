@@ -2,7 +2,6 @@ import itertools
 import textwrap
 import random
 import polars as pl
-import Bio.Data.IUPACData as bd
 
 readable_modification_name = {"21839": "4mC", "m": "5mC", "a": "6mA", "Ncanonical_A": "A", "Ncanonical_C": "C"}
 readable_methylation_name = {"21839": "4mC", "m": "5mC", "a": "6mA"}
@@ -255,9 +254,3 @@ def generate_cross_validation_sets(df: pl.DataFrame, unique_col: str, treatmeant
     combination = all_permutations[boot_id]
     df = df.filter(pl.col(sample_col).is_in(combination))
     return df
-
-
-def generate_possible_sequences(seq):
-    """return list of all possible sequences given an ambiguous DNA input"""
-    d = bd.ambiguous_dna_values
-    return list(map("".join, itertools.product(*map(d.get, seq))))

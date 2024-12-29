@@ -515,7 +515,7 @@ if __name__ == "__main__":
                 # Methylation distributions
                 plot_methylation_counts_by_type(genome)
                 plot_methylation_by_coverage(genome)
-                #plot_methylation_genic_intergenic(genome)
+                plot_methylation_genic_intergenic(genome)
                 plot_methylation_fraction_count(genome)
 
                 # Positional

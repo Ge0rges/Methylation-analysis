@@ -9,6 +9,7 @@ from src.objects.gene_collection import GeneCollection
 from pathlib import Path
 import numpy as np
 from Bio import SeqIO
+from src.objects.motif import Motif
 
 
 class Genome(object):
@@ -61,6 +62,10 @@ class Genome(object):
         fasta_dict = SeqIO.index(str(self.genome_path), "fasta")
         return fasta_dict
 
+
+    @cached_property
+    def motifs(self) -> list[Motif]:
+        return Motif.load_from_modkit(self)
 
     @cached_property
     def gc_content(self):
@@ -231,15 +236,15 @@ class Genome(object):
         data = df.join(sequences, on="contig")
         data = data.with_columns(pl.when(pl.col("strand"))
                                  .then(pl.col("sequence").str.slice(pl.col("position") - before, before+after+1))
-                                 .otherwise(pl.col("complement_sequence").str.slice(pl.col("position") - before, before+after+1)).alias(
-            "Sequence"))
+                                 .otherwise(pl.col("complement_sequence").str.slice(pl.col("position") - before, before+after+1))
+                                 .alias("Sequence")).drop("sequence", "complement_sequence")
 
         return data
 
 
-    def add_gene_caller_id(self, df: pl.LazyFrame, include_intragenic: bool = False) -> pl.LazyFrame:
+    def add_gene_caller_id(self, df: pl.LazyFrame, include_intergenic: bool = False) -> pl.LazyFrame:
         genes = get_dataset_genes(self)
-        return add_gene_caller_id(df, genes, include_intergenic=include_intragenic)
+        return add_gene_caller_id(df, genes, include_intergenic=include_intergenic)
 
 
     @cached_property
