@@ -426,7 +426,7 @@ class GeneCollection(object):
                                                .then(pl.col("position").sub(pl.col("start") + relative_position))
                                                .otherwise(pl.col("stop") - relative_position - 1 - pl.col("position")).alias("position"))
 
-        return methyl_data.select("gene_callers_id", "position", "sample", *readable_modification_name.keys())
+        return methyl_data.select("gene_callers_id", "position", "contig", "strand", "sample", *readable_modification_name.keys())
 
 
     def get_entropy_for_region(self, relative_position: int, range: tuple[int, int] | tuple[pl.Expr, int] | tuple[pl.Expr, pl.Expr] | tuple[int, pl.Expr]) -> pl.DataFrame:
