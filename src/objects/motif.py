@@ -89,7 +89,7 @@ class Motif(object):
 
 
     @cached_property
-    def data(self) -> pl.LazyFrame:
+    def data(self) -> pl.DataFrame:
         # Get all the data for the motif
         data_filter = (self.positions.select("contig", "position", "strand").with_columns(pl.col("position").alias("filter_end")))
         data_filter = data_filter.rename({"contig": "filter_contig", "position": "filter_start", "strand": "filter_strand"})
@@ -100,7 +100,7 @@ class Motif(object):
         # Get sequence
         data = data.select("contig", "position", "strand", self.meth_type, self.canonical_base, "Treatment", "sample")
 
-        return data
+        return data.collect(streaming=True)
 
 
 def number_of_positions_switched(genome: Genome):
