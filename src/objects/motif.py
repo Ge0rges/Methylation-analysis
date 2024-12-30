@@ -91,24 +91,27 @@ class Motif(object):
     @cached_property
     def data(self) -> pl.DataFrame:
         # Get all the data for the motif
-        data = self.genome.load_all_methylation_data(in_every_treatment=True)
+        data_filter = (self.positions.select("contig", "position", "strand")
+                                     .with_columns(pl.col("position").alias("filter_end")))
+        data_filter = data_filter.rename({"contig": "filter_contig", "position": "filter_start", "strand": "filter_strand"})
+        data = self.genome.load_region_methylation_data(in_every_treatment=True, region_filter=data_filter)
+
         data = data.with_columns(pl.col('sample').replace(barcode_replicate_map).alias("Treatment"))
 
         # Get sequence
-        data = data.select("contig", "position", "strand", self.meth_type, self.canonical_base, "Treatment", "sample")
+        data = (data.select("contig", "position", "strand", self.meth_type, self.canonical_base, "Treatment", "sample")
+                    .collect(streaming=True))
 
         # Combine with all known positions
         if self.positions.height == 0:
             try:
-                assert data.collect(streaming=True).height == 0
+                assert data.height == 0
             except AssertionError:
                 print(f"Motif {self.motif} has no positions but has data")
 
             return pl.DataFrame()
 
-        data = data.join(self.positions.lazy(), on=["contig", "position", "strand"], how="right")
-
-        return data.collect(streaming=True)
+        return data
 
 
 def number_of_positions_switched(genome: Genome):
