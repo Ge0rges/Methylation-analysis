@@ -200,9 +200,6 @@ if __name__ == "__main__":
             Genome._Genome__methylation_data_dir = methylation_path
 
             for name in Genome.valid_genome_names():
-                if "Pelagibacter" not in name:
-                    continue
-
                 genome = Genome(name)
 
                 # Motif
