@@ -95,18 +95,12 @@ class Motif(object):
         data = data.with_columns(pl.col('sample').replace(barcode_replicate_map).alias("Treatment"))
 
         # Get sequence
-        before = self.offset
-        after = len(self.motif) - before - 1
-        data = self.genome.add_sequence_around_position(data, before, after)
-        data = data.select("contig", "position", "strand", self.meth_type, self.canonical_base, "Sequence", "Treatment", "sample")
-
-        # Filter motif
-        data = data.filter(pl.col("Sequence").is_in(self.strings))
+        data = data.select("contig", "position", "strand", self.meth_type, self.canonical_base, "Treatment", "sample")
 
         # Combine with all known positions
         if self.positions.height == 0:
             try:
-                assert data.collect().height == 0
+                assert data.collect(streaming=True).height == 0
             except AssertionError:
                 print(f"Motif {self.motif} has no positions but has data")
 
