@@ -92,10 +92,10 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
 
     # Cateogrize values into low <25%), middle (20-80%), and high (>75%) into column binarized_meth_type
     data = data.with_columns(pl.when(pl.col(motif.meth_type).lt(0.25))
-                             .then("low")
+                             .then(pl.lit("low"))
                              .otherwise(pl.when(pl.col(motif.meth_type).gt(0.75))
-                                        .then("high")
-                                        .otherwise("middle"))
+                                        .then(pl.lit("high"))
+                                        .otherwise(pl.lit("middle")))
                              .alias("binarized_meth_type"))
 
     # Assuming `data` is the DataFrame with the required columns
@@ -113,7 +113,7 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
     if switched_positions.height == 0:
         print(f"No switched positions for {motif.motif}")
         return
-    
+
     # Add function
     data = genome.add_gene_caller_id(switched_positions.lazy(), include_intergenic=True).collect(streaming=True)
     gc = GeneCollection(data.get_column("gene_callers_id").unique().to_list(), genome)
