@@ -69,11 +69,11 @@ class Motif(object):
             # Find motif in positive strand
             pattern = re.compile('|'.join(map(re.escape, self.strings)))
 
-            pos_iter = pattern.finditer(pos_strand)
+            pos_iter = list(pattern.finditer(pos_strand))
             pos_positions = [match.start() + self.offset for match in pos_iter]
             pos_motifs = [match[0] for match in pos_iter]
 
-            neg_iter = pattern.finditer(neg_strand)
+            neg_iter = list(pattern.finditer(neg_strand))
             neg_positions = [match.start() + self.offset for match in neg_iter]
             neg_motifs = [match[0] for match in neg_iter]
 
