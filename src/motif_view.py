@@ -110,6 +110,10 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
     # Filter down to switched positions
     switched_positions = aligned_data.filter(pl.col("binarized_meth_type").ne(pl.col("binarized_meth_type_top")))
 
+    if switched_positions.height == 0:
+        print(f"No switched positions for {motif.motif}")
+        return
+    
     # Add function
     data = genome.add_gene_caller_id(switched_positions.lazy(), include_intergenic=True).collect(streaming=True)
     gc = GeneCollection(data.get_column("gene_callers_id").unique().to_list(), genome)
