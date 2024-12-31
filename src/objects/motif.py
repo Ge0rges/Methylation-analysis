@@ -36,7 +36,7 @@ class Motif(object):
         motifs = pl.read_csv(str(genome._methylation_data_dir / "all_motifs-5-motifs.tsv"), separator="\t", has_header=True)
 
         # Create a Motif object for each row
-        motif_objs = []m
+        motif_objs = []
         for row in motifs.iter_rows(named=True):
             motif = Motif(genome, row["motif"])
 
