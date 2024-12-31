@@ -90,8 +90,13 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
             .group_by("contig", "strand", "position", "Treatment")
             .agg(pl.col(motif.meth_type).mean()))
 
-    # Binarize meth_type and canonical_base values
-    data = data.with_columns((pl.col(motif.meth_type) > 0.5).alias("binarized_meth_type"))
+    # Cateogrize values into low <25%), middle (20-80%), and high (>75%) into column binarized_meth_type
+    data = data.with_columns(pl.when(pl.col(motif.meth_type).lt(0.25))
+                             .then("low")
+                             .otherwise(pl.when(pl.col(motif.meth_type).gt(0.75))
+                                        .then("high")
+                                        .otherwise("middle"))
+                             .alias("binarized_meth_type"))
 
     # Assuming `data` is the DataFrame with the required columns
     # Filter data for "bottom" and "top" treatments
@@ -104,7 +109,7 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
 
     # Filter down to switched positions
     switched_positions = aligned_data.filter(pl.col("binarized_meth_type").ne(pl.col("binarized_meth_type_top")))
-    
+
     # Add function
     data = genome.add_gene_caller_id(switched_positions.lazy(), include_intergenic=True).collect(streaming=True)
     gc = GeneCollection(data.get_column("gene_callers_id").unique().to_list(), genome)
