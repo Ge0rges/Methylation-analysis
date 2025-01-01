@@ -90,7 +90,7 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
             .group_by("contig", "strand", "position", "Treatment")
             .agg(pl.col(motif.meth_type).mean()))
 
-    # Cateogrize values into low <25%), middle (20-80%), and high (>75%) into column binarized_meth_type
+    # Categorize values into low <25%), middle (20-80%), and high (>75%) into column binarized_meth_type
     data = data.with_columns(pl.when(pl.col(motif.meth_type).lt(0.25))
                              .then(pl.lit("low"))
                              .otherwise(pl.when(pl.col(motif.meth_type).gt(0.75))
@@ -122,6 +122,12 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
     # Add nearest gene if not in gene
     data = genome.nearest_gene_to_positions(data)
 
+    # Add function of nearest genes
+    gc = GeneCollection(data.get_column("gene_callers_id_start").unique().to_list(), genome)
+    data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id_start", how="left", suffix="_start")
+    gc = GeneCollection(data.get_column("gene_callers_id_end").unique().to_list(), genome)
+    data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id_end", how="left", suffix="_end")
+    
     # Write to CSV
     data.write_csv(genome.plot_dir / f"{motif.motif}_motif_view.csv")
 
