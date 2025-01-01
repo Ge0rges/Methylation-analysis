@@ -2,6 +2,7 @@ import pandas as pd
 import polars as pl
 import seaborn as sns
 import matplotlib.pylab as plt
+import os
 
 from src.utilities.data_loading import get_coverage
 from src.utilities.utils import readable_sample_name, barcode_replicate_map, read_counts
@@ -19,7 +20,7 @@ def plot_coverage():
     """
 
     # Load data
-    coverage = get_coverage(Path("../data/")).collect().to_pandas()
+    coverage = get_coverage(Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/"))).collect().to_pandas()
     coverage.rename(inplace=True, columns=barcode_replicate_map)
     coverage.rename(inplace=True, columns=readable_sample_name)
 
@@ -45,7 +46,7 @@ def plot_coverage():
     axes.set_xlabel("Samples", fontsize=16)
     axes.set_ylabel("MAG names", fontsize=16)
 
-    plt.savefig("../plots/mag_coverage.pdf", format='pdf', bbox_inches='tight')
+    plt.savefig(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../plots/mag_coverage.pdf"), format='pdf', bbox_inches='tight')
 
 
 def plot_mag_eval():
@@ -54,8 +55,8 @@ def plot_mag_eval():
     :return: Saves a file
     """
     # Load data
-    checkm2_quality = pd.read_csv("../data/mag_eval/checkm2.tsv", sep="\t", header=0)
-    anvio_quality = pd.read_csv("../data/mag_eval/anvio.tsv", sep="\t", header=0)
+    checkm2_quality = pd.read_csv(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/mag_eval/checkm2.tsv"), sep="\t", header=0)
+    anvio_quality = pd.read_csv(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/mag_eval/anvio.tsv"), sep="\t", header=0)
 
     # Merge the quality dataframes
     checkm2_quality['Name'] = checkm2_quality['Name'].str.replace("_r-contigs", "_r")
@@ -114,8 +115,8 @@ def plot_mag_eval():
     # table.scale(1.2, 1.2)
     # axes[2].axis('off')  # Hide the axes for the table
 
-    # Display the figure
-    plt.savefig("../plots/mag_eval.pdf", format='pdf', bbox_inches='tight')
+    # Display the figure save based on curent file path
+    plt.savefig( os.path.join(os.path.dirname(os.path.realpath(__file__)), "../plots/mag_eval.pdf"), format='pdf', bbox_inches='tight')
 
 
 def read_count_plot():
@@ -155,7 +156,7 @@ def read_count_plot():
     for t, l in zip(g.legend().texts, new_labels):
         t.set_text(l)
 
-    plt.savefig("../plots/read_counts.pdf", format='pdf', bbox_inches="tight")
+    plt.savefig(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../plots/read_counts.pdf"), format='pdf', bbox_inches="tight")
 
 
 if __name__ == "__main__":
