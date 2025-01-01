@@ -1,0 +1,12 @@
+contig,strand,position,Treatment,m,binarized_meth_type,Treatment_top,m_top,binarized_meth_type_top,gene_callers_id,function,source,gene_callers_id_start,distance_to_start,gene_callers_id_end,distance_to_end
+contig_52458,true,66793,bottom,0.36708217442299157,middle,top,0.2,low,-1,,,2389269,3901,2389269,3433
+contig_60340,true,366274,bottom,0.6860484875948792,middle,top,0.14285714285714285,low,-1,,,2540914,484,2540914,871
+contig_52458,false,13659,bottom,0.26251324433142614,middle,top,0.0,low,-1,,,2389217,2092,2389217,1804
+contig_52736,true,25557,bottom,0.8380282118844429,high,top,0.16279069767441862,low,-1,,,2393707,950,2393707,1232
+contig_50775,true,152040,bottom,0.7148387531273666,middle,top,0.0,low,2366625,,,2366625,705,2366625,279
+contig_52458,true,93679,bottom,0.7211437620431189,middle,top,0.0,low,-1,,,2389291,4245,2389291,2928
+contig_53420,true,82704,bottom,0.7055572957808337,middle,top,0.0,low,2408264,small subunit ribosomal protein S3,KOfam,2408264,213,2408263,215
+contig_53420,true,82704,bottom,0.7055572957808337,middle,top,0.0,low,2408264,KEGG Orthology (KO)>>>09120 Genetic Information Processing>>>09122 Translation>>>03010 Ribosome [PATH:ko03010]!!!Ribosome>>>Ribosomal proteins>>>Bacteria>>>Small subunit!!!Ribosome>>>Ribosomal proteins>>>Archaea>>>Small subunit,KEGG_BRITE,2408264,213,2408263,215
+contig_53420,true,82704,bottom,0.7055572957808337,middle,top,0.0,low,2408264,Ribosomal protein S3 (RpsC) (PDB:1VS6),COG20_FUNCTION,2408264,213,2408263,215
+contig_53420,true,82704,bottom,0.7055572957808337,middle,top,0.0,low,2408264,"Translation, ribosomal structure and biogenesis",COG20_CATEGORY,2408264,213,2408263,215
+contig_53420,true,82704,bottom,0.7055572957808337,middle,top,0.0,low,2408264,Ribosome 30S subunit,COG20_PATHWAY,2408264,213,2408263,215
