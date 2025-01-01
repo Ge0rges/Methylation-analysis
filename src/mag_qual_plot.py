@@ -36,8 +36,11 @@ def plot_coverage():
     # Mean same samples
     coverage = coverage.groupby(by=coverage.columns, axis=1).sum()
 
-    # Makea plot
+    # Make a plot
     fig, axes = plt.subplots(1, 1, figsize=(15, 15))
+
+    # Change the order of the X axis so that the samples are ordered alphabetically
+    coverage = coverage.reindex(sorted(coverage.columns), axis=1)
 
     # Heatmap with MAG name as rows, samples as columns, and coverage as numbers
     sns.heatmap(coverage[coverage.mean().sort_values().index], annot=True, ax=axes, square=True, cbar_kws={"shrink": 0.5}, fmt=".2f", norm=LogNorm())

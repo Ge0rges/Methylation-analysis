@@ -1,7 +1,0 @@
-contig,strand,position,Treatment,m,binarized_meth_type,Treatment_top,m_top,binarized_meth_type_top,gene_callers_id,function,source,gene_callers_id_start,distance_to_start,gene_callers_id_end,distance_to_end
-contig_74085,true,582402,bottom,0.07795777063410674,low,top,0.75,middle,-1,,,2822631,3630,2822628,4259
-contig_74085,true,582595,bottom,0.1317393066610583,low,top,0.5882352941176471,middle,-1,,,2822631,3437,2822631,4415
-contig_86868,false,774692,bottom,0.03321678321678322,low,top,0.3333333333333333,middle,-1,,,3085700,1878,3085700,1677
-contig_74085,true,581530,bottom,0.27979183174751393,middle,top,0.23809523809523808,low,-1,,,2822628,4224,2822628,3387
-contig_74085,true,375566,bottom,0.06979619457011856,low,top,0.3333333333333333,middle,-1,,,2822440,2626,2822440,3655
-contig_74085,true,375759,bottom,0.14727849341242708,low,top,0.4,middle,-1,,,2822440,2433,2822440,3462

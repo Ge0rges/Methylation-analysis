@@ -78,7 +78,7 @@ def number_of_positions_switched(genome: Genome, motif: Motif):
     if system() == "Darwin":
         plt.show()
     else:
-        plt.savefig(genome.plot_dir / f"motif{motif.motif}_positions_switched.pdf", format="pdf")
+        plt.savefig(genome.plot_dir / f"{motif.motif}_positions_switched.pdf", format="pdf")
 
 
 def annotate_switched_positions(genome: Genome, motif: Motif):
@@ -123,7 +123,7 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
     data = genome.nearest_gene_to_positions(data)
 
     # Write to CSV
-    data.write_csv(genome.plot_dir / f"{motif}_motif_view.csv")
+    data.write_csv(genome.plot_dir / f"{motif.motif}_motif_view.csv")
 
 
 if __name__ == "__main__":
