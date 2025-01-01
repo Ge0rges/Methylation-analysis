@@ -1,11 +1,10 @@
 Name	Completeness	Contamination	Completeness_Model_Used	Translation_Table_Used	Coding_Density	Contig_N50	Average_Gene_Length	Genome_Size	GC_Content	Total_Coding_Sequences	Additional_Notes
-Cognaticolwellia_r-contigs	83.01	11.32	Gradient Boost (General Model)	11	0.794	112147	260.84064885496184	3084094	0.39	3144	None
-Octadecabacter_r-contigs	93.95	4.16	Gradient Boost (General Model)	11	0.756	217638	230.9699020065329	3905908	0.48	4286	None
-Pelagibacter_r-contigs	83.64	6.06	Neural Network (Specific Model)	11	0.924	74479	230.0156583629893	1042085	0.29	1405	None
-Rubritalea_r-contigs	92.44	22.18	Gradient Boost (General Model)	11	0.873	82974	309.0131421744325	4433929	0.47	4185	None
-brevundimonas_r-contigs	87.82	1.22	Neural Network (Specific Model)	11	0.857	424319	279.37348749663886	3623607	0.67	3719	None
-halopseudomonas_r-contigs	99.87	1.26	Neural Network (Specific Model)	11	0.895	597184	311.65135336478767	4197292	0.58	4027	None
+Cognaticolwellia_r-contigs	82.85	11.2	Gradient Boost (General Model)	11	0.795	112147	260.53826448927316	3055268	0.39	3123	None
+Octadecabacter_r-contigs	88.92	3.17	Gradient Boost (General Model)	11	0.76	260310	235.7668663714509	3552801	0.48	3839	None
+Pelagibacter_r-contigs	83.51	6.2	Neural Network (Specific Model)	11	0.924	74479	229.62767475035665	1038053	0.29	1402	None
+brevundimonas_r-contigs	87.81	1.14	Neural Network (Specific Model)	11	0.857	424319	279.59579628132576	3619277	0.67	3711	None
+halopseudomonas_r-contigs	85.71	0.77	Neural Network (Specific Model)	11	0.897	538518	313.0616996507567	3588256	0.58	3436	None
 lentimonas_r-contigs	89.09	0.65	Neural Network (Specific Model)	11	0.852	783730	305.5173611111111	3395926	0.52	3168	None
 metagenome_assembly	100.0	106.25	Gradient Boost (General Model)	4	0.792	42753	144.03826341404408	2308600743	0.44	4331971	None
-polaribacter_r-contigs	93.57	7.26	Neural Network (Specific Model)	11	0.873	304096	316.6873920552677	3143946	0.32	2895	None
-psychromonas_r-contigs	80.2	2.13	Neural Network (Specific Model)	11	0.748	903456	264.4482488238369	4048715	0.41	3826	None
+polaribacter_r-contigs	93.57	7.26	Neural Network (Specific Model)	11	0.874	304096	316.7083621285418	3142658	0.32	2894	None
+psychromonas_r-contigs	68.06	1.78	Neural Network (Specific Model)	11	0.749	903456	268.6146527117031	3385447	0.4	3153	None
