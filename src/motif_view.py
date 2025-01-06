@@ -130,10 +130,10 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
 
     # Add function of nearest genes
     gc = GeneCollection(data.get_column("gene_callers_id_start").unique().to_list(), genome)
-    data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id_start", how="left", suffix="_start")
+    data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
     gc = GeneCollection(data.get_column("gene_callers_id_end").unique().to_list(), genome)
-    data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id_end", how="left", suffix="_end")
-
+    data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
+    
     # Write to CSV
     data.write_csv(genome.plot_dir / f"{motif.motif}_motif_view.csv")
 
@@ -162,7 +162,6 @@ if __name__ == "__main__":
                     # Print percent of positions with no data
                     data = motif.data.get_column(motif.meth_type)
                     if len(data) == 0:
-                        breakpoint()
                         print(f"No data for {motif.motif} in any treatment")
                         continue
 
