@@ -48,8 +48,14 @@ def number_of_positions_switched(genome: Genome, motif: Motif):
             .agg(pl.col(motif.meth_type).mean()))
 
     # Binarize meth_type and canonical_base values
-    data = data.with_columns((pl.col(motif.meth_type) > 0.5).alias("binarized_meth_type"))
-
+    # Categorize values into low <25%), middle (20-80%), and high (>75%) into column binarized_meth_type
+    data = data.with_columns(pl.when(pl.col(motif.meth_type).lt(0.25))
+                             .then(pl.lit("low"))
+                             .otherwise(pl.when(pl.col(motif.meth_type).gt(0.75))
+                                        .then(pl.lit("high"))
+                                        .otherwise(pl.lit("middle")))
+                             .alias("binarized_meth_type"))
+    
     # Assuming `data` is the DataFrame with the required columns
     # Filter data for "bottom" and "top" treatments
     bottom_data = data.filter(pl.col("Treatment").eq("bottom"))
@@ -127,7 +133,7 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
     data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id_start", how="left", suffix="_start")
     gc = GeneCollection(data.get_column("gene_callers_id_end").unique().to_list(), genome)
     data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id_end", how="left", suffix="_end")
-    
+
     # Write to CSV
     data.write_csv(genome.plot_dir / f"{motif.motif}_motif_view.csv")
 
