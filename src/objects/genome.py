@@ -285,6 +285,7 @@ class Genome(object):
 
     def nearest_gene_to_positions(self, positions_df: pl.DataFrame) -> pl.DataFrame:
         results = []
+        breakpoint()
         g = self.gene_caller_df.collect(streaming=True)
 
         for row in positions_df.iter_rows(named=True):  # Iterate over rows

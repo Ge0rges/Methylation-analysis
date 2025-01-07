@@ -56,7 +56,7 @@ def number_of_positions_switched(genome: Genome, motif: Motif):
                                         .then(pl.lit("high"))
                                         .otherwise(pl.lit("middle")))
                              .alias("binarized_meth_type"))
-    
+
     # Assuming `data` is the DataFrame with the required columns
     # Filter data for "bottom" and "top" treatments
     bottom_data = data.filter(pl.col("Treatment").eq("bottom"))
@@ -134,7 +134,7 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
     data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
     gc = GeneCollection(data.get_column("gene_callers_id_end").unique().to_list(), genome)
     data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
-    
+
     # Write to CSV
     data.write_csv(genome.plot_dir / f"{motif.motif}_motif_view.csv")
 
@@ -176,7 +176,7 @@ if __name__ == "__main__":
                             print(f"No data for {motif.motif} in {treatment}")
                             continue
                         print(f"Motif {motif.motif} in {treatment} has {d.null_count().get_column(motif.meth_type).item() / d.height * 100:.2f}% of positions with no data")
-                    breakpoint()
+
                     motif_methylated_frequency(genome, motif)
                     number_of_positions_switched(genome, motif)
                     annotate_switched_positions(genome, motif)
