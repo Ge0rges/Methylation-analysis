@@ -92,10 +92,10 @@ class Genome(object):
 
             all_data.append(methyl_data)
 
-        all_data = pl.concat(all_data)
+        all_data = pl.concat(all_data).unique()
 
         all_genes = get_dataset_genes(self)
-        gene_ids = add_gene_caller_id(all_data, all_genes).select("gene_callers_id").unique().collect(
+        gene_ids = add_gene_caller_id(all_data, all_genes, include_intergenic=False).select("gene_callers_id").unique().collect(
             streaming=True).get_column("gene_callers_id").to_list()
         return gene_ids
 
