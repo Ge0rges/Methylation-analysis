@@ -285,7 +285,6 @@ class Genome(object):
 
     def nearest_gene_to_positions(self, positions_df: pl.DataFrame) -> pl.DataFrame:
         results = []
-        breakpoint()
         g = self.gene_caller_df.collect(streaming=True)
 
         for row in positions_df.iter_rows(named=True):  # Iterate over rows
@@ -295,7 +294,7 @@ class Genome(object):
 
 
             # Compute distances
-            genes = g.filter(pl.col("contig") == contig).filter(pl.col("strand") == strand).with_columns(
+            genes = g.filter(pl.col("contig") == contig, pl.col("strand") == strand).with_columns(
                 (pl.col("start") - position).abs().alias("distance_to_start"),
                 (pl.col("stop") - position).abs().alias("distance_to_end"),
             )
