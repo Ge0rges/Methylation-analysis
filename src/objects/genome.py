@@ -291,7 +291,7 @@ class Genome(object):
             position = row["position"]
             strand = row["strand"]
 
-            genes = self.gene_caller_df.filter(pl.col("contig") == contig).filter(pl.col("strand") == strand).collect()
+            genes = self.gene_caller_df.filter(pl.col("contig") == contig).filter(pl.col("strand") == strand).collect(streaming=True)
 
             # Compute distances
             genes = genes.with_columns(
