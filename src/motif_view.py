@@ -158,6 +158,10 @@ if __name__ == "__main__":
                 # Motif
                 motifs = genome.motifs
 
+                if len(motifs) == 0:
+                    print(f"No motifs for {genome.name}")
+                    continue
+
                 for motif in motifs:
 
                     # Print percent of positions with no data
