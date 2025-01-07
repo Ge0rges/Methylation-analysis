@@ -38,6 +38,7 @@ def motif_methylated_frequency(genome: Genome, motif: Motif):
         plt.show()
     else:
         plt.savefig(genome.plot_dir / "motif_methylated_frequency.pdf", format="pdf")
+    plt.close()
 
 
 def number_of_positions_switched(genome: Genome, motif: Motif):
@@ -175,7 +176,7 @@ if __name__ == "__main__":
                             print(f"No data for {motif.motif} in {treatment}")
                             continue
                         print(f"Motif {motif.motif} in {treatment} has {d.null_count().get_column(motif.meth_type).item() / d.height * 100:.2f}% of positions with no data")
-
+                    breakpoint()
                     motif_methylated_frequency(genome, motif)
                     number_of_positions_switched(genome, motif)
                     annotate_switched_positions(genome, motif)
