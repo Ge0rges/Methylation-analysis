@@ -3,9 +3,6 @@ import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
 from platform import system
-import numpy as np
-
-from utilities.utils import readable_sample_name, barcode_replicate_map, readable_methylation_name
 from src.objects.motif import Motif
 
 sns.set_theme(context="poster", style="white")
@@ -26,9 +23,9 @@ def motif_methylated_frequency(genome: Genome, motif: Motif):
 
     # For each one get counts methylated and unmethylated
     data = data.with_columns(pl.col("Normalized methylation fraction").lt(0.5).alias("Methylated"),
-                             pl.col("Treatment").replace(readable_sample_name))
+                             pl.col("Treatment").replace(genome._barcode_treatment_map))
 
-    hue_order = [readable_sample_name["top"], readable_sample_name["middle"], readable_sample_name["bottom"]]
+    hue_order = [genome._barcode_replicate_map[x] for x in genome._default_treatments]
     plt.subplots(figsize=(16, 12))
     sns.histplot(data.to_pandas(), x="Methylated", hue="Treatment", hue_order=hue_order, stat="count", multiple="dodge", element="bars")
     plt.suptitle(f"{genome.name} methylation motifs")
@@ -149,7 +146,7 @@ if __name__ == "__main__":
             Genome._Genome__methylation_data_dir = methylation_path
 
             for name in Genome.valid_genome_names():
-                if "metagenome" in name or "brevundimonas" in name:
+                if "metagenome" in name or "brevundimonas" in name or "microbemod" in name:
                     continue
 
                 genome = Genome(name)

@@ -15,7 +15,6 @@ from src.objects.motif import Motif
 class Genome(object):
 
     __min_coverage_default = 5
-    __default_treatments = ["top", "middle", "bottom"]
     __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/"))
     __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../bams/aligned"))
 
@@ -23,7 +22,22 @@ class Genome(object):
         __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/"))
         __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/bams/"))
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, ):
+        exp_params = None
+        if "34h" in Genome.__methylation_data_dir.__str__():
+            exp_params = colwellia_study
+
+        elif "sar11" in Genome.__methylation_data_dir.__str__():
+            exp_params = sar11_study
+
+        elif "mmethylation" in Genome.__methylation_data_dir.__str__():
+            exp_params = metagenome_study
+
+        self._barcode_replicate_map = exp_params[0]
+        self._barcode_treatment_map = exp_params[1]
+        self._default_treatments = exp_params[2]
+
+
         self.name: str = name
         self._methylation_data_dir: Path = Genome.__methylation_data_dir / self.name
 
@@ -102,14 +116,17 @@ class Genome(object):
 
     def load_all_methylation_data(self, triplicates_only: bool = False, in_every_treatment: bool = True,
                                   coverage: int = __min_coverage_default, normalize: bool = True,
-                                  treatments: list[str] = __default_treatments) -> pl.LazyFrame:
+                                  treatments: list[str] = None) -> pl.LazyFrame:
+        treatments = self._default_treatments if treatments is None else treatments
         return self.load_region_methylation_data(triplicates_only, in_every_treatment, coverage, None, normalize, treatments)
 
 
     def load_region_methylation_data(self, triplicates_only: bool = False, in_every_treatment: bool = True,
                                      coverage: int = __min_coverage_default,
                                      region_filter: pl.Expr | pl.LazyFrame | None = None, normalize: bool = True,
-                                     treatments: list[str] = __default_treatments) -> pl.LazyFrame | None:
+                                     treatments: list[str] = None) -> pl.LazyFrame | None:
+        treatments = self._default_treatments if treatments is None else treatments
+
         # Get all the bed files for this genome
         bed_files = [Path(f) for f in glob.glob(str(self._methylation_data_dir / "*.bed")) if '-bedgraph' not in os.path.basename(f)]
 
@@ -117,7 +134,7 @@ class Genome(object):
         for bed_file in bed_files:
             # Load only asked treamtent samples
             sample_name = os.path.basename(bed_file).split(".")[0]
-            treatment = barcode_replicate_map[sample_name]
+            treatment = self._barcode_treatment_map[sample_name]
             if treatments is not None and treatment not in treatments:
                 continue
 
@@ -179,7 +196,7 @@ class Genome(object):
         # Keep only positions that occur in triplicate within a treatment
         elif triplicates_only:
             og_columns = result.collect_schema().names()
-            triplicate_positions = result.with_columns(pl.col("sample").replace_strict(barcode_replicate_map).alias("treatment"))
+            triplicate_positions = result.with_columns(pl.col("sample").replace_strict(self._barcode_replicate_map).alias("treatment"))
             triplicate_positions = (triplicate_positions.group_by("contig", "strand", "position", "treatment")
                                     .agg(pl.col("sample").n_unique().alias("treatment_count"), pl.col("sample"))
                                     .explode("sample")
@@ -191,7 +208,7 @@ class Genome(object):
         # Keep any position that occurs at least once in all treatments
         elif in_every_treatment:
             og_columns = result.collect_schema().names()
-            triplicate_positions = result.with_columns(pl.col("sample").replace_strict(barcode_replicate_map).alias("treatment"))
+            triplicate_positions = result.with_columns(pl.col("sample").replace_strict(self._barcode_replicate_map).alias("treatment"))
             triplicate_positions = (triplicate_positions.group_by("contig", "strand", "position")
                                     .agg(pl.col("treatment").n_unique().alias("treatment_count"), pl.col("sample"))
                                     .explode("sample")

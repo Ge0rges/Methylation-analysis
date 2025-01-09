@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import re
 import Bio.Data.IUPACData as bd
 import itertools
-from src.utilities.utils import barcode_replicate_map, methylation_base_map
+from src.utilities.utils import methylation_base_map
 
 if TYPE_CHECKING:  # Only for type hints
     from genome import Genome
@@ -104,7 +104,7 @@ class Motif(object):
         data_filter = data_filter.rename({"contig": "filter_contig", "position": "filter_start", "strand": "filter_strand"})
         data = self.genome.load_region_methylation_data(in_every_treatment=True, region_filter=data_filter)
 
-        data = data.with_columns(pl.col('sample').replace(barcode_replicate_map).alias("Treatment"))
+        data = data.with_columns(pl.col('sample').replace(self.genome._barcode_treatment_map).alias("Treatment"))
 
         # Get sequence
         data = data.select("contig", "position", "strand", self.meth_type, self.canonical_base, "Treatment", "sample")
