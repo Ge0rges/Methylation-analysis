@@ -145,12 +145,18 @@ class Genome(object):
 
             elif isinstance(region_filter, pl.LazyFrame):
                 og_columns = methyl_data.collect_schema().names()
-                methyl_data = methyl_data.join_where(region_filter,
-                                                     pl.col("contig").eq(pl.col("filter_contig")),
-                                                     pl.col("strand").eq(pl.col("filter_strand")),
-                                                     pl.col("inclusive start position").ge(pl.col("filter_start")),
-                                                     pl.col("inclusive start position").le(pl.col("filter_end")))
-                methyl_data = methyl_data.select(*og_columns).unique()  # Unique is needed when a positon is in more than one region filter
+
+                methyl_data.sort = methyl_data.sort(["contig", "strand", "inclusive start position"])
+                region_filter = region_filter.sort(["filter_contig", "filter_strand", "filter_start"])
+                methyl_data = methyl_data.join_asof(region_filter,
+                                                              left_on="inclusive start position",
+                                                              right_on="filter_start",
+                                                              by_left=["contig", "strand"],
+                                                              by_right=["filter_contig", "filter_strand"],
+                                                              strategy="backward"
+                                                              )
+                methyl_data = methyl_data.filter(pl.col("inclusive start position") <= pl.col("filter_end"))
+                methyl_data = methyl_data.select(*og_columns).unique()
 
             elif region_filter is not None:
                 raise ValueError("Region filter must be of type pl.Expr, pl.LazyFrame, or None.")

@@ -25,7 +25,7 @@ def motif_methylated_frequency(genome: Genome, motif: Motif):
     data = data.with_columns(pl.col("Normalized methylation fraction").lt(0.5).alias("Methylated"),
                              pl.col("Treatment").replace(genome._barcode_treatment_map))
 
-    hue_order = [genome._barcode_replicate_map[x] for x in genome._default_treatments]
+    hue_order = [genome._barcode_treatment_map[x] for x in genome._default_treatments]
     plt.subplots(figsize=(16, 12))
     sns.histplot(data.to_pandas(), x="Methylated", hue="Treatment", hue_order=hue_order, stat="count", multiple="dodge", element="bars")
     plt.suptitle(f"{genome.name} methylation motifs")
@@ -160,7 +160,6 @@ if __name__ == "__main__":
                     continue
 
                 for motif in motifs:
-
                     # Print percent of positions with no data
                     data = motif.data.get_column(motif.meth_type)
                     if len(data) == 0:
