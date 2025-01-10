@@ -166,7 +166,7 @@ class Genome(object):
                 methyl_data = methyl_data.filter(pl.col("inclusive start position") <= pl.col("filter_end"))
                 methyl_data = methyl_data.select(*og_columns)
 
-                assert len(methyl_data.select(*og_columns).collect().is_duplicated()) == 0, "Duplicated data found."
+                assert True not in methyl_data.select(*og_columns).collect().is_duplicated(), "Duplicated data found."
 
             elif region_filter is not None:
                 raise ValueError("Region filter must be of type pl.Expr, pl.LazyFrame, or None.")
