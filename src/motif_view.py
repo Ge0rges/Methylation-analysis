@@ -79,11 +79,11 @@ def number_of_positions_switched(genome: Genome, motif: Motif, treatments: list[
     #    - "high": > 0.75
     data = data.with_columns(
         pl.when(pl.col(motif.meth_type) < 0.25)
-        .then("low")
+        .then(pl.lit("low"))
         .otherwise(
             pl.when(pl.col(motif.meth_type) > 0.75)
-            .then("high")
-            .otherwise("middle")
+            .then(pl.lit("high"))
+            .otherwise(pl.lit("middle"))
         )
         .alias("binarized_meth_type")
     )
