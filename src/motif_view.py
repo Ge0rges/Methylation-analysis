@@ -222,5 +222,5 @@ if __name__ == "__main__":
                         print(f"Motif {motif.motif} in {treatment} has {d.null_count().get_column(motif.meth_type).item() / d.height * 100:.2f}% of positions with no data")
 
                     motif_methylated_frequency(genome, motif)
-                    number_of_positions_switched(genome, motif)
-                    annotate_switched_positions(genome, motif)
+                    number_of_positions_switched(genome, motif, genome._default_treatments)
+                    #annotate_switched_positions(genome, motif)
