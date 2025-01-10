@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from platform import system
 from src.objects.motif import Motif
+import plotly.express as px
 
 sns.set_theme(context="poster", style="white")
 
@@ -38,51 +39,94 @@ def motif_methylated_frequency(genome: Genome, motif: Motif):
     plt.close()
 
 
-def number_of_positions_switched(genome: Genome, motif: Motif):
-    data = (motif.data
-            .filter(pl.col("Treatment").is_not_null() & (pl.col(motif.meth_type).is_not_null() | pl.col(motif.canonical_base).is_not_null()))
-            .filter(pl.col("Treatment").n_unique().eq(3).over("contig", "strand", "position"))
-            .group_by("contig", "strand", "position", "Treatment")
-            .agg(pl.col(motif.meth_type).mean()))
 
-    # Binarize meth_type and canonical_base values
-    # Categorize values into low <25%), middle (20-80%), and high (>75%) into column binarized_meth_type
-    data = data.with_columns(pl.when(pl.col(motif.meth_type).lt(0.25))
-                             .then(pl.lit("low"))
-                             .otherwise(pl.when(pl.col(motif.meth_type).gt(0.75))
-                                        .then(pl.lit("high"))
-                                        .otherwise(pl.lit("middle")))
-                             .alias("binarized_meth_type"))
 
-    # Assuming `data` is the DataFrame with the required columns
-    # Filter data for "bottom" and "top" treatments
-    bottom_data = data.filter(pl.col("Treatment").eq("bottom"))
-    top_data = data.filter(pl.col("Treatment").eq("top"))
+def number_of_positions_switched(genome: Genome, motif: Motif, treatments: list[str]):
+    """
+    Calculates the methylation states (low, middle, high) for each position and
+    plots a Parallel Categories diagram showing transitions across multiple conditions.
 
-    # Ensure the data is aligned by some key, e.g., sample_id, to compare "bottom" and "top"
-    # Here, we assume there's a common column "sample_id" to align both treatments
-    aligned_data = bottom_data.join(top_data, on=["contig", "strand", "position"], suffix="_top")
-
-    # Create a contingency table for binarized_meth_type
-    transition_counts = aligned_data.select([
-        pl.col("binarized_meth_type").alias("bottom"),
-        pl.col("binarized_meth_type_top").alias("top")
-    ]).to_pandas().pivot_table(
-        index="bottom",
-        columns="top",
-        aggfunc="size",
-        fill_value=0
+    Parameters
+    ----------
+    genome : Genome
+        A Genome object with plot_dir and readable_name attributes, and other
+        metadata/annotation methods as needed.
+    motif : Motif
+        A Motif object with `data` (Polars DataFrame) and `meth_type`.
+    treatments : list[str]
+        The list of  treatments to compare. For example:
+        ["bottom", "top", "control"] or ["CTL", "LN2"], etc.
+    """
+    # 1. Filter raw data to valid rows and only the specified treatments
+    #    We assume that each position must have all treatments present
+    data = (
+        motif.data.filter(
+            pl.col("Treatment").is_in(treatments),
+            (pl.col(motif.meth_type).is_not_null() | pl.col(motif.canonical_base).is_not_null())
+        )
+        # Over each (contig, strand, position), we want to ensure that we have
+        # all of the given treatments present. So, check for n_unique == len(treatments).
+        .filter(
+            pl.col("Treatment").n_unique().eq(len(treatments)).over("contig", "strand", "position")
+        )
+        .group_by("contig", "strand", "position", "Treatment")
+        .agg(pl.col(motif.meth_type).mean())
     )
 
-    # Plot the heatmap
-    plt.figure(figsize=(10, 6))
-    sns.heatmap(transition_counts, annot=True, fmt="g", cmap="coolwarm", cbar_kws={'label': 'Number of positions'})
-    plt.title(f"Transition map in {genome.readable_name}")
+    # 2. Binarize or categorize the methylation values:
+    #    - "low": < 0.25
+    #    - "middle": [0.25, 0.75]
+    #    - "high": > 0.75
+    data = data.with_columns(
+        pl.when(pl.col(motif.meth_type) < 0.25)
+        .then("low")
+        .otherwise(
+            pl.when(pl.col(motif.meth_type) > 0.75)
+            .then("high")
+            .otherwise("middle")
+        )
+        .alias("binarized_meth_type")
+    )
 
+    # 3. Pivot the data "wide" so that each condition has its own column.
+    #    - index = [contig, strand, position]
+    #    - columns = "Treatment"
+    #    - values = "binarized_meth_type"
+    data_wide = data.pivot(
+        index=["contig", "strand", "position"],
+        on="Treatment",
+        values="binarized_meth_type"
+    )
+
+    # Convert to a pandas DataFrame for plotting
+    data_wide_pd = data_wide.to_pandas().reset_index(drop=True)
+
+    # If no positions survived, bail out
+    if data_wide_pd.empty:
+        print(f"No positions found with all treatments {treatments} in {motif.motif}")
+        return
+
+    # 4. Build a Parallel Categories plot with Plotly
+    #    Each condition is one "axis" in the parallel categories plot.
+    fig = px.parallel_categories(
+        data_wide_pd,
+        dimensions=treatments,  # each condition becomes one axis
+        color=treatments[0],  # color by the first condition, or pick any
+        color_continuous_scale=px.colors.sequential.Inferno
+    )
+
+    fig.update_layout(
+        title=f"Methylation state transitions in {genome.readable_name} across conditions"
+    )
+
+    # 5. Show or save the figure depending on the OS
     if system() == "Darwin":
-        plt.show()
+        fig.show()
     else:
-        plt.savefig(genome.plot_dir / f"{motif.motif}_positions_switched.pdf", format="pdf")
+        out_html = genome.plot_dir / f"{motif.motif}_parallel_categories.html"
+        fig.write_html(str(out_html))
+        print(f"Saved parallel categories plot to {out_html}")
+
 
 
 def annotate_switched_positions(genome: Genome, motif: Motif):

@@ -146,17 +146,27 @@ class Genome(object):
             elif isinstance(region_filter, pl.LazyFrame):
                 og_columns = methyl_data.collect_schema().names()
 
-                methyl_data.sort = methyl_data.sort(["contig", "strand", "inclusive start position"])
-                region_filter = region_filter.sort(["filter_contig", "filter_strand", "filter_start"])
+                methyl_data.sort = methyl_data.sort(["contig", "strand", "inclusive start position"], descending=False)
+                region_filter = region_filter.sort(["filter_contig", "filter_strand", "filter_start"], descending=False)
                 methyl_data = methyl_data.join_asof(region_filter,
-                                                              left_on="inclusive start position",
-                                                              right_on="filter_start",
-                                                              by_left=["contig", "strand"],
-                                                              by_right=["filter_contig", "filter_strand"],
-                                                              strategy="backward"
-                                                              )
+                                                    left_on="inclusive start position",
+                                                    right_on="filter_start",
+
+                                                    # By columns guarrantee equality
+                                                    by_left=["contig", "strand"],
+                                                    by_right=["filter_contig", "filter_strand"],
+
+                                                    # filter_start <= inclusive start because of backward strategy
+                                                    # Takes the last key that satisfies this inequality
+                                                    # Which is good since preceeding genes will be filtered out
+                                                    strategy="backward"
+                                                    )
+
+                # Do a filter for the end
                 methyl_data = methyl_data.filter(pl.col("inclusive start position") <= pl.col("filter_end"))
-                methyl_data = methyl_data.select(*og_columns).unique()
+                methyl_data = methyl_data.select(*og_columns)
+
+                assert len(methyl_data.select(*og_columns).collect().is_duplicated()) == 0, "Duplicated data found."
 
             elif region_filter is not None:
                 raise ValueError("Region filter must be of type pl.Expr, pl.LazyFrame, or None.")

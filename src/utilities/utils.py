@@ -260,7 +260,7 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
     """
     Add the gene caller id.
     """
-    # Merge merged_df with ranges based on conditions
+    # Merge merged_df with ranges based on treatments
     # Filter rows where merged_df start and end values are within sequence_range start and end.
     # Gene sequence_range is inclusive of end, modkit bed is not.
     og_columns = df.collect_schema().names() + keep_cols + ["gene_callers_id"]
