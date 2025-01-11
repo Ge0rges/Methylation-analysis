@@ -22,7 +22,7 @@ class Genome(object):
         __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/"))
         __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/bams/"))
 
-    def __init__(self, name: str, ):
+    def __init__(self, name: str):
         exp_params = None
         if "34h" in Genome.__methylation_data_dir.__str__():
             exp_params = colwellia_study
@@ -30,7 +30,7 @@ class Genome(object):
         elif "sar11" in Genome.__methylation_data_dir.__str__():
             exp_params = sar11_study
 
-        elif "mmethylation" in Genome.__methylation_data_dir.__str__():
+        elif "methylation" in Genome.__methylation_data_dir.__str__():
             exp_params = metagenome_study
 
         self._barcode_replicate_map = exp_params[0]
