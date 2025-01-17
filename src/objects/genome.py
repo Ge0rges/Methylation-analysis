@@ -146,13 +146,6 @@ class Genome(object):
             elif isinstance(region_filter, pl.LazyFrame):
                 og_columns = methyl_data.collect_schema().names()
 
-                # Method 1
-                methyl_data1 = methyl_data.join(region_filter, left_on=["contig", "strand"], right_on=["filter_contig", "filter_strand"])
-                methyl_data1 = methyl_data1.filter(
-                                                     pl.col("inclusive start position").ge(pl.col("filter_start")),
-                                                     pl.col("inclusive start position").le(pl.col("filter_end")))
-                methyl_data1 = methyl_data1.select(*og_columns).unique()  # Unique is needed when a positon is in more than one region filter
-
                 # method 2
                 methyl_data.sort = methyl_data.sort(["contig", "strand", "inclusive start position"], descending=False)
                 region_filter = region_filter.sort(["filter_contig", "filter_strand", "filter_start"], descending=False)
@@ -175,8 +168,6 @@ class Genome(object):
                 methyl_data = methyl_data.select(*og_columns)
 
                 # Compare the dataframes
-                assert methyl_data1.sort(pl.col("*")).collect().equals(methyl_data.sort(pl.col("*")).collect()), "Dataframes are not equal."
-
                 assert True not in methyl_data.select(*og_columns).collect().is_duplicated(), "Duplicated data found."
 
             elif region_filter is not None:

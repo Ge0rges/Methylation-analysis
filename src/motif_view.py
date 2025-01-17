@@ -26,6 +26,9 @@ def motif_methylated_frequency(genome: Genome, motif: Motif):
     data = data.with_columns(pl.col("Normalized methylation fraction").lt(0.5).alias("Methylated"),
                              pl.col("Treatment").replace(genome._barcode_treatment_map))
 
+    if len(data) == 0:
+        return
+
     hue_order = [genome._barcode_treatment_map[x] for x in genome._default_treatments]
     plt.subplots(figsize=(16, 12))
     sns.histplot(data.to_pandas(), x="Methylated", hue="Treatment", hue_order=hue_order, stat="count", multiple="dodge", element="bars")
@@ -83,7 +86,7 @@ def number_of_positions_switched(genome: Genome, motif: Motif, treatments: list[
         .otherwise(
             pl.when(pl.col(motif.meth_type) > 0.75)
             .then(pl.lit("high"))
-            .otherwise(pl.lit("middle"))
+            .otherwise(pl.lit("medium"))
         )
         .alias("binarized_meth_type")
     )
@@ -103,16 +106,26 @@ def number_of_positions_switched(genome: Genome, motif: Motif, treatments: list[
 
     # If no positions survived, bail out
     if data_wide_pd.empty:
-        print(f"No positions found with all treatments {treatments} in {motif.motif}")
+        print(f"No positions switched found with all treatments {treatments} in {motif.motif}")
         return
+    
+    # Map categories to numbers:
+    cat_to_num = {"low": 0, "medium": 1, "high": 2}
+    data_wide_pd["meth_numeric"] = data_wide_pd["top"].map(cat_to_num)
 
     # 4. Build a Parallel Categories plot with Plotly
     #    Each condition is one "axis" in the parallel categories plot.
     fig = px.parallel_categories(
-        data_wide_pd,
-        dimensions=treatments,  # each condition becomes one axis
-        color=treatments[0],  # color by the first condition, or pick any
-        color_continuous_scale=px.colors.sequential.Inferno
+            data_wide_pd,
+            dimensions=treatments,
+            color="meth_numeric",
+            # Create a continuous scale with "stops" at 0, 1, and 2
+            color_continuous_scale=[
+                        (0.0, "blue"),   # 0 -> blue
+                        (0.5, "orange"), # 1 -> orange
+                        (1.0, "red")     # 2 -> red
+                    ],
+            range_color=[0, 2]
     )
 
     fig.update_layout(
@@ -143,7 +156,7 @@ def annotate_switched_positions(genome: Genome, motif: Motif):
                              .then(pl.lit("low"))
                              .otherwise(pl.when(pl.col(motif.meth_type).gt(0.75))
                                         .then(pl.lit("high"))
-                                        .otherwise(pl.lit("middle")))
+                                        .otherwise(pl.lit("medium")))
                              .alias("binarized_meth_type"))
 
     # Assuming `data` is the DataFrame with the required columns
