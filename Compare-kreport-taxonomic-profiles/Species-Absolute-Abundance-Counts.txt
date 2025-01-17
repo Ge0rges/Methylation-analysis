@@ -1,0 +1,554 @@
+Taxa	Control	IC3-1 (30 cm)	IC3-2 (160 cm)	IC3-3 (205 cm)	IC3-4 (70 cm)	S2-1	S2-2	S3-1	S3-2	S3-3	S4-1	S4-2	S4-3
+Abscondita terminalis	0	0	0	0	12	0	0	0	0	0	0	0	0
+Achromobacter piechaudii	0	0	0	0	9	0	0	0	0	0	0	0	0
+Achromobacter spanius	0	12	0	0	97	0	0	0	0	0	0	0	0
+Achromobacter xylosoxidans	0	0	0	0	9	0	0	0	0	0	0	0	0
+Acinetobacter baumannii	22	6	0	0	44	0	0	0	0	0	0	0	0
+Acinetobacter haemolyticus	0	0	0	0	36	0	0	0	0	0	0	0	0
+Acinetobacter junii	0	0	0	0	10	0	0	0	0	0	0	0	0
+Acinetobacter sp. 2JN-4	0	4	0	0	21	0	0	0	0	0	0	0	0
+Acinetobacter sp. CIP-A165	0	4	0	0	34	0	0	0	0	0	0	0	0
+Acinetobacter sp. NIPH 298	0	12	0	0	46	0	0	0	0	0	0	0	0
+Actinomadura cremea	6	0	0	0	0	0	0	0	0	0	0	0	0
+Actinomyces naeslundii	11	0	0	0	0	0	0	0	0	0	0	0	0
+Actinomyces oris	15	0	0	0	0	0	0	0	0	0	0	0	0
+Actinomyces sp. ICM47	0	0	0	0	0	0	0	0	0	0	85	0	0
+Actinomyces sp. oral taxon 849	5	0	0	0	0	0	0	0	0	0	0	0	0
+Actinomycetota bacterium	0	4	0	0	0	0	0	0	0	0	0	0	0
+Akkermansiaceae bacterium	0	0	0	4	0	0	0	0	0	0	0	0	0
+Algibacter lectus	0	0	0	4	0	0	0	0	0	0	0	0	0
+Alkanindiges hydrocarboniclasticus	21	0	0	0	0	0	0	0	0	0	0	0	0
+Alkanindiges illinoisensis	8	0	0	0	0	0	0	0	0	0	0	0	0
+Alloprevotella sp.	10	4	0	0	0	0	0	0	0	0	148	0	0
+Alloprevotella sp. oral taxon 473	0	0	0	0	0	0	0	0	0	0	31	0	0
+Alphaproteobacteria bacterium	12	24	0	0	34	1103	207	433	202	204	132	1911	239
+Alphaproteobacteria bacterium TMED194	0	5	0	0	11	114	39	36	23	0	19	258	0
+Alphaproteobacteria bacterium TMED199	0	6	0	0	0	256	46	106	50	0	32	345	0
+Alteromonadaceae bacterium TMED7	0	7	0	0	0	0	40	0	0	0	17	205	0
+Aphanizomenon flos-aquae	0	0	86	0	0	0	0	0	0	0	0	0	0
+Aphanomyces astaci	0	0	129	3	0	0	0	0	0	0	0	0	0
+Aphanomyces euteiches	0	0	77	4	0	0	0	0	0	0	0	0	0
+Aquimarina intermedia	0	0	0	3	0	0	0	0	0	0	0	0	0
+Aquimarina sp. MAR_2010_214	0	0	0	4	0	0	0	0	0	0	0	0	0
+Aquimarina sp. RZ0	0	0	0	6	0	0	0	0	0	0	0	0	0
+Aristolochia fimbriata	0	0	79	3	0	0	0	0	0	0	0	0	0
+Asterionellopsis glacialis	0	0	66	0	0	0	0	0	0	0	0	0	0
+Astrephomene gubernaculifera	0	0	0	0	0	0	0	0	0	125	0	0	148
+Attheya longicornis	0	0	364	13	0	0	0	0	0	0	0	0	0
+Aureobasidium melanogenum	9	0	0	0	0	0	0	0	0	0	0	0	0
+Aureococcus anophagefferens	0	0	174	9	0	124	43	51	0	540	22	282	478
+Bacillus cereus	5	0	0	0	0	0	0	0	0	0	0	0	0
+Bacillus thuringiensis	5	0	0	0	0	0	0	0	0	0	0	0	0
+Bacteriophage sp.	0	0	0	0	0	0	0	0	0	0	20	0	0
+Bacteroidetes bacterium 4572_77	0	5	0	0	0	169	40	54	19	0	18	379	0
+Bacteroidetes bacterium RIFCSPLOWO2_12_FULL_31_6	0	0	0	3	0	0	0	0	0	0	0	0	0
+Bacteroidota bacterium	13	57	237	26	118	1389	358	582	234	729	284	2631	645
+Bathycoccus prasinos	0	0	0	0	0	0	0	0	0	111	0	0	156
+Bathycoccus sp. RCC1105 virus BpV	0	17	0	0	22	274	107	69	33	0	70	653	0
+Bathycoccus sp. RCC716 virus 1	0	0	0	0	0	130	47	39	0	0	24	289	0
+Bathycoccus sp. RCC716 virus 2	0	5	0	0	17	199	66	59	30	0	40	505	0
+Bathycoccus sp. RCC716 virus 3	0	0	0	0	0	0	34	0	0	0	0	204	0
+Betaproteobacteria bacterium TMED156	9	25	165	0	115	466	115	349	125	185	120	1077	182
+Bordetella bronchiseptica	8	0	0	0	0	0	0	0	0	0	0	0	0
+Bos mutus	5	0	0	0	0	0	0	0	0	0	0	0	0
+Brevundimonas aurantiaca	0	0	0	0	16	0	0	0	0	0	0	0	0
+Brevundimonas bullata	0	57	190	0	614	0	0	0	0	0	0	0	0
+Brevundimonas diminuta	0	7	0	0	87	0	0	37	0	0	22	0	0
+Brevundimonas mediterranea	0	0	0	0	20	0	0	0	0	0	0	0	0
+Brevundimonas naejangsanensis	0	0	0	0	15	0	0	0	0	0	0	0	0
+Brevundimonas nasdae	0	0	0	0	13	0	0	0	0	0	0	0	0
+Brevundimonas pondensis	0	0	0	0	49	0	0	0	0	0	0	0	0
+Brevundimonas sp.	0	0	0	0	307	0	0	0	0	0	0	0	0
+Brevundimonas sp. P7753	0	25	77	0	266	0	0	0	0	0	0	0	0
+Brevundimonas sp. SH203	0	0	0	0	12	0	0	0	0	0	0	0	0
+Brevundimonas terrae	0	0	0	0	9	0	0	0	0	0	0	0	0
+Brevundimonas vesicularis	0	0	0	0	11	0	0	0	0	0	0	0	0
+Burkholderia ambifaria	17	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia anthina	8	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia cenocepacia	593	0	0	0	0	122	103	275	0	0	0	0	0
+Burkholderia cepacia	57	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia contaminans	25	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia diffusa	8	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia dolosa	12	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia lata	20	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia latens	6	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia metallica	13	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia multivorans	56	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia pseudomallei	15	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia pseudomultivorans	7	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia pyrrocinia	9	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia seminalis	11	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia sp. AU4i	5	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia stabilis	11	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia territorii	9	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia thailandensis	6	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia ubonensis	19	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderia vietnamiensis	28	0	0	0	0	0	0	0	0	0	0	0	0
+Burkholderiales bacterium	0	0	122	0	0	0	0	0	0	0	0	0	0
+Callithrix jacchus	19	0	0	0	0	0	0	0	0	0	0	0	0
+Campylobacter concisus	0	0	0	0	0	0	0	0	0	0	20	0	0
+Candidatus Aquiluna sp. IMCC13023	0	0	0	0	0	156	0	46	28	190	0	235	164
+Candidatus Bathyarchaeota archaeon	13	85	269	0	193	1331	331	859	277	447	308	2559	461
+Candidatus Colwellia aromaticivorans	0	0	0	6	0	0	0	0	0	0	0	0	0
+Candidatus Endolissoclinum sp. TMED37	0	12	0	0	26	289	85	111	44	158	54	679	136
+Candidatus Endolissoclinum sp. TMED55	0	4	0	0	0	142	0	53	25	0	23	297	0
+Candidatus Melainabacteria bacterium	27	51	59	0	52	0	0	0	0	0	0	0	0
+Candidatus Neomarinimicrobiota bacterium	0	7	0	0	0	215	42	54	43	0	32	302	0
+Candidatus Nomurabacteria bacterium	0	0	0	0	10	0	0	0	0	0	0	0	0
+Candidatus Pelagibacter giovannonii	91	167	176	15	200	10114	1633	2951	1732	3298	741	17642	3073
+Candidatus Pelagibacter sp.	0	0	0	0	0	0	0	1918	918	0	0	0	0
+Candidatus Pelagibacter sp. HIMB1321	0	0	0	0	0	232	38	65	35	0	0	399	0
+Candidatus Pelagibacter sp. HTCC7211	0	6	0	0	13	495	62	138	82	131	32	747	124
+Candidatus Pelagibacter sp. IMCC9063	24	34	0	3	31	1540	220	460	266	586	129	2338	498
+Candidatus Pelagibacter sp. RS39	0	5	0	0	0	133	0	42	0	0	0	243	0
+Candidatus Pelagibacter sp. TMED106	0	12	0	0	12	450	68	131	68	108	27	664	0
+Candidatus Pelagibacter sp. TMED128	0	7	0	0	0	256	40	76	42	0	0	428	0
+Candidatus Pelagibacter sp. TMED153	0	0	0	0	0	120	0	41	19	0	0	0	0
+Candidatus Pelagibacter sp. TMED165	0	4	0	0	0	156	0	34	23	0	0	212	0
+Candidatus Pelagibacter sp. TMED166	0	4	0	0	0	154	0	39	0	0	0	293	0
+Candidatus Pelagibacter sp. TMED197	5	8	0	0	0	191	42	60	29	0	19	404	0
+Candidatus Pelagibacter sp. TMED202	0	0	0	0	0	120	35	0	0	0	0	246	0
+Candidatus Pelagibacter sp. TMED203	0	12	0	3	18	357	86	115	40	0	51	622	0
+Candidatus Pelagibacter sp. TMED239	5	18	0	0	23	511	127	157	52	162	62	1204	200
+Candidatus Pelagibacter sp. TMED253	0	0	0	0	0	195	0	64	30	0	18	349	0
+Candidatus Pelagibacter sp. TMED263	0	7	0	0	0	0	0	0	20	0	0	178	0
+Candidatus Pelagibacter sp. TMED273	0	8	0	0	0	216	47	79	32	0	19	458	0
+Candidatus Pelagibacter sp. TMED275	0	5	0	0	11	159	34	41	20	0	20	300	0
+Candidatus Pelagibacter sp. TMED286	0	0	0	0	0	0	0	39	0	0	0	224	0
+Candidatus Pelagibacter sp. TMED64	7	33	73	3	71	748	200	296	141	253	149	1510	224
+Candidatus Pelagibacter ubique	273	447	462	40	622	28934	4711	8291	5006	10191	2044	53516	9620
+Candidatus Pelagibacterales bacterium	14	17	0	0	30	895	131	246	125	245	73	1304	209
+Candidatus Poseidoniales archaeon	0	4	0	0	9	256	79	69	44	0	45	455	0
+Candidatus Pseudothioglobus singularis	5	5	0	0	0	358	134	118	64	0	44	534	0
+Candidatus Puniceispirillum marinum	0	0	0	0	0	0	0	0	0	0	17	0	0
+Candidatus Thioglobus sp. NP1	7	6	0	4	16	486	190	172	80	131	70	772	117
+Candidatus Thioglobus sp. TMED218	0	4	0	0	0	0	29	0	0	0	0	0	0
+Candidatus Thorarchaeota archaeon	0	20	0	0	46	232	84	148	47	0	53	451	0
+Caudoviricetes sp.	64	15	0	0	26	398	140	179	78	0	120	806	0
+Cellulophaga baltica	0	0	0	7	0	0	0	0	0	0	0	0	0
+Cellvibrio sp. OA-2007	7	0	0	0	0	0	0	0	0	0	0	0	0
+Cellvibrionales bacterium TMED49	0	6	0	0	0	0	0	38	0	0	18	0	0
+Cercocebus atys	5	0	0	0	0	0	0	0	0	0	0	0	0
+Chaetoceros tenuissimus	16	20	4103	88	51	164	80	66	19	1341	67	643	910
+Chara braunii	0	0	0	0	0	0	0	0	0	115	0	0	0
+Chelativorans sp. ZYF759	0	0	0	0	14	0	0	0	0	0	0	0	0
+Chlamydia trachomatis	15	0	0	0	0	0	0	0	0	0	0	0	0
+Chlamydomonas eustigma	0	0	0	0	0	0	0	0	0	119	0	0	189
+Chlamydomonas reinhardtii	0	0	0	0	0	0	0	0	0	0	0	0	119
+Chlamydomonas sp. UWO 241	0	0	154	19	10	0	0	0	0	0	0	0	0
+Chlorocebus sabaeus	12	0	0	0	0	0	0	0	0	0	0	0	0
+Christiangramia echinicola	0	0	0	3	0	0	0	0	0	0	0	0	0
+Chryseobacterium hispalense	10	0	0	0	0	0	0	0	0	0	0	0	0
+Chrysochromulina ericina virus	0	0	0	3	0	0	0	0	0	0	0	0	0
+Chrysochromulina tobinii	13	0	213	8	0	0	93	46	0	2710	33	301	3060
+Circular genetic element sp.	0	0	0	0	0	0	60	0	0	0	20	0	0
+Clostridioides difficile	11	0	0	0	0	0	0	0	0	0	0	0	0
+Clostridium sporogenes	9	0	0	0	0	0	0	0	0	0	0	0	0
+Colobus angolensis	5	0	0	0	0	0	0	0	0	0	0	0	0
+Colwellia hornerae	0	0	0	4	0	0	0	0	0	0	0	0	0
+Colwellia piezophila	0	0	0	4	0	0	0	0	0	0	0	0	0
+Colwellia ponticola	0	0	0	3	0	0	0	0	0	0	0	0	0
+Colwellia psychrerythraea	0	0	86	19	0	0	0	0	0	0	0	0	0
+Colwellia sp. 12G3	0	0	160	18	0	0	0	0	0	0	0	0	0
+Colwellia sp. 75C3	0	0	358	34	9	0	0	0	0	0	0	0	0
+Colwellia sp. C1TZA3	0	0	0	0	10	210	0	0	0	0	0	0	0
+Colwellia sp. MB02u-10	5	0	0	0	0	209	0	0	0	0	0	0	0
+Colwellia sp. MB02u-6	6	0	0	0	0	222	0	0	0	0	0	0	0
+Colwellia sp. TT2012	0	0	0	4	0	0	0	0	0	0	0	0	0
+Comamonas testosteroni	0	7	0	0	15	0	0	0	0	0	0	0	0
+Corynebacterium durum	21	0	0	0	0	0	0	0	0	0	0	0	0
+Crocuta crocuta	5	0	0	0	0	0	0	0	0	0	0	0	0
+Cronobacter sakazakii	12	0	0	0	0	0	0	0	0	0	0	0	0
+Cryomorphaceae bacterium	17	24	0	0	35	1475	443	621	266	0	198	2729	0
+Cryomorphaceae bacterium BACL22 MAG-120619-bin32	0	0	0	3	0	0	0	0	0	0	0	0	0
+Cryomorphaceae bacterium BACL29 MAG-121220-bin8	12	20	0	5	26	1197	375	501	217	287	171	2212	295
+Cryptophyta sp. CCMP2293	9	5	0	0	0	0	34	0	0	250	0	224	364
+Cutibacterium acnes	185	8	0	0	16	0	34	64	0	0	41	0	0
+Cutibacterium granulosum	5	0	0	0	0	0	0	0	0	0	0	0	0
+Cutibacterium modestum	7	0	0	0	0	0	0	0	0	0	0	0	0
+Cylindrotheca closterium	0	0	96	0	0	0	0	0	0	0	0	0	0
+Daphnia magna	0	0	269	0	0	0	0	0	0	111	0	0	0
+Deltaproteobacteria bacterium	0	0	0	0	0	0	30	0	0	0	18	0	0
+Desulfobacterales bacterium PC51MH44	0	0	0	0	0	0	30	0	0	0	21	0	0
+Diacronema lutheri	0	0	0	7	0	0	0	0	0	124	0	0	122
+Dishui Lake phycodnavirus 2	5	9	0	0	17	226	82	83	28	0	52	551	0
+Dishui Lake phycodnavirus 3	9	33	0	0	65	682	289	233	77	155	162	1971	183
+Dishui Lake phycodnavirus 4	0	9	0	0	13	173	63	38	0	0	29	374	0
+Dishui lake phycodnavirus 1	0	0	0	0	9	0	34	0	0	0	0	191	0
+Dokdonia sinensis	0	0	0	3	0	0	0	0	0	0	0	0	0
+Durinskia baltica	0	0	0	0	0	0	0	0	0	148	0	0	167
+Ectocarpus siliculosus	0	0	0	5	0	0	0	0	0	0	0	0	0
+Ectocarpus sp. CCAP 1310/34	0	0	150	0	0	0	0	0	0	126	0	0	117
+Emiliania huxleyi	5	4	138	13	0	0	66	54	22	861	26	269	1001
+Ensete ventricosum	0	0	0	0	23	0	0	0	0	0	0	0	0
+Enterobacter hormaechei	8	0	0	0	0	0	0	0	0	0	0	0	0
+Enterococcus faecalis	41	6	0	0	20	0	0	0	0	0	0	0	0
+Entomoneis sp.	0	0	70	16	0	0	0	0	0	0	0	0	0
+Escherichia coli	52	9	0	0	31	197	57	77	22	0	46	332	0
+Eunotia naegelii	0	0	62	3	0	0	0	0	0	0	0	0	0
+Euryarchaeota archaeon TMED97	0	9	0	0	10	159	43	75	30	0	46	278	0
+Euryarchaeota archaeon TMED99	0	0	0	0	0	0	35	0	0	0	0	0	0
+Fistulifera solaris	15	12	6644	164	40	0	0	0	0	1771	0	0	1172
+Flammeovirgaceae bacterium TMED32	0	8	0	0	14	262	55	85	39	0	29	486	0
+Flavobacteriaceae bacterium	0	0	82	14	0	0	0	0	0	118	0	0	146
+Flavobacteriaceae bacterium TMED238	0	0	0	0	0	0	0	0	0	0	0	180	0
+Flavobacteriaceae bacterium TMED48	0	4	0	0	0	114	0	55	20	0	0	245	0
+Flavobacteriales bacterium	12	76	558	133	130	1448	399	630	226	492	277	2222	587
+Flavobacteriales bacterium BRH_c54	0	0	0	3	0	0	0	0	0	0	0	0	0
+Flavobacteriales bacterium TMED123	0	20	0	0	40	216	57	111	36	0	67	364	0
+Flavobacteriales bacterium TMED228	0	30	80	4	50	548	135	288	77	147	148	820	149
+Flavobacteriales bacterium TMED235	0	7	0	0	0	0	0	34	0	0	0	0	0
+Flavobacterium sp.	0	0	0	3	0	134	0	44	0	0	0	205	0
+Fluviicola sp.	0	0	0	3	0	0	0	0	0	0	0	0	0
+Formosa algae	0	0	0	5	0	0	0	0	0	0	0	0	0
+Formosa sp. Hel1_33_131	0	0	0	3	0	0	0	0	0	0	0	0	0
+Fragilariopsis cylindrus	18	42	15707	1696	204	0	0	0	0	2019	26	0	1294
+Frigidibacter albus	0	0	0	0	9	0	0	0	0	0	0	0	0
+Gammaproteobacteria bacterium	19	27	239	82	88	1143	198	370	173	798	163	1896	980
+Gammaproteobacteria bacterium HGW-Gammaproteobacteria-11	0	4	0	0	28	0	0	0	0	0	0	0	0
+Gammaproteobacteria bacterium HGW-Gammaproteobacteria-6	0	0	0	0	13	0	0	0	0	0	0	0	0
+Gammaproteobacteria bacterium TMED34	0	4	0	0	0	0	0	0	0	0	0	0	0
+Gammaproteobacteria bacterium TMED36	0	7	0	3	0	161	40	41	21	0	18	332	0
+Gammaproteobacteria bacterium TMED95	0	0	0	0	0	0	0	34	0	0	18	0	0
+Gemella haemolysans	10	0	0	0	0	0	0	0	0	0	0	0	0
+Geosiphon pyriformis	0	0	326	3	0	0	0	0	0	154	0	0	0
+Glaciecola pallidula	0	0	0	8	0	0	0	0	0	0	0	0	0
+Glaciecola punicea	0	0	0	15	0	0	0	0	0	0	0	0	0
+Glaciecola sp. 33A	5	0	0	10	0	0	0	0	0	0	0	0	0
+Gonium pectorale	0	0	0	0	0	0	0	0	0	118	0	0	169
+Gorilla gorilla	6	0	0	0	0	0	0	0	0	0	0	0	0
+Guillardia theta	17	5	0	7	16	274	81	88	63	1893	46	1319	2079
+Haemophilus influenzae	0	0	0	0	0	0	0	0	0	0	24	0	0
+Haemophilus parainfluenzae	13	6	0	0	0	0	0	35	0	0	114	0	0
+Haemophilus sputorum	0	0	0	0	0	0	0	0	0	0	54	0	0
+Halioglobus japonicus	0	7	0	0	16	177	38	96	33	131	63	279	117
+Halioglobus maricola	0	0	0	3	0	0	0	0	0	0	0	0	0
+Halopseudomonas bauzanensis	0	0	0	0	21	0	0	0	0	0	0	0	0
+Halopseudomonas laoshanensis	0	24	0	0	206	0	0	0	0	0	0	0	0
+Halopseudomonas pelagia	0	171	527	6	1653	0	0	0	0	0	0	0	0
+Halopseudomonas salegens	0	0	0	0	9	0	0	0	0	0	0	0	0
+Halopseudomonas salina	0	5	0	0	43	0	0	0	0	0	0	0	0
+Halopseudomonas yangmingensis	0	0	0	0	10	0	0	0	0	0	0	0	0
+Halteria grandinella	25	0	65	4	9	436	331	106	46	528	68	851	522
+Hanseniaspora uvarum	7	0	0	0	0	0	0	0	0	0	0	0	0
+Haslea silbo	0	0	0	4	0	0	0	0	0	0	0	0	0
+Heliosvirus raunefjordenense	0	0	0	0	0	0	0	0	0	136	0	0	163
+Heterocapsa triquetra	0	0	0	0	0	125	0	0	52	159	0	205	206
+Homo sapiens	571	43	158	4	142	176	87	124	28	0	166	0	0
+Hyphomicrobiales bacterium	15	0	0	0	0	0	0	0	0	0	0	0	0
+Hyphomonas chukchiensis	0	5	0	0	26	0	0	0	0	0	0	0	0
+Hyphomonas oceanitis	0	0	0	0	21	0	0	0	0	0	0	0	0
+Ichthyophthirius multifiliis	0	0	0	0	0	0	29	0	0	0	0	0	0
+Klebsiella pneumoniae	7	0	0	0	11	0	0	0	0	0	0	0	0
+Klebsormidium nitens	0	0	0	0	0	0	0	0	0	108	0	0	159
+Kordia algicida	0	0	0	3	0	0	0	0	0	0	0	0	0
+Kordia sp. TARA_039_SRF	5	0	198	31	0	0	0	0	0	283	0	0	273
+Lactobacillus crispatus	24	0	0	0	0	0	0	0	0	0	0	0	0
+Lawsonella clevelandensis	6	0	0	0	0	0	0	0	0	0	0	0	0
+Legionella pneumophila	8	0	0	0	0	0	0	0	0	0	0	0	0
+Leptocylindrus aporus	0	0	69	0	0	0	0	0	0	0	0	0	0
+Lingulodinium polyedra	0	0	0	0	0	0	0	0	24	0	0	0	0
+Listeria monocytogenes	6	0	0	0	0	0	0	0	0	0	0	0	0
+Lupinus albus	8	0	91	7	26	175	31	59	27	147	22	319	173
+Lutibacter sp.	0	0	0	10	0	0	0	0	0	0	0	0	0
+Lutibacter sp. Hel_I_33_5	0	0	0	3	0	0	0	0	0	0	0	0	0
+Macaca fascicularis	136	6	0	0	30	0	0	0	0	0	43	0	0
+Macaca mulatta	98	4	0	0	17	0	0	0	0	0	28	0	0
+Malassezia globosa	15	0	0	0	0	0	0	0	0	0	0	0	0
+Malassezia restricta	50	0	0	0	0	0	0	0	0	0	0	0	0
+Mandrillus leucophaeus	12	0	0	0	0	0	0	0	0	0	0	0	0
+Maribacter antarcticus	0	0	0	4	0	0	0	0	0	0	0	0	0
+Marinoscillum sp. 108	0	0	0	0	0	0	0	0	0	0	22	0	0
+Mesorhizobium sp.	0	5	0	0	11	0	0	0	0	0	0	181	0
+Methanobacteriota archaeon	0	4	0	0	17	260	103	70	40	128	45	539	122
+Methanothrix sp.	0	0	0	0	0	0	0	0	0	0	0	0	130
+Methylophilaceae bacterium	0	0	0	3	0	0	0	0	0	0	0	0	0
+Methylophilales bacterium	0	4	0	0	0	193	32	44	23	166	0	210	126
+Methylophilales phage Venkman EXVC282S	0	4	0	0	0	0	0	0	0	0	0	0	0
+Methylorubrum extorquens	7	0	0	0	0	0	0	0	0	0	0	0	0
+Micromonas commoda	17	6	0	4	20	283	61	49	47	850	39	637	1428
+Micromonas pusilla	5	0	0	0	0	141	0	0	24	594	19	331	1013
+Micromonas pusilla virus 12T	82	304	65	16	528	6615	2907	2330	741	1132	1950	17089	1185
+Micromonas pusilla virus PL1	32	150	0	4	214	2956	936	749	326	467	659	6558	545
+Micromonas sp. RCC1109 virus MpV1	89	437	147	26	726	8641	2572	2119	1028	1372	1830	20359	1863
+Microviridae sp.	0	0	0	4	0	0	0	0	0	0	0	0	0
+Molossus molossus	11	0	0	0	0	0	0	0	0	0	0	0	0
+Muntiacus muntjak	5	0	0	0	0	0	0	0	0	0	0	0	0
+Muntiacus reevesi	6	0	0	0	0	0	0	0	0	0	0	0	0
+Mycobacterium sp. 1245111.1	11	0	0	0	0	0	0	0	0	0	0	0	0
+Mycobacterium tuberculosis	15	4	0	0	0	0	0	0	0	0	0	0	0
+Mycobacteroides abscessus	7	0	0	0	0	0	0	0	0	0	0	0	0
+Myotis myotis	7	0	0	0	0	0	0	0	0	0	0	0	0
+Myoviridae sp. ctu2j3	316	0	0	0	0	0	46	133	0	0	0	0	0
+Mytilus galloprovincialis	0	0	0	4	0	0	0	0	0	0	0	0	0
+Navicula veneta	0	0	64	5	0	0	0	0	0	0	0	0	0
+Neisseria elongata	0	0	0	0	0	0	0	0	0	0	20	0	0
+Neisseria flavescens	0	4	0	0	0	0	0	0	0	0	31	0	0
+Neisseria meningitidis	0	0	0	0	0	0	0	0	0	0	21	0	0
+Neisseria subflava	0	0	0	0	0	0	0	0	0	0	30	0	0
+Neolewinella agarilytica	0	0	0	3	0	0	0	0	0	0	0	0	0
+Neopusillimonas maritima	0	0	0	0	15	0	0	0	0	0	0	0	0
+Nevskia ramosa	8	8	0	0	0	0	0	0	0	0	0	0	0
+Nitriliruptor sp.	6	0	0	0	0	0	0	0	0	0	0	0	0
+Nitrosomonadales bacterium	0	19	0	0	42	158	43	116	38	0	33	327	0
+Nitrosopumilus sp. BACL13 MAG-121220-bin23	0	0	0	0	0	156	0	0	0	0	0	0	0
+Nitzschia inconspicua	53	32	23445	416	99	0	0	0	0	7003	41	0	4538
+Nitzschia palea	0	0	94	0	0	0	0	0	0	0	0	0	0
+Nitzschia supralitorea	0	0	76	0	0	0	0	0	0	0	0	0	0
+Nomascus leucogenys	16	0	0	0	0	0	0	0	0	0	0	0	0
+Nymphon striatum	0	0	0	8	0	118	0	40	21	0	21	272	0
+Oceanibaculum indicum	0	0	0	0	33	0	0	0	0	0	0	0	0
+Oceanibaculum nanhaiense	0	13	0	0	116	0	0	0	0	0	0	0	0
+Oceanicoccus sagamiensis	0	0	0	3	0	0	0	0	0	0	0	0	0
+Oceaniferula marina	0	0	0	3	0	0	0	0	0	0	0	0	0
+Octadecabacter antarcticus	5	0	0	4	0	0	0	0	0	0	0	0	0
+Octadecabacter arcticus	10	10	117	23	25	236	0	53	21	229	36	228	282
+Oleispira antarctica	16	4	0	5	54	1398	132	335	168	484	164	2479	989
+Opitutaceae bacterium BACL24 MAG-120322-bin51	0	0	0	3	0	179	0	0	0	221	0	185	326
+Ostreococcus lucimarinus virus 1	5	19	0	0	38	375	92	89	46	0	82	913	0
+Ostreococcus lucimarinus virus 2	0	0	0	0	12	157	54	34	0	0	34	432	0
+Ostreococcus lucimarinus virus 7	9	24	0	0	48	518	159	141	73	0	104	1269	121
+Ostreococcus lucimarinus virus OlV3	0	0	0	0	0	0	0	0	0	0	17	0	0
+Ostreococcus lucimarinus virus OlV4	0	16	0	0	26	278	78	54	32	0	57	795	0
+Ostreococcus mediterraneus virus 1	6	15	0	0	24	290	88	68	26	0	62	638	0
+Ostreococcus mediterraneus virus 2	0	25	0	0	37	405	127	120	63	0	106	1031	0
+Ostreococcus tauri	0	0	0	0	0	0	0	0	0	0	0	0	121
+Ostreococcus tauri virus 1	5	12	0	0	21	285	73	82	32	0	76	766	0
+Ostreococcus tauri virus 2	0	5	0	0	0	0	0	0	0	0	0	209	0
+Ostreococcus tauri virus RT-2011	32	142	0	6	261	2843	986	789	346	461	622	6750	574
+Paenibacillus odorifer	8	0	0	0	0	0	0	0	0	0	0	0	0
+Pan paniscus	14	0	0	0	0	0	0	0	0	0	0	0	0
+Pan troglodytes	49	5	0	0	15	0	0	0	0	0	0	0	0
+Papio anubis	22	0	0	0	0	0	0	0	0	0	0	0	0
+Paracoccaceae bacterium	0	7	0	0	12	266	52	100	45	0	44	544	0
+Paraglaciecola arctica	13	7	60	33	12	233	29	45	24	156	29	276	249
+Paraglaciecola polaris	0	0	0	4	0	0	0	0	0	0	0	0	0
+Paraglaciecola psychrophila	36	8	226	161	38	658	71	106	74	398	64	765	772
+Paraglaciecola sp. L3A3	0	0	0	4	0	0	0	0	0	0	0	0	0
+Paraglaciecola sp. MB-3u-78	26	4	159	69	22	517	48	74	31	286	43	559	528
+Patiriisocius marinistellae	0	0	0	3	0	0	0	0	0	0	0	0	0
+Patiriisocius marinus	0	0	0	4	0	0	0	0	0	0	0	0	0
+Pelagibacter phage HTVC027P	0	6	0	0	0	196	34	86	29	0	58	281	0
+Pelagibacter phage HTVC103P	0	5	0	0	0	0	0	0	0	0	0	0	0
+Pelagibacteraceae bacterium	39	85	0	0	79	4198	680	1173	620	0	324	6905	0
+Pelagibacteraceae bacterium BACL20 MAG-120920-bin64	33	55	0	4	54	3043	483	828	460	854	240	4779	747
+Pelagibacteraceae bacterium BACL5 MAG-121015-bin10	0	4	0	0	0	165	0	41	20	0	0	247	0
+Pelagibacteraceae bacterium TMED170	0	5	0	0	0	149	32	48	27	0	0	286	0
+Pelagibacteraceae bacterium TMED201	0	8	0	0	0	226	40	68	34	0	21	395	0
+Pelagibacteraceae bacterium TMED247	0	0	0	0	0	0	30	0	0	0	0	203	0
+Pelagibacteraceae bacterium TMED287	0	9	0	3	14	298	60	97	37	0	31	547	0
+Pelagibacterales bacterium MED-G40	0	9	0	0	0	109	0	0	26	0	0	220	0
+Pelagibacterales bacterium MED-G41	0	0	0	0	0	0	0	34	0	0	0	0	0
+Pelagibacterales bacterium MED-G42	0	0	0	0	0	121	0	43	19	0	18	191	0
+Pelagibacterales bacterium MED-G43	0	8	0	0	0	143	0	40	0	0	0	258	0
+Pelagibacterium halotolerans	0	5	0	0	33	0	0	0	0	0	0	0	0
+Pelagomonas calceolata	0	0	81	4	0	0	0	0	0	260	0	0	203
+Penaeus vannamei	0	0	0	4	0	0	0	0	0	0	0	0	0
+Perkinsus olseni	0	0	64	0	0	0	0	0	0	0	0	0	0
+Persicirhabdus sediminis	0	0	0	3	0	0	0	0	0	0	0	0	0
+Phaeodactylum tricornutum	22	15	8431	139	33	0	0	0	0	2458	17	0	1641
+Phyllostomus discolor	5	0	0	0	0	0	0	0	0	0	0	0	0
+Phytophthora fragariae	0	0	68	0	0	0	0	0	0	0	0	0	0
+Phytophthora palmivora	0	0	0	3	0	0	0	0	0	0	0	0	0
+Piliocolobus tephrosceles	7	0	0	0	0	0	0	0	0	0	0	0	0
+Planctomycetaceae bacterium TMED10	0	5	0	0	9	0	0	36	0	0	22	0	0
+Planctomycetota bacterium	0	0	0	0	9	0	0	35	0	0	19	0	0
+Planktomarina temperata	6	8	0	0	9	303	73	200	61	0	81	696	0
+Plasmodium ovale	76	5	0	0	13	0	0	0	0	0	0	0	0
+Podoviridae sp. ctrTa16	0	4	0	0	0	0	0	0	0	0	0	0	0
+Polarella glacialis	3100	1017	20979	797	851	75083	6022	16554	27925	227189	1645	117562	272099
+Polaribacter aestuariivivens	0	0	68	10	0	0	0	0	0	0	0	0	0
+Polaribacter aquimarinus	0	0	0	11	0	0	0	0	0	0	0	0	0
+Polaribacter atrinae	0	0	0	3	0	0	0	0	0	0	0	0	0
+Polaribacter butkevichii	0	0	0	6	0	0	0	0	0	0	0	0	0
+Polaribacter dokdonensis	0	0	0	3	0	0	0	0	0	0	0	0	0
+Polaribacter filamentus	19	8	396	44	31	277	0	35	20	589	0	189	662
+Polaribacter glomeratus	0	0	97	14	0	0	0	0	0	122	0	0	133
+Polaribacter haliotis	0	0	0	4	0	0	0	0	0	0	0	0	0
+Polaribacter irgensii	14	4	401	47	36	468	57	90	46	743	35	466	787
+Polaribacter litorisediminis	0	0	0	13	0	0	0	0	0	107	0	0	0
+Polaribacter porphyrae	0	0	0	4	0	0	0	0	0	0	0	0	0
+Polaribacter reichenbachii	0	0	0	3	0	0	0	0	0	0	0	0	0
+Polaribacter sp. ALD11	20	7	571	53	26	363	0	51	23	961	0	229	959
+Polaribacter sp. BAL334	0	0	0	4	0	0	0	0	0	0	0	0	0
+Polaribacter sp. Hel1_33_78	0	0	160	18	0	0	0	0	0	250	0	0	267
+Polaribacter sp. Hel1_33_96	0	0	0	5	0	0	0	0	0	0	0	0	0
+Polaribacter sp. Hel1_85	0	0	80	15	0	0	0	0	0	112	0	0	139
+Polaribacter sp. Hel_I_88	0	0	0	3	0	0	0	0	0	0	0	0	0
+Polaribacter sp. IC073	16	10	460	55	29	292	0	0	21	771	0	181	823
+Polaribacter sp. KT 15	0	0	0	7	0	0	0	0	0	0	0	0	0
+Polaribacter sp. KT25b	0	0	0	5	10	0	0	0	0	0	0	0	0
+Polaribacter sp. L3A8	0	0	0	4	0	0	0	0	0	0	0	0	0
+Polaribacter sp. MED152	0	0	0	3	0	0	0	0	0	0	0	0	0
+Polaribacter sp. SA4-10	16	0	286	48	25	327	0	37	20	524	0	221	593
+Polaribacter sp. SA4-12	0	0	117	16	12	0	0	0	0	178	0	0	173
+Polaribacter tangerinus	0	0	0	13	0	0	0	0	0	0	0	0	0
+Polaribacter vadi	0	0	59	10	0	0	0	0	0	0	0	0	0
+Pongo abelii	13	0	0	0	0	0	0	0	0	0	0	0	0
+Prasinovirus micromonas	24	88	0	3	168	1938	565	467	220	317	396	4384	333
+Prasinovirus ostreotauri	0	6	0	0	0	164	52	45	26	0	50	373	0
+Prasinovirus sp.	0	10	0	0	9	146	61	60	0	0	42	474	0
+Prevotella histicola	0	0	0	0	0	0	0	0	0	0	19	0	0
+Prevotella melaninogenica	0	0	0	0	0	0	0	0	0	0	71	0	0
+Prokaryotic dsDNA virus sp.	52	257	464	7	472	4254	1339	2241	796	1467	1206	7027	1352
+Pseudo-nitzschia cuspidata	0	0	0	4	0	0	0	0	0	0	0	0	0
+Pseudo-nitzschia multiseries	0	0	0	5	0	0	0	0	0	0	0	0	0
+Pseudo-nitzschia multistriata	6	12	4429	259	31	0	0	0	0	1006	0	0	732
+Pseudocohnilembus persalinus	0	0	0	5	0	0	40	0	0	141	0	0	146
+Pseudohongiella sp.	0	0	0	0	0	180	0	91	31	0	54	380	0
+Pseudomonadota bacterium	27	8	0	3	16	212	55	78	39	0	33	467	0
+Pseudomonas aeruginosa	12	18	0	3	76	0	0	0	0	0	0	0	0
+Pseudomonas amygdali	0	0	0	0	17	0	0	0	0	0	0	0	0
+Pseudomonas azotoformans	0	0	0	0	12	0	0	0	0	0	0	0	0
+Pseudomonas chlororaphis	0	0	0	0	16	0	0	0	0	0	0	0	0
+Pseudomonas fluorescens	0	39	83	0	269	0	0	0	0	0	0	0	0
+Pseudomonas gessardii	0	0	0	0	12	0	0	0	0	0	0	0	0
+Pseudomonas koreensis	0	0	0	0	13	0	0	0	0	0	0	0	0
+Pseudomonas marginalis	0	0	0	0	18	0	0	0	0	0	0	0	0
+Pseudomonas putida	0	0	0	0	18	0	0	0	0	0	0	0	0
+Pseudomonas saliphila	0	4	0	0	19	0	0	0	0	0	0	0	0
+Pseudomonas savastanoi	0	0	0	0	10	0	0	0	0	0	0	0	0
+Pseudomonas sp. 43(2021)	8	0	0	0	0	0	0	0	0	0	0	0	0
+Pseudomonas sp. 5Ae-yellow	0	0	0	0	10	0	0	0	0	0	0	0	0
+Pseudomonas sp. MYb185	0	0	0	0	14	0	0	0	0	0	0	0	0
+Pseudomonas synxantha	0	0	0	0	9	0	0	0	0	0	0	0	0
+Pseudomonas syringae	0	7	0	0	48	0	0	0	0	0	0	0	0
+Pseudomonas syringae group genomosp. 3	0	0	0	0	9	0	0	0	0	0	0	0	0
+Pseudomonas viridiflava	28	0	0	0	11	0	0	0	0	0	0	0	0
+Pseudopedinella elastica	0	0	0	6	0	0	0	0	0	0	0	0	0
+Psychroflexus sp. MES1-P1E	8	0	0	0	0	309	0	38	20	0	0	183	161
+Psychroflexus torquis	0	0	0	3	0	0	0	0	0	0	0	0	0
+Psychromonas ingrahamii	0	0	0	3	0	0	0	0	0	0	0	0	117
+Psychromonas sp. MB-3u-54	0	7	0	0	0	0	0	0	0	136	0	0	482
+Psychroserpens burtonensis	0	0	0	5	0	0	0	0	0	0	0	0	0
+Puniceispirillum phage HMO-2011	0	4	0	0	0	0	0	0	0	0	0	0	0
+Putridiphycobacter roseus	0	0	0	3	0	0	0	0	0	0	0	0	0
+Pycnococcus provasolii	0	0	0	3	0	0	0	0	0	150	0	0	192
+Pyramimonas parkeae	0	4	0	0	0	0	0	0	0	280	0	0	395
+Reyranella soli	21	11	0	0	15	0	0	0	0	0	0	0	0
+Rhinopithecus roxellana	6	0	0	0	0	0	0	0	0	0	0	0	0
+Rhizaria sp.	0	0	0	3	0	115	0	0	0	0	0	0	0
+Rhizobiales bacterium TMED227	0	4	0	0	0	0	0	0	0	0	0	0	0
+Rhizobium sp. Root483D2	6	0	0	0	0	0	0	0	0	0	0	0	0
+Rhizopus arrhizus	0	7	0	0	49	0	0	0	0	0	0	0	0
+Rhodobacteraceae bacterium SB2	0	0	0	0	0	0	0	52	0	0	44	0	0
+Rhodobacteraceae bacterium TMED111	0	8	0	0	11	131	0	71	0	0	47	0	0
+Rhodopirellula sp. TMED11	0	0	0	0	0	0	0	0	0	351	0	184	428
+Rhodospirillaceae bacterium TMED167	0	5	0	0	0	0	0	36	0	0	0	0	0
+Rhodospirillaceae bacterium TMED23	0	0	0	0	0	0	0	0	0	0	0	182	0
+Rhodospirillaceae bacterium TMED8	0	19	0	0	27	245	56	154	45	0	62	461	0
+Rhodospirillales bacterium URHD0017	38	33	73	0	37	0	0	0	0	0	0	0	0
+Rhodothermaceae bacterium TMED105	0	0	0	0	0	0	0	0	0	0	19	0	0
+Rickettsiales bacterium TMED131	0	0	79	0	10	0	0	37	0	0	0	193	0
+Rickettsiales bacterium TMED174	0	4	0	0	0	0	0	0	0	0	0	0	0
+Rickettsiales bacterium TMED211	0	11	0	0	34	402	120	114	64	0	63	819	0
+Roseibacillus persicicus	0	0	0	4	0	0	0	0	0	0	0	0	0
+Roseobacter phage CRP-1	0	4	0	0	0	0	0	0	0	0	0	0	0
+Roseobacter phage CRP-13	0	0	0	0	9	0	0	0	0	0	22	0	0
+Roseobacter phage CRP-207	0	0	0	0	0	0	0	0	0	0	27	0	0
+Roseobacter phage CRP-235	0	0	0	0	0	0	34	38	0	0	43	0	0
+Roseobacter phage CRP-345	0	6	0	0	0	0	0	0	0	0	0	0	0
+Roseobacter phage CRP-738	0	0	0	0	0	0	0	0	0	0	25	0	0
+Roseobacter phage CRP-9	0	0	0	0	0	0	0	0	0	0	21	0	0
+Rothia aeria	9	0	0	0	0	0	0	0	0	0	0	0	0
+Rothia dentocariosa	12	0	0	0	0	0	0	0	0	0	0	0	0
+Rothia mucilaginosa	13	0	0	0	0	0	0	0	0	0	73	0	0
+Rousettus aegyptiacus	6	0	0	0	0	0	0	0	0	0	0	0	0
+Rubritalea marina	0	0	0	3	0	0	0	0	0	0	0	0	0
+Rubritalea profundi	6	4	274	37	15	0	0	0	0	110	0	0	163
+Rubritalea squalenifaciens	9	0	319	46	15	0	0	0	0	114	0	0	196
+SAR86 cluster bacterium	23	27	0	4	57	1288	206	770	244	496	340	2845	569
+SAR92 bacterium BACL26 MAG-121220-bin70	0	0	0	0	0	179	44	57	29	0	28	324	0
+SAR92 clade bacterium	0	0	0	0	9	174	37	55	0	0	35	279	0
+Salegentibacter sp. BDJ18	0	0	0	0	16	0	0	0	0	0	0	0	0
+Salmonella enterica	12	5	0	0	0	0	0	0	0	0	0	0	0
+Sarumanvirus bcepsauron	5	0	0	0	0	0	0	0	0	0	0	0	0
+Scenedesmus sp. PABB004	0	0	0	0	0	0	0	0	0	0	0	0	129
+Schizostauron trachyderma	0	0	130	9	0	0	0	0	0	0	0	0	0
+Seminavis robusta	0	0	0	4	0	0	0	0	0	0	0	0	0
+Sphingobacteriales bacterium	0	0	0	3	0	0	0	0	0	0	0	0	0
+Sphingobium sp. Ant17	0	0	0	0	10	0	0	0	0	0	0	0	0
+Staphylococcus aureus	30	0	0	0	0	0	0	0	0	0	0	0	0
+Staphylococcus capitis	7	0	0	0	0	0	0	0	0	0	0	0	0
+Staphylococcus epidermidis	5	0	0	0	0	0	0	0	0	0	0	0	0
+Staphylococcus hominis	5	0	0	0	0	0	0	0	0	0	0	0	0
+Stenotrophomonas bentonitica	0	0	0	0	16	0	0	0	0	0	0	0	0
+Stenotrophomonas maltophilia	8	16	0	0	116	0	0	0	0	0	0	0	0
+Stenotrophomonas rhizophila	0	51	107	0	265	0	0	0	0	0	0	0	0
+Stenotrophomonas sp. JAI102	0	0	0	0	12	0	0	0	0	0	0	0	0
+Stenotrophomonas sp. LM091	0	0	0	0	11	0	0	0	0	0	0	0	0
+Stenotrophomonas sp. SAM-B	0	0	0	0	9	0	0	0	0	0	0	0	0
+Stentor coeruleus	0	0	0	0	0	0	39	0	0	0	0	0	0
+Streptococcus mitis	18	0	0	0	0	0	0	0	0	0	24	0	0
+Streptococcus oralis	8	0	0	0	0	0	0	0	0	0	0	0	0
+Streptococcus pneumoniae	55	7	0	0	0	0	0	0	0	0	72	0	0
+Streptococcus sp. 263_SSPC	5	0	0	0	0	0	0	0	0	0	0	0	0
+Stylonychia lemnae	64	11	366	11	56	1697	1344	391	247	2394	317	3748	2275
+Symbiodinium microadriaticum	7	7	212	21	35	443	97	130	126	618	43	1153	673
+Symbiodinium natans	0	5	217	14	0	227	42	76	72	538	24	386	730
+Symbiodinium necroappetens	0	4	0	4	0	0	0	0	24	130	0	192	156
+Symbiodinium pilosum	0	0	69	3	0	0	31	0	22	170	0	189	212
+Symbiodinium sp. CCMP2456	10	0	0	10	0	132	0	40	35	182	0	213	318
+Symbiodinium sp. CCMP2592	9	8	212	13	0	183	29	44	60	577	0	323	627
+Symbiodinium sp. KB8	16	7	141	17	9	534	71	161	138	590	20	644	948
+Symbiodinium sp. Mf1.05b	0	0	0	0	0	0	0	0	20	0	0	0	0
+Synechococcus sp. Ace-Pa	0	0	0	0	15	0	0	0	0	0	0	0	0
+Tenacibaculum finnmarkense	0	0	0	5	0	0	0	0	0	0	0	0	0
+Tenacibaculum maritimum	6	0	0	11	0	0	0	0	0	0	0	0	0
+Tenacibaculum ovolyticum	0	0	0	5	0	0	0	0	0	0	0	0	0
+Tenacibaculum piscium	0	0	0	5	0	0	0	0	0	0	0	0	0
+Tenacibaculum soleae	0	0	0	4	0	0	0	0	0	0	0	0	0
+Tenacibaculum sp. Bg11-29	0	0	0	3	0	0	0	0	0	0	0	0	0
+Tenacibaculum sp. MAR_2009_124	0	0	0	4	0	0	0	0	0	0	0	0	0
+Tenacibaculum todarodis	0	0	0	3	0	0	0	0	0	0	0	0	0
+Tetrabaena socialis	0	0	0	0	0	0	0	0	0	105	0	0	0
+Tetrahymena thermophila	5	0	60	6	0	145	75	40	28	131	0	273	138
+Thalassiosira oceanica	5	4	4478	95	28	0	0	0	0	1336	18	0	873
+Thalassiosira pseudonana	5	0	2049	33	13	0	0	0	0	613	0	0	395
+Theropithecus gelada	5	0	0	0	0	0	0	0	0	0	0	0	0
+Toxarium undulatum	0	0	0	4	0	0	0	0	0	0	0	0	0
+Trachypithecus francoisi	8	0	0	0	0	0	0	0	0	0	0	0	0
+Trichinella papuae	6	0	0	0	0	0	0	0	0	0	0	0	0
+Tryblionella apiculata	5	0	1336	32	13	0	0	0	0	372	0	0	316
+Ulnaria acus	0	0	376	19	0	0	0	0	0	0	0	0	0
+Urbifossiella limnaea	5	0	0	0	0	0	0	0	0	0	0	0	0
+Variovorax paradoxus	6	0	0	0	0	0	0	0	0	0	0	0	0
+Veillonella atypica	0	0	0	0	0	0	0	0	0	0	23	0	0
+Veillonella tobetsuensis	0	0	0	0	0	0	0	0	0	0	31	0	0
+Verrucomicrobia bacterium TMED44	0	6	0	0	0	0	0	43	0	0	19	0	0
+Verrucomicrobiaceae bacterium	0	16	0	6	49	0	0	0	0	0	0	0	0
+Verrucomicrobiaceae bacterium TMED137	0	0	0	0	9	0	0	0	0	0	0	0	0
+Verrucomicrobiaceae bacterium TMED86	0	8	0	0	21	0	0	0	0	895	0	198	1002
+Vibrio vulnificus	6	0	0	0	0	0	0	0	0	0	0	0	0
+Vicingus serpentipes	0	0	0	6	0	0	0	0	0	0	0	0	0
+Virus NIOZ-UU157	21	93	210	6	190	2126	550	867	417	630	312	4163	602
+Virus NIOZ-UU159	0	0	0	0	0	0	34	0	0	0	0	0	0
+Volvox reticuliferus	0	0	0	0	0	0	0	0	0	0	0	0	142
+Vreelandella titanicae	0	0	0	0	12	0	0	0	0	0	0	0	0
+Waddlia chondrophila	5	0	0	0	0	0	0	0	0	0	0	0	0
+Winogradskyella sp. KYW1333	0	0	0	3	0	0	0	0	0	0	0	0	0
+Zostera marina	0	0	73	4	0	0	0	0	0	0	0	0	0
+alpha proteobacterium HIMB5	0	0	0	0	0	134	31	45	23	0	0	233	0
+archaeon	0	0	0	4	0	157	45	0	27	112	0	0	136
+archaeon SCG-AAA382B04	0	4	0	0	0	0	0	0	0	0	0	0	0
+bacterium	0	29	0	0	0	0	0	0	0	0	0	0	0
+bacterium MnTg03	0	0	0	4	0	0	0	0	0	0	0	0	0
+bacterium TMED15	0	0	0	0	9	0	0	0	0	0	0	0	0
+bacterium TMED198	0	0	0	0	0	0	0	0	0	0	0	188	0
+bacterium TMED264	0	0	0	0	0	0	31	0	0	0	0	224	0
+bacterium TMED277	0	0	0	0	9	118	45	54	28	0	0	311	0
+bacterium TMED88	0	24	82	3	77	205	49	200	47	185	89	450	164
+candidate division MSBL1 archaeon SCGC-AAA382A20	0	4	0	0	0	0	0	0	0	0	0	0	0
+candidate division WOR-3 bacterium	0	0	0	0	0	0	0	35	0	0	28	0	0
+gamma proteobacterium HTCC2207	0	0	0	0	0	0	0	0	0	0	22	0	0
+gamma proteobacterium IMCC1989	0	0	0	4	0	0	0	0	0	0	0	0	0
+marine bacterium B5-7	0	0	0	0	0	0	0	0	20	0	0	0	0
+marine gamma proteobacterium HTCC2143	0	0	0	0	0	0	0	0	0	0	17	0	0
+uncultured Caudovirales phage	22	59	242	3	121	1465	434	630	252	712	326	3188	719
+uncultured Flavobacteriia bacterium	0	0	0	6	0	0	0	0	0	0	0	0	0
+uncultured Mediterranean phage	17	66	91	0	127	1655	456	671	242	433	302	3439	474
+uncultured Mediterranean phage uvMED	79	298	240	7	433	7432	1950	2852	1039	1507	1506	11496	1531
+uncultured bacterium	83	55	2763	361	247	1828	416	591	273	3892	202	2775	3986
+uncultured delta proteobacterium	0	0	0	0	0	0	0	35	0	0	0	205	0
+uncultured marine virus	15	87	121	3	138	1952	504	785	287	497	464	3272	488
+uncultured virus	42	146	330	10	393	3490	911	1698	623	921	810	6595	889
