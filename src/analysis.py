@@ -122,6 +122,20 @@ def plot_dmr_scores_heatmap(
     """
     dmr = motif.dmr_data.collect(streaming=True)
 
+    # Make a distribution plot of DMR scores
+    score_df = dmr.to_pandas()
+    fig, ax = plt.subplots(figsize=(8, 5), constrained_layout=True)
+    sns.histplot(data=score_df, x="score", bins=20, kde=True, ax=ax)
+    ax.set_yscale("log")
+    ax.set_ylim(1, 1e3)
+    ax.set_title(f"Distribution of DMR Scores - {genome.readable_name} ({motif.motif})")
+    ax.set_xlabel("DMR Score")
+    ax.set_ylabel("Count")
+    out_file_dist = output_dir / f"{genome.readable_name}_{motif.motif}_dmr_distribution.pdf"
+    plt.savefig(out_file_dist, format="pdf")
+    plt.close()
+    print(f"Saved PDF: {out_file_dist}")
+    
     # Compute mean score per (sample_a, sample_b)
     pdf = (dmr.group_by(["treatment_a", "treatment_b"]).agg(pl.col("score").mean().alias("mean_dmr_score"))).to_pandas()
 
