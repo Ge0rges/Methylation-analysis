@@ -72,7 +72,17 @@ class Genome(object):
         
         with open(treatment_info, mode='r') as file:
             reader = csv.reader(file, delimiter='\t')
-            for row in reader:
+            for i, row in enumerate(reader):
+                if row == []:
+                    print(f"Warning: Empty row found in treatment info file at line {i}. Skipping.")
+                    continue
+                
+                if i==0:
+                    if row == ["treatment", "readable_treatment", "color", "order"]:
+                        continue
+                    else:
+                        raise ValueError("Treatment info TSV file must have header 'treatment', 'readable_treatment', 'color', and 'order' at {treatment_info}.")
+                
                 treatment_name_map[row[0]] = row[1]
                 treatment_color_map[row[1]] = row[2]
                 treatment_order_map[row[1]] = row[3]
@@ -89,8 +99,14 @@ class Genome(object):
             reader = csv.reader(file, delimiter='\t')
             for i, row in enumerate(reader):
                 if i==0:
-                    print(f"WARNING: Assuming first row in {barcode_treatment_sample_file} is header")
-                    continue
+                    if row == []:
+                        print(f"Warning: Empty row found in treatment info file at line {i}. Skipping.")
+                        continue
+                
+                    if row == ['barcode', 'treatment', 'sample']:
+                        continue
+                    else:
+                        raise ValueError("Barcode treatment sample TSV file must have header 'barcode', 'treatment', and 'sample' at {barcode_treatment_sample_file}.")
                 
                 barcode_treatment_map[row[0]] = row[1]
                 barcode_replicate_map[row[0]] = row[2]
