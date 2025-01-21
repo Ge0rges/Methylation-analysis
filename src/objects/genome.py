@@ -1,90 +1,128 @@
 import os
-from src.utilities.utils import *
-from src.utilities.data_loading import get_pileup, get_dataset_genes
-from platform import system
+from pathlib import Path
 from functools import cached_property
 import glob
-from Bio import SeqRecord, SeqUtils
-from src.objects.gene_collection import GeneCollection
-from pathlib import Path
+
 import numpy as np
-from Bio import SeqIO
+import polars as pl
+from Bio import SeqIO, SeqRecord, SeqUtils
+
+# Remove or adjust as needed to point to your local utilities
+from src.utilities.utils import *
+from src.utilities.data_loading import get_dataset_genes, load_methylation_data, get_pileup
+from src.objects.gene_collection import GeneCollection
 from src.objects.motif import Motif
+
+import csv
 
 
 class Genome(object):
+    """
+    A class that represents a Genome
+    """
 
-    __min_coverage_default = 5
-    __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/"))
-    __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../bams/aligned"))
+    def __init__(
+        self,
+        genome_path: Path,
+        methylation_data_dir: Path,
+        gene_calls_path: Path,
+        functions_path: Path,
+        barcode_treatment_sample_file: Path,
+        output_dir: Path,
+        default_treatments: list[str],
+        coverage: int,
+        treatment_info: Path,
+    ):
+        self.genome_path: Path = genome_path
+        if not self.genome_path.is_file():
+            raise FileNotFoundError(f"Genome FASTA file {self.genome_path} does not exist.")
+        
+        self.gene_calls_path: Path = gene_calls_path
+        if not self.gene_calls_path.is_file():
+            raise FileNotFoundError(f"Gene calls file {self.gene_calls_path} does not exist.")
+        
+        self.function_path: Path = functions_path
+        if not self.function_path.is_file():
+            raise FileNotFoundError(f"Function file {self.function_path} does not exist.")
+        
+        self.methylation_data_dir: Path = methylation_data_dir
+        if not self.methylation_data_dir.is_dir():
+            raise FileNotFoundError(f"Directory {self.methylation_data_dir} does not exist.")
+        
+        self.output_dir: Path = output_dir
+        self.output_dir.mkdir(exist_ok=True, parents=True)
+        if not self.output_dir.is_dir():
+            raise FileNotFoundError(f"Output directory {self.output_dir} does not exist and could not be created.")
 
-    if system() == "Darwin":
-        __methylation_data_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/methylation_data/"))
-        __bam_dir = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data/bams/"))
+        self.default_coverage: int = coverage
+        if coverage < 1:
+            raise ValueError(f"Coverage must be at least 1, not {coverage}.")
+        
+        self.default_treatments: list[str] = default_treatments
+        if default_treatments is None:
+            raise ValueError("No default treatments provided.")
+        
+        elif len(default_treatments) < 2:
+            raise ValueError("At least two treatments must be provided.")
+        
+        # Load treatment information mappings
+        treatment_name_map = {}
+        treatment_color_map = {}
+        treatment_order_map = {}
+        
+        with open(treatment_info, mode='r') as file:
+            reader = csv.reader(file, delimiter='\t')
+            for row in reader:
+                treatment_name_map[row[0]] = row[1]
+                treatment_color_map[row[1]] = row[2]
+                treatment_order_map[row[1]] = row[3]
+        
+        self.treatment_name_map: dict[str, str] = treatment_name_map
+        self.treatment_color_map: dict[str, str] = treatment_color_map
+        self.treatment_order_map: dict[str, str] = treatment_order_map
+        
+        # Load barcode→treatment mappings
+        barcode_replicate_map = {}
+        barcode_treatment_map = {}
 
-    def __init__(self, name: str):
-        exp_params = None
-        if "34h" in Genome.__methylation_data_dir.__str__():
-            exp_params = colwellia_study
+        with open(barcode_treatment_sample_file, mode='r') as file:
+            reader = csv.reader(file, delimiter='\t')
+            for i, row in enumerate(reader):
+                if i==0:
+                    print(f"WARNING: Assuming first row in {barcode_treatment_sample_file} is header")
+                    continue
+                
+                barcode_treatment_map[row[0]] = row[1]
+                barcode_replicate_map[row[0]] = row[2]
 
-        elif "sar11" in Genome.__methylation_data_dir.__str__():
-            exp_params = sar11_study
+        self.barcode_treatment_map: dict[str, str] = barcode_treatment_map                
+        self.barcode_replicate_map: dict[str, str] = barcode_replicate_map
 
-        elif "methylation" in Genome.__methylation_data_dir.__str__():
-            exp_params = metagenome_study
-
-        self._barcode_replicate_map = exp_params[0]
-        self._barcode_treatment_map = exp_params[1]
-        self._default_treatments = exp_params[2]
-
-
-        self.name: str = name
-        self._methylation_data_dir: Path = Genome.__methylation_data_dir / self.name
-
-        if not self._is_valid_genome_name():
-            raise ValueError(f"Genome {self.name} not found in the data directory.")
-
-        self.readable_name: str = name.capitalize().split("_r-contigs")[0] + " sp."
-        self.plot_dir: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), f"../../plots/{Genome.__methylation_data_dir.name}/{self.name}"))
-        self.plot_dir.mkdir(exist_ok=True, parents=True)
-
-        self._bam_dir: Path = Genome.__bam_dir / self.name
-        self.genome_path: Path = Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../data", "mags", f"{self.name}.fna"))
-
-
-    @classmethod
-    def valid_genome_names(cls) -> list[str]:
-        # Check if genome exists in the data directory
-        return [str(name.name) for name in cls.__methylation_data_dir.iterdir() if (cls.__methylation_data_dir / name).is_dir()]
-
-
-    def _is_valid_genome_name(self) -> bool:
-        # Check if genome exists in the data directory
-        return os.path.exists(self._methylation_data_dir)
+        # Create a "readable_name" for display
+        self.readable_name: str = (genome_path.stem.capitalize().split("_r-contigs")[0] + " sp.")
 
 
     @cached_property
-    def sequence(self) -> dict[str, SeqRecord]:
+    def sequence(self) -> dict[str, SeqRecord.SeqRecord]:
         """
-        Read genomic sequence data from file.
-
-        :param path: Path to .fasta file.
-        :type path: str
-        :return: Dataframe of file data
-        :rtype: pandas.DataFrame
+        Lazily load the FASTA into a dictionary of SeqRecords by contig name.
         """
-        fasta_dict = SeqIO.index(str(self.genome_path), "fasta")
-        return fasta_dict
+        return SeqIO.index(str(self.genome_path), "fasta")
 
-
-    @cached_property
-    def motifs(self) -> list[Motif]:
-        return Motif.load_from_modkit(self)
 
     @cached_property
     def gc_content(self):
         gcs = np.asarray([SeqUtils.gc_fraction(x.seq, ambiguous="weighted") for x in self.sequence.values()])
         return gcs.mean()
+    
+    
+    @cached_property
+    def motifs(self) -> list[Motif]:
+        """
+        Load Motif objects. Marked as TODO if you no longer load from modkit
+        or you have an alternative approach for motif analysis.
+        """
+        return Motif.load_from_modkit(self)
 
 
     @cached_property
@@ -95,13 +133,12 @@ class Genome(object):
     @cached_property
     def gene_ids(self) -> list[int]:
         # This works because modkit takes a reference and then does pileup one area within that reference only.
-        bed_files = [Path(f) for f in glob.glob(str(self._methylation_data_dir / "*.bed")) if '-bedgraph' not in os.path.basename(f)]
+        bed_files = [Path(f) for f in glob.glob(str(self.methylation_data_dir / "*.bed")) if '-bedgraph' not in os.path.basename(f)]
 
         all_data = []
         for bed_file in bed_files:
             # Load the data for the positions that overlap only
-            methyl_data = get_pileup(bed_file).select("contig", "inclusive start position",
-                                                             "exclusive end position", "strand")
+            methyl_data = get_pileup(bed_file).select("contig", "inclusive start position", "exclusive end position", "strand")
             methyl_data = methyl_data.rename({"inclusive start position": "position", "exclusive end position": "end"})
 
             all_data.append(methyl_data)
@@ -114,132 +151,35 @@ class Genome(object):
         return gene_ids
 
 
-    def load_all_methylation_data(self, triplicates_only: bool = False, in_every_treatment: bool = True,
-                                  coverage: int = __min_coverage_default, normalize: bool = True,
-                                  treatments: list[str] = None) -> pl.LazyFrame:
-        treatments = self._default_treatments if treatments is None else treatments
-        return self.load_region_methylation_data(triplicates_only, in_every_treatment, coverage, None, normalize, treatments)
+    def load_methylation_data(
+        self,
+        in_every_treatment: bool = True,
+        triplicates_only: bool = False,
+        treatments: list[str] | None = None,
+        region_filter: pl.Expr | pl.LazyFrame | None = None,
+        normalize: bool = True,
+    ) -> pl.LazyFrame | None:
+        # Get bed_files
+        bed_files = [
+            Path(f) for f in glob.glob(str(self.methylation_data_dir / "*.bed"))
+            if '-bedgraph' not in os.path.basename(f)
+        ]
 
+        df = load_methylation_data(
+            self,
+            bed_files=bed_files,
+            in_every_treatment=in_every_treatment,
+            triplicates_only=triplicates_only,
+            treatments=treatments or self.default_treatments,
+            region_filter=region_filter,
+            normalize=normalize
+        )
 
-    def load_region_methylation_data(self, triplicates_only: bool = False, in_every_treatment: bool = True,
-                                     coverage: int = __min_coverage_default,
-                                     region_filter: pl.Expr | pl.LazyFrame | None = None, normalize: bool = True,
-                                     treatments: list[str] = None) -> pl.LazyFrame | None:
-        treatments = self._default_treatments if treatments is None else treatments
-
-        # Get all the bed files for this genome
-        bed_files = [Path(f) for f in glob.glob(str(self._methylation_data_dir / "*.bed")) if '-bedgraph' not in os.path.basename(f)]
-
-        all_data = []
-        for bed_file in bed_files:
-            # Load only asked treamtent samples
-            sample_name = os.path.basename(bed_file).split(".")[0]
-            treatment = self._barcode_treatment_map[sample_name]
-            if treatments is not None and treatment not in treatments:
-                continue
-
-            # Load the data for the positions that overlap only
-            methyl_data = get_pileup(bed_file)
-            if isinstance(region_filter, pl.Expr):
-                methyl_data = methyl_data.filter(region_filter)
-
-            elif isinstance(region_filter, pl.LazyFrame):
-                og_columns = methyl_data.collect_schema().names()
-
-                # method 2
-                methyl_data.sort = methyl_data.sort(["contig", "strand", "inclusive start position"], descending=False)
-                region_filter = region_filter.sort(["filter_contig", "filter_strand", "filter_start"], descending=False)
-                methyl_data = methyl_data.join_asof(region_filter,
-                                                    left_on="inclusive start position",
-                                                    right_on="filter_start",
-
-                                                    # By columns guarrantee equality
-                                                    by_left=["contig", "strand"],
-                                                    by_right=["filter_contig", "filter_strand"],
-
-                                                    # filter_start <= inclusive start because of backward strategy
-                                                    # Takes the last key that satisfies this inequality
-                                                    # Which is good since preceeding genes will be filtered out
-                                                    strategy="backward"
-                                                    )
-
-                # Do a filter for the end
-                methyl_data = methyl_data.filter(pl.col("inclusive start position") <= pl.col("filter_end"))
-                methyl_data = methyl_data.select(*og_columns)
-
-                # Compare the dataframes
-                assert True not in methyl_data.select(*og_columns).collect().is_duplicated(), "Duplicated data found."
-
-            elif region_filter is not None:
-                raise ValueError("Region filter must be of type pl.Expr, pl.LazyFrame, or None.")
-
-            methyl_data = reshape_pileup_to_matrix_polars(methyl_data)
-            if methyl_data is None:
-                continue
-
-            # Filter for coverage and no full Null/NaN values
-            modification_types = list(readable_modification_name.keys())
-            methyl_data = (methyl_data.filter(
-                pl.any_horizontal(
-                    pl.col(modification_types).is_not_null() &
-                    pl.col(modification_types).cast(pl.Float64, strict=False).is_not_nan()
-                ) &
-                pl.concat_list(modification_types).list.sum().ge(coverage))
-            )
-
-            # Add sample column
-            methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
-
-            all_data.append(methyl_data)
-
-        if len(all_data) == 0:
+        if df is None:
             print(f"No data found for {self.name}")
             return None
-
-        result = pl.concat(all_data)
-
-        # Rename
-        result = result.rename({"inclusive start position": "position"})
-
-        # Keep only positions that are in all samples
-        if in_every_treatment and triplicates_only:
-            og_columns = result.collect_schema().names()
-            triplicate_positions = (result.group_by("contig", "strand", "position")
-                                    .agg(pl.col("sample").n_unique().alias("sample_count"))
-                                    .filter(pl.col("sample_count").eq(len(treatments) * 3)))
-
-            result = (result.join(triplicate_positions, on=["contig", "strand", "position"], how="inner")
-                      .select(*og_columns))
-
-        # Keep only positions that occur in triplicate within a treatment
-        elif triplicates_only:
-            og_columns = result.collect_schema().names()
-            triplicate_positions = result.with_columns(pl.col("sample").replace_strict(self._barcode_replicate_map).alias("treatment"))
-            triplicate_positions = (triplicate_positions.group_by("contig", "strand", "position", "treatment")
-                                    .agg(pl.col("sample").n_unique().alias("treatment_count"), pl.col("sample"))
-                                    .explode("sample")
-                                    .filter(pl.col("treatment_count").eq(3)))
-
-            result = (result.join(triplicate_positions, on=["contig", "strand", "position", "sample"], how="inner")
-                      .select(*og_columns))
-
-        # Keep any position that occurs at least once in all treatments
-        elif in_every_treatment:
-            og_columns = result.collect_schema().names()
-            triplicate_positions = result.with_columns(pl.col("sample").replace_strict(self._barcode_replicate_map).alias("treatment"))
-            triplicate_positions = (triplicate_positions.group_by("contig", "strand", "position")
-                                    .agg(pl.col("treatment").n_unique().alias("treatment_count"), pl.col("sample"))
-                                    .explode("sample")
-                                    .filter(pl.col("treatment_count").eq(3)))
-
-            result = (result.join(triplicate_positions, on=["contig", "strand", "position", "sample"], how="inner")
-                      .select(*og_columns))
-
-        # Normalize to fraction
-        if normalize:
-            result = normalize_data_by_pileup(result)
-
-        return result
+        
+        return df
 
 
     def add_genome_relative_position(self, df: pl.LazyFrame) -> pl.LazyFrame:

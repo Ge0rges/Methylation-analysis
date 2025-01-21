@@ -291,8 +291,23 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
 def normalize_data_by_pileup(df: pl.DataFrame | pl.LazyFrame) -> pl.LazyFrame | pl.DataFrame:
     for base, meth_group in base_methylation_map.items():
         norm_columns = meth_group + ["Ncanonical_" + base]
-        for meth_key in norm_columns:
-            df = df.with_columns(pl.col(meth_key) / pl.concat_list(*norm_columns).list.sum())
+        df = df.with_columns(pl.col(meth_key) / pl.concat_list(*norm_columns).list.sum() for meth_key in norm_columns)
+
+    return df
+
+
+def treatment_weighted_mean(df: pl.DataFrame | pl.LazyFrame) -> pl.LazyFrame | pl.DataFrame:
+    for base, meth_group in base_methylation_map.items():
+        norm_columns = meth_group + ["Ncanonical_" + base]
+        
+        df = df.with_columns(pl.concat_list(*norm_columns).list.sum().alias(f"total_coverage_{base}"))
+        df = df.with_columns((pl.col(meth_key) / pl.col(f"total_coverage_{base}")).alias(meth_key+"_fraction") for meth_key in norm_columns)
+
+    df = df.group_by("contig", "position", "strand", "treatment").agg([
+        ((pl.col(meth_key+"_fraction") * pl.col(f"total_coverage_{base}")).sum() / pl.col(f"total_coverage_{base}").sum()).alias(meth_key)
+        for base, meth_group in base_methylation_map.items()
+        for meth_key in (meth_group + ["Ncanonical_" + base])
+    ])
 
     return df
 
