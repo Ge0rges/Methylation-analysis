@@ -5,12 +5,14 @@ import matplotlib.pylab as plt
 import os
 
 from src.utilities.data_loading import get_coverage
-from src.utilities.utils import readable_sample_name, barcode_replicate_map, read_counts
+from src.utilities.utils import metagenome_study, read_counts
 from matplotlib.colors import LogNorm
 from pathlib import Path
 
 sns.set_theme(context="poster", style="white")
 
+readable_sample_name = metagenome_study[0]
+barcode_replicate_map = metagenome_study[1]
 
 def plot_coverage():
     """
@@ -23,11 +25,18 @@ def plot_coverage():
     coverage = get_coverage(Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/"))).collect().to_pandas()
     coverage.rename(inplace=True, columns=barcode_replicate_map)
     coverage.rename(inplace=True, columns=readable_sample_name)
+    
+    # Remove metagenome_assembly row in Genome
+    coverage = coverage[coverage['Genome'] != "metagenome_assembly"]
 
     # Clean the mag names
     coverage['Genome'] = coverage['Genome'].str.title()
     coverage.columns = coverage.columns.str.title()
     coverage['Genome'] = coverage['Genome'].str.replace("_R-Contigs", " sp.")
+    
+    # Rename column Control_barcode04 to Control and exclude Core-* columns
+    coverage.rename(inplace=True, columns={"Control_Barcode04": "Control"})
+    coverage = coverage[coverage.columns[~coverage.columns.str.contains("Core-")]]
 
     # Format it
     coverage.set_index(coverage['Genome'], inplace=True)
@@ -129,13 +138,14 @@ def read_count_plot():
     # Some modifications for cores
     barcode_replicate_map["barcode11"] = "top"
     barcode_replicate_map["barcode12"] = "bottom"
-    barcode_replicate_map["barcode13"] = "interface"
+    barcode_replicate_map["barcode13"] = "ocean interface"
     barcode_replicate_map["barcode14"] = "middle"
 
     readable_sample_name["barcode11"] = "IC3-1"
     readable_sample_name["barcode12"] = "IC3-2"
     readable_sample_name["barcode13"] = "IC3-3"
     readable_sample_name["barcode14"] = "IC3-4"
+    readable_sample_name["barcode04"] = "Control"
 
     for key, value in readable_sample_name.items():
         readable_sample_name[key] = value.split("-")[0]
@@ -148,17 +158,20 @@ def read_count_plot():
     df = df.sort("Sample")
     df = df.to_pandas()
 
-    hue_order = ["top", "middle", "bottom", "interface", "control"]
+    hue_order = ["top", "middle", "bottom", "ocean interface", "control"]
 
     fig, axes = plt.subplots(figsize=(20, 10))
 
     g = sns.barplot(data=df, x="Sample", y="Read count", hue="Sea-ice horizon", hue_order=hue_order, ax=axes)
     plt.title("Read counts per sample")
 
-    new_labels = ['Top', 'Middle', "Bottom", "Interface", "Control"]
+    new_labels = ['Top', 'Middle', "Bottom", "Ice-Ocean interface", "Control"]
     for t, l in zip(g.legend().texts, new_labels):
         t.set_text(l)
 
+    # Make y axis log
+    plt.yscale("log")
+    
     plt.savefig(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../plots/read_counts.pdf"), format='pdf', bbox_inches="tight")
 
 
