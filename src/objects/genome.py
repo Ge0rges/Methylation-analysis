@@ -301,5 +301,6 @@ class Genome(object):
 
         # Concatenate all results into a single DataFrame
         results = pl.concat(results, how="vertical")
+        
         return pl.concat([positions_df, results], how="horizontal")
 

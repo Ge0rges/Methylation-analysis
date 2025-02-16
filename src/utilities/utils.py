@@ -2,6 +2,7 @@ import itertools
 import textwrap
 import random
 import polars as pl
+import numpy as np
 
 readable_modification_name = {"21839": "4mC", "m": "5mC", "a": "6mA", "Ncanonical_A": "A", "Ncanonical_C": "C"}
 readable_methylation_name = {"21839": "4mC", "m": "5mC", "a": "6mA"}
@@ -214,3 +215,39 @@ def generate_cross_validation_sets(df: pl.DataFrame, unique_col: str, treatmeant
     combination = all_permutations[boot_id]
     df = df.filter(pl.col(sample_col).is_in(combination))
     return df
+
+
+def create_methylation_bins(num_bins: int, low: float = 0, high: float = 1) -> tuple[list[float], list[str]]:
+    """
+    Create bin boundaries and corresponding labels for methylation values.
+
+    The function generates an extended set of boundaries (by adding two extra bins)
+    and then removes the first and last bins so that the resulting bins are labeled
+    consistently. For example, if num_bins=3, it returns three bin labels such as:
+    ["0.30-0.60", "0.60-0.90", "0.90-1.20"] (depending on the low/high values).
+
+    Parameters:
+      num_bins: The desired number of bins (e.g., 3).
+      low: The lower bound of the methylation range (default: 0).
+      high: The upper bound of the methylation range (default: 1).
+
+    Returns:
+      A tuple (cut_points, bin_labels) where:
+         - cut_points is a list of boundary values to be used with a cut function.
+         - bin_labels is a list of string labels corresponding to each bin.
+    """
+    # Adjust the number of bins by adding two extra bins
+    adjusted_bins = num_bins + 2
+    cut_points = np.linspace(low, high, adjusted_bins - 1).tolist()
+
+    bin_labels = []
+    for i in range(adjusted_bins):
+        if i == 0:
+            bin_labels.append(f"<={cut_points[i]:.2f}")
+        elif i == adjusted_bins - 1:
+            bin_labels.append(f">{cut_points[i-1]:.2f}")
+        else:
+            bin_labels.append(f"{cut_points[i-1]:.2f}-{cut_points[i]:.2f}")
+
+    # Remove the first and last bins to obtain the desired number of bins.
+    return cut_points[1:-1], bin_labels[1:-1]

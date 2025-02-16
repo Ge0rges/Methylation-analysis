@@ -108,20 +108,36 @@ class Motif(object):
         all_data = []
         for bed_file in dmr_dir.glob("*.bed"):
             sample_a = bed_file.stem.split("_")[0]
-            sample_b = bed_file.stem.split("_")[1]
-            assert len(bed_file.stem.split("_")) == 2, f"DMR bed file name should be formatted as SAMPLE1_SAMPLE2.bed, found {bed_file.stem}"
+            sample_b = bed_file.stem.split("_")[-1]
+            assert len(bed_file.stem.split("_")) == 3, f"DMR bed file name should be formatted as SAMPLE1_vs_SAMPLE2.bed, found {bed_file.stem}"
 
             # Load DMR data
-            dmr_data = (pl.scan_csv(str(bed_file), separator="\t", has_header=False, new_columns=["contig", "position", "end", "name", "score", "strand", "sample_a counts", "sample_a total",  "sample_b counts", "sample_b total", "sample_a percents", "sample_b percents", "sample_a fraction modified", "sample_b fraction modified"], 
-                                    schema_overrides={"contig": pl.String, "position": pl.Int64, "end": pl.Int64, "name": pl.String, "score": pl.Float64, "strand": pl.String})
-                         .with_columns((pl.col("strand") == "+").alias("strand"), pl.lit(sample_a).alias("treatment_a"), pl.lit(sample_b).alias("treatment_b"))
-                         .select("contig", "position", "strand", "score", "treatment_a", "treatment_b"))
+            try:
+                dmr_data = (pl.scan_csv(str(bed_file), separator="\t", has_header=False, 
+                                        new_columns=["contig", "position", "end", "name", "score", "strand", 
+                                                     "sample_a counts", "sample_a total",  
+                                                    "sample_b counts", "sample_b total", "sample_a percents", 
+                                                    "sample_b percents", "sample_a fraction modified", "sample_b fraction modified"], 
+                                        schema_overrides={"contig": pl.String, "position": pl.Int64, "end": pl.Int64, 
+                                                          "name": pl.String, "score": pl.Float64, "strand": pl.String})
+                            .with_columns((pl.col("strand") == "+").alias("strand"),
+                                           pl.lit(sample_a).alias("treatment_a"), 
+                                           pl.lit(sample_b).alias("treatment_b"))
+                            .select("contig", "position", "strand", "score", "treatment_a", "treatment_b"))
+                
+                # Filter such that both treatments are in the requested ones
+                dmr_data = dmr_data.filter(pl.col("treatment_a").is_in(self.genome.default_treatments), 
+                                           pl.col("treatment_b").is_in(self.genome.default_treatments))
+                all_data.append(dmr_data)
+
+            except Exception as e:
+                print(f"Encountered an error reading the CSV: {e} file was {bed_file}")
+                continue
             
-            # Filter such that both treatments are in the requested ones
-            dmr_data = dmr_data.filter(pl.col("treatment_a").is_in(self.genome.default_treatments) & pl.col("treatment_b").is_in(self.genome.default_treatments))
-            
-            all_data.append(dmr_data)
-        
+        if len(all_data) == 0:
+            print(f"No DMR data found for motif {self.motif}")
+            return pl.DataFrame(schema={"contig": pl.String, "position": pl.Int64, "strand": pl.Boolean, "score": pl.Float64, "treatment_a": pl.String, "treatment_b": pl.String}).lazy()
+
         dmr_data = pl.concat(all_data)
     
         return dmr_data

@@ -9,7 +9,7 @@ from pathlib import Path
 from src.objects.genome import Genome
 from src.objects.gene_collection import GeneCollection
 from src.objects.motif import Motif
-from src.utilities.utils import methylation_base_map, treatment_weighted_mean, readable_modification_name
+from src.utilities.utils import treatment_weighted_mean, readable_modification_name, create_methylation_bins
 import numpy as np
 
 ##############################################################################
@@ -121,7 +121,10 @@ def plot_dmr_scores_heatmap(
     Each motif -> separate PDF.
     """
     dmr = motif.dmr_data.collect(streaming=True)
-
+    if dmr.is_empty():
+        print(f"No DMR data for motif {motif.motif}")
+        return
+    
     # Make a distribution plot of DMR scores
     score_df = dmr.to_pandas()
     fig, ax = plt.subplots(figsize=(8, 5), constrained_layout=True)
@@ -188,19 +191,7 @@ def plot_parallel_categories_methylation(
     )
 
     # Bin data
-    bins += 2 # We will remove the first and last
-    cut_points = np.linspace(0, 1, bins - 1).tolist()
-    bin_labels = []
-    for i in range(bins):
-        if i == 0:
-            bin_labels.append(f"<={cut_points[i]:.2f}")
-        elif i == bins - 1:
-            bin_labels.append(f">{cut_points[i-1]:.2f}")
-        else:
-            bin_labels.append(f"{cut_points[i-1]:.2f}-{cut_points[i]:.2f}")
-    
-    cut_points = cut_points[1:-1]
-    bin_labels = bin_labels[1:-1]
+    cut_points, bin_labels = create_methylation_bins(bins)
     pivoted = pivoted.with_columns(pl.col(treatment).cut(cut_points, labels=bin_labels) for treatment in treatments).to_pandas()
 
     cat_to_num = {key: i for i, key in enumerate(bin_labels)}
@@ -225,6 +216,131 @@ def plot_parallel_categories_methylation(
     fig.write_html(str(out_file))
     print(f"Saved HTML: {out_file}")
 
+     
+
+def extract_motif_data_all_transitions(
+    genome: "Genome",
+    motif: "Motif",
+    bins: int = 3,
+) -> None:
+    """
+    Extract all motif data (from motif.data(normalize=False)) for each unique methylation
+    transition across treatments. For each unique transition found in the data, this function
+    outputs a separate CSV file (with gene annotations).
+
+    The binning of methylation values is performed using a shared helper function to ensure
+    consistency with the parallel categories plot.
+
+    Parameters:
+      genome: Genome object containing barcode/treatment maps and output info.
+      motif: Motif object that provides the full motif data.
+      bins: The number of bins used for methylation values (default: 3).
+
+    Returns:
+      None. (CSV files are written to genome.output_dir.)
+    """
+    # 1. Collect the full motif data and map samples to treatments.
+    df = motif.data(normalize=False).collect(streaming=True)
+    df = df.with_columns(
+        pl.col("sample")
+          .replace_strict(genome.barcode_treatment_map)
+          .replace_strict(genome.treatment_name_map)
+          .alias("treatment")
+    )
+
+    # Add a composite key for later filtering.
+    df = df.with_columns(
+        pl.concat_str(
+            [pl.col("contig").cast(str),
+             pl.col("position").cast(str),
+             pl.col("strand").cast(str)],
+            separator="_"
+        ).alias("composite_key")
+    )
+
+    # (Optional) Apply treatment weighting if your workflow requires it.
+    df = treatment_weighted_mean(df)
+
+    # 2. Pivot the data so that each row (identified by contig, position, strand)
+    #    has one column per treatment with methylation values given by motif.meth_type.
+    pivoted = df.pivot(
+        index=["contig", "position", "strand"],
+        on="treatment",
+        values=motif.meth_type,
+    )
+
+    # 3. Determine the unique treatments and sort them using genome.treatment_order_map.
+    treatments = df["treatment"].unique().to_list()
+    sorted_treatments = sorted(treatments, key=genome.treatment_order_map.get)
+
+    # 4. Create bins for the methylation values using the helper function.
+    cut_points, bin_labels = create_methylation_bins(bins)
+
+    # 5. Bin the methylation values in each treatment column.
+    pivoted = pivoted.with_columns(
+        [pl.col(treatment).cut(cut_points, labels=bin_labels) for treatment in treatments]
+    )
+
+    # 6. Identify every unique transition present in the data.
+    unique_transitions_df = pivoted.select(sorted_treatments).unique()
+
+    # 7. For each unique transition, filter the data and output a CSV.
+    for transition_row in unique_transitions_df.iter_rows(named=True):
+        # Build the transition tuple in the sorted treatment order.
+        transitions = tuple(transition_row[col] for col in sorted_treatments)
+        
+        # Skip this for loop if the transitions has a None element
+        if None in transitions:
+            continue
+        
+        # Build the filter condition.
+        condition = pl.lit(True)
+        for col, val in zip(sorted_treatments, transitions):
+            if val is None:
+                condition &= pl.col(col).is_null()
+            else:
+                condition &= (pl.col(col) == val)
+        
+        filtered = pivoted.filter(condition)
+        if filtered.is_empty():
+            continue
+
+        # 10. Annotate with gene information.
+        data = genome.add_gene_caller_id(filtered.lazy(), include_intergenic=True).collect(streaming=True)
+        gc = GeneCollection(data.get_column("gene_callers_id").unique().to_list(), genome)
+        data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id", how="left")
+        
+        # Check if we can continue
+        out_file = genome.output_dir / f"{genome.readable_name}_{motif.motif}_motif_transition_{'_'.join(transitions)}.csv"
+        if data.is_empty():
+            # Print "No data for this transition" to output file
+            with open(out_file, "w") as f:
+                f.write(f"No data for transition {transitions}")
+            print(f"Saved CSV for transition {transitions}: {out_file}")
+            continue
+        
+        data = genome.nearest_gene_to_positions(data)
+        gc = GeneCollection(data.get_column("gene_callers_id_start").unique().to_list(), genome)
+        data = data.join(
+            gc.get_function().collect(streaming=True),
+            left_on="gene_callers_id_start",
+            right_on="gene_callers_id",
+            how="left",
+            suffix="_start"
+        )
+        gc = GeneCollection(data.get_column("gene_callers_id_end").unique().to_list(), genome)
+        data = data.join(
+            gc.get_function().collect(streaming=True),
+            left_on="gene_callers_id_end",
+            right_on="gene_callers_id",
+            how="left",
+            suffix="_end"
+        )
+
+        # 11. Write the annotated data to CSV. The filename encodes the transition pattern.
+        data.write_csv(out_file)
+        print(f"Saved CSV for transition {transitions}: {out_file}")
+
 
 ##############################################################################
 # 5) EXTRACT DIFF METHYLATED GENES (WITH GENE FUNCTION)
@@ -241,7 +357,10 @@ def extract_diff_methylated_genes(
 
     Returns a Polars DataFrame.
     """
-    top_rows = motif.dmr_data.collect(streaming=True).sort("score", descending=True).head(top_n)
+    top_rows = motif.dmr_data.collect(streaming=True).sort("score", descending=True)
+    if top_rows.is_empty():
+        print(f"No DMR data for motif {motif.motif}")
+        return
 
     # Now, we want to add the gene function from some table. Typically:
     # 1) Add gene_caller_id for direct hits
@@ -265,3 +384,27 @@ def extract_diff_methylated_genes(
 
     # Write to CSV
     data.write_csv(genome.output_dir / f"{genome.readable_name}_{motif.motif}_top_diff_genes.csv")
+
+
+
+def write_basic_stats(genome, motif):
+    site_count = motif.positions.unique(subset=["contig", "position", "strand"]).collect().height
+    
+    # Compute weighted fraction using treatment_weighted_mean
+    df = motif.data(normalize=False).collect(streaming=True)
+    df = df.with_columns(pl.col("sample").replace_strict(genome.barcode_treatment_map).replace_strict(genome.treatment_name_map).alias("treatment"))
+    df_fraction = treatment_weighted_mean(df).rename({"treatment": "Treatment"})
+
+    avg_fraction = df_fraction.select(pl.col(motif.meth_type).mean()).to_series()[0]
+
+    out_file = genome.output_dir / f"{genome.readable_name}_{motif.motif}_basic_stats.txt"
+    with open(out_file, "w") as f:
+        f.write(f"Number of sites: {site_count}\n")
+        treatments = df.get_column("treatment").unique().to_list()
+        for t in treatments:
+            slice_df = df.filter(pl.col("treatment") == t)
+            site_count_treatment = slice_df.unique(subset=["contig", "position", "strand"]).height
+            f.write(f"Number of sites with data for {t}: {site_count_treatment}\n")
+        f.write(f"Average {motif.meth_type} fraction: {avg_fraction}\n")
+
+    print(f"Saved file: {out_file}")

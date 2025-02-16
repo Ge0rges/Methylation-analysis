@@ -19,11 +19,32 @@ def get_pileup(path: Path) -> pl.LazyFrame:
     :return: Dataframe of file data
     :rtype: pandas.DataFrame
     """
-    pileup = pl.scan_csv(path, separator="\t", has_header=False,
+    try:
+        pileup = pl.scan_csv(path, separator="\t", has_header=False,
                          new_columns=["contig", "inclusive start position", "exclusive end position",
                                       "modified base code and motif", "score", "strand", "start position2",
                                       "end position2", "color", "Nvalid_cov", "fraction modified", "Nmod", "Ncanonical",
                                       "Nother_mod", "Ndelete", "Nfail", "Ndiff", "Nnocall"])
+    except pl.exceptions.NoDataError:
+        print(f"No data found for {path}.")
+        # Return an empty dataframe with the same columns
+        pileup = pl.DataFrame(schema={
+            "contig": pl.Utf8,
+            "inclusive start position": pl.Int64,
+            "exclusive end position": pl.Int64,
+            "modified base code and motif": pl.Utf8,
+            "strand": pl.Utf8,
+            "Nvalid_cov": pl.Int64,
+            "fraction modified": pl.Float64,
+            "Nmod": pl.Int64,
+            "Ncanonical": pl.Int64,
+            "Nother_mod": pl.Int64,
+            "Ndelete": pl.Int64,
+            "Nfail": pl.Int64,
+            "Ndiff": pl.Int64,
+            "Nnocall": pl.Int64
+        }).lazy()
+        return pileup
 
     # Drop redundant columns
     pileup = pileup.drop("score", "start position2", "end position2", "color")

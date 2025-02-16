@@ -6,7 +6,9 @@ from analysis import (
     plot_motif_methylation_distribution,
     plot_dmr_scores_heatmap,
     plot_parallel_categories_methylation,
-    extract_diff_methylated_genes
+    extract_motif_data_all_transitions,
+    extract_diff_methylated_genes,
+    write_basic_stats
 )
 
 
@@ -95,20 +97,24 @@ def analyze_genome(
     for motif in motifs:
         click.echo(f"Analyzing motif: {motif.motif} (meth_type={motif.meth_type})")
 
-        # 1) Whole methylome plot for this motif type
+        # Whole methylome plot for this motif type
         plot_whole_methylome(genome, motif, output_dir)
 
-        # 2) Motif-level methylation across treatments
+        # Motif-level methylation across treatments
         plot_motif_methylation_distribution(genome, motif, output_dir)
 
-        # 3) DMR scores heatmap
+        # DMR scores heatmap
         plot_dmr_scores_heatmap(genome, motif, output_dir)
 
-        # 4) Parallel categories
+        # Parallel categories
         plot_parallel_categories_methylation(genome, motif, output_dir, bins=3)
 
-        # 5) Extract top 10 diff. methylated genes
+        # Extract top 10 diff. methylated genes
+        extract_motif_data_all_transitions(genome, motif)
         extract_diff_methylated_genes(genome, motif, top_n=10)
+        
+        # Basic stats file
+        write_basic_stats(genome, motif)
 
     click.echo("Analysis complete.")
 
