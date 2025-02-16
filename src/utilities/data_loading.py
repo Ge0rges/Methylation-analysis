@@ -43,7 +43,7 @@ def get_dataset_genes(genome: Genome) -> pl.LazyFrame:
     Returns:
     pandas.DataFrame: DataFrame with gene functions.
     """
-    gene_calls = pl.scan_csv(genome._methylation_data_dir / "../gene-calls.txt", separator="\t")
+    gene_calls = pl.scan_csv(genome.gene_calls_path, separator="\t")
 
     # Map direction to +/-
     gene_calls = gene_calls.with_columns(pl.col("direction").replace_strict({"f": True, "r": False}))
@@ -157,3 +157,146 @@ def get_coverage(data_dir: Path, genome_name=None, agg=False) -> pl.LazyFrame:
         return coverage.select(*list(sample_group_barcodes.keys()), "Genome")
 
     return coverage
+
+
+def load_methylation_data(
+    genome: Genome,
+    bed_files: list[Path],
+    in_every_treatment: bool,
+    triplicates_only: bool,
+    treatments: list[str] | None = None,
+    region_filter: pl.Expr | pl.LazyFrame | None = None,
+    normalize: bool = True,
+) -> pl.LazyFrame | None:
+    """
+    :param bed_files: List of .bed file paths to load.
+    :param coverage: Coverage threshold.
+    :param barcode_treatment_map: Maps a sample name -> treatment name.
+    :param barcode_replicate_map: Maps a sample name -> replicate or something similar.
+    :param treatments: List of treatments to include; if None, include all.
+    :param region_filter: Either a pl.Expr, a pl.LazyFrame, or None.
+    :param triplicates_only: If True, keep only triplicate positions.
+    :param in_every_treatment: If True, keep only positions present in *all* treatments.
+    :param normalize: Whether to normalize the data to fractions.
+    :return: A polars.LazyFrame or None if no data was found.
+    """
+    assert len(bed_files) > 0, "No bed files provided."
+    assert genome.default_coverage > 0, "Coverage must be greater than 0."
+    
+    # Collect all the data from each bed file
+    all_data = []
+    for bed_file in bed_files:
+        sample_name = bed_file.stem
+        
+        # Skip sample if not in treatments
+        if genome.barcode_treatment_map and treatments:
+            treatment = genome.barcode_treatment_map.get(sample_name)
+            if treatment not in treatments:
+                continue
+        
+        # Load pileup
+        methyl_data = get_pileup(bed_file)
+
+        # Apply region filter if provided
+        if isinstance(region_filter, pl.Expr):
+            methyl_data = methyl_data.filter(region_filter)
+            
+        elif isinstance(region_filter, pl.LazyFrame):
+            og_columns = methyl_data.collect_schema().names()
+
+            # Join ASOF
+            methyl_data.sort = methyl_data.sort(["contig", "strand", "inclusive start position"], descending=False)
+            region_filter = region_filter.sort(["filter_contig", "filter_strand", "filter_start"], descending=False)
+            methyl_data = methyl_data.join_asof(region_filter,
+                                                left_on="inclusive start position",
+                                                right_on="filter_start",
+
+                                                # By columns guarrantee equality
+                                                by_left=["contig", "strand"],
+                                                by_right=["filter_contig", "filter_strand"],
+
+                                                # filter_start <= inclusive start because of backward strategy
+                                                # Takes the last key that satisfies this inequality
+                                                # Which is good since preceeding genes will be filtered out
+                                                strategy="backward"
+                                                )
+
+            # Do a filter for the end
+            methyl_data = methyl_data.filter(pl.col("inclusive start position") <= pl.col("filter_end"))
+            methyl_data = methyl_data.select(*og_columns)
+
+            # Compare the dataframes
+            assert True not in methyl_data.select(*og_columns).collect().is_duplicated(), "Duplicated data found."
+                
+        elif region_filter is not None:
+            raise ValueError("region_filter must be pl.Expr, pl.LazyFrame, or None.")
+
+        # Reshape the data
+        methyl_data =utils.reshape_pileup_to_matrix_polars(methyl_data)
+        if methyl_data is None:  # Data was empty before reshape upon collecting
+            continue
+
+        # Filter for coverage and removes null/NaN values
+        modification_types = list(utils.readable_modification_name.keys())
+        methyl_data = (
+            methyl_data.filter(
+                pl.any_horizontal(
+                    pl.col(modification_types).is_not_null() &
+                    pl.col(modification_types).cast(pl.Float64, strict=False).is_not_nan()
+                )
+                & pl.concat_list(modification_types).list.sum().ge(genome.default_coverage)
+            )
+        )
+
+        # Add a sample column
+        methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
+
+        all_data.append(methyl_data)
+
+    if len(all_data) == 0:
+        print(f"No data found for {bed_files[0]}, etc. with coverage {genome.default_coverage}.")
+        return None
+
+    # Concat and rename
+    result = pl.concat(all_data).rename({"inclusive start position": "position"})
+
+    # Keep only positions that are in all samples
+    if in_every_treatment and triplicates_only:
+        og_columns = result.collect_schema().names()
+        triplicate_positions = (result.group_by("contig", "strand", "position")
+                                .agg(pl.col("sample").n_unique().alias("sample_count"))
+                                .filter(pl.col("sample_count").eq(len(treatments) * 3)))
+
+        result = (result.join(triplicate_positions, on=["contig", "strand", "position"], how="inner")
+                    .select(*og_columns))
+
+    # Keep only positions that occur in triplicate within a treatment
+    elif triplicates_only:
+        og_columns = result.collect_schema().names()
+        triplicate_positions = result.with_columns(pl.col("sample").replace_strict(genome.barcode_replicate_map).alias("treatment"))
+        triplicate_positions = (triplicate_positions.group_by("contig", "strand", "position", "treatment")
+                                .agg(pl.col("sample").n_unique().alias("treatment_count"), pl.col("sample"))
+                                .explode("sample")
+                                .filter(pl.col("treatment_count").eq(3)))
+
+        result = (result.join(triplicate_positions, on=["contig", "strand", "position", "sample"], how="inner")
+                    .select(*og_columns))
+
+    # Keep any position that occurs at least once in all treatments
+    elif in_every_treatment:
+        assert treatments is not None, "Treatments must be provided if in_every_treatment is True."
+        og_columns = result.collect_schema().names()
+        triplicate_positions = result.with_columns(pl.col("sample").replace_strict(genome.barcode_treatment_map).alias("treatment"))
+        triplicate_positions = (triplicate_positions.group_by("contig", "strand", "position")
+                                .agg(pl.col("treatment").n_unique().alias("treatment_count"), pl.col("sample"))
+                                .explode("sample")
+                                .filter(pl.col("treatment_count").eq(len(treatments))))
+
+        result = (result.join(triplicate_positions, on=["contig", "strand", "position", "sample"], how="inner")
+                    .select(*og_columns))
+
+    # Normalize
+    if normalize:
+        result = utils.normalize_data_by_pileup(result)
+
+    return result

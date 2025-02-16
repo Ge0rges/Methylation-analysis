@@ -153,11 +153,11 @@ class Gene(object):
 
 
     @lru_cache
-    def get_flanking_sequence(self, relative_position: int, seq_range: (int, int)) -> str:
+    def get_flanking_sequence(self, relative_position: int, seq_range: tuple[int, int]) -> str:
         return self.gene_collection.get_flanking_sequence(relative_position, seq_range).select("sequence").collect(streaming=True).item()
 
 
     @lru_cache
-    def load_flanking_methylation_data(self, relative_position: int, meth_range: (int, int)) -> pl.LazyFrame:
+    def load_flanking_methylation_data(self, relative_position: int, meth_range: tuple[int, int]) -> pl.LazyFrame:
         return self.gene_collection.load_flanking_methylation_data(relative_position,
                                                                    meth_range).drop("gene_callers_id")

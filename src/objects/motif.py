@@ -1,11 +1,13 @@
 from __future__ import annotations
-from functools import cached_property
-import polars as pl
 from typing import TYPE_CHECKING
-import re
-import Bio.Data.IUPACData as bd
+from functools import cached_property, lru_cache
 import itertools
-from src.utilities.utils import methylation_base_map
+import re
+import polars as pl
+import Bio.Data.IUPACData as bd
+
+from src.utilities.utils import methylation_base_map, reshape_pileup_to_matrix_polars, readable_modification_name, normalize_data_by_pileup
+from src.utilities.data_loading import load_methylation_data
 
 if TYPE_CHECKING:  # Only for type hints
     from genome import Genome
@@ -22,6 +24,9 @@ class Motif(object):
         self.high_count: int = -1
         self.low_count: int = -1
         self.mid_count: int = -1
+        self.motif_data_path = genome.methylation_data_dir / motif
+        if not self.motif_data_path.exists():
+            raise FileNotFoundError(f"Motif data directory not found: {self.motif_data_path}")
 
         self.strings: list[str] = generate_possible_sequences(motif)
 
@@ -33,7 +38,11 @@ class Motif(object):
 
     @classmethod
     def load_from_modkit(cls, genome: Genome) -> list[Motif]:
-        motifs = pl.read_csv(str(genome._methylation_data_dir / "all_motifs-5-motifs.tsv"), separator="\t", has_header=True)
+        motifs_path = genome.methylation_data_dir / f"{genome.default_coverage}_motifs.tsv"
+        if not motifs_path.exists():
+            raise FileNotFoundError(f"Motif list file not found at {motifs_path}, check coverage parameter")
+        
+        motifs = pl.read_csv(str(motifs_path), separator="\t", has_header=True)
 
         # Create a Motif object for each row
         motif_objs = []
@@ -56,60 +65,66 @@ class Motif(object):
 
     @cached_property
     def positions(self) -> pl.LazyFrame:
-        # Return a table with contig position and strand for each motif in the sequence
-        contigs = []
-        positions = []
-        strands = []
-        motifs = []
+        # Load the positions of the methylated nucleotide of this motif
+        positions_bed = self.motif_data_path / "location.bed"
+        if not positions_bed.is_file():
+            raise FileNotFoundError(f"Motif positions BED file not found: {positions_bed}")
+        
+        positions = pl.scan_csv(str(positions_bed), separator="\t", has_header=False, new_columns=["contig", "start", "end", "name", "score", "strand"]).with_columns((pl.col("strand") == "+").alias("strand"), pl.col("start").alias("position"))
+        return positions
 
-        for contig, seqrecord in self.genome.sequence.items():
-            pos_strand = str(seqrecord.seq)
-            neg_strand = str(seqrecord.seq.complement())
+    @lru_cache
+    def data(self, normalize=True) -> pl.LazyFrame:
+        # Get all the data for the motif by loading all bed files except "location.bed" in the data directory
+        
+        # Gather every .bed file except 'location.bed'
+        bed_files = [f for f in self.motif_data_path.glob("*.bed") if f.name != "location.bed"]
+        if len(bed_files) == 0:
+            raise FileNotFoundError(f"No data files found for motif {self.motif}")
 
-            # Find motif in positive strand
-            pattern = re.compile('|'.join(map(re.escape, self.strings)))
+        df = load_methylation_data(
+            genome=self.genome,
+            bed_files=bed_files,
+            in_every_treatment=True,
+            triplicates_only=False,
+            treatments=self.genome.default_treatments,
+            normalize=normalize
+        )
 
-            pos_iter = list(pattern.finditer(pos_strand))
-            pos_positions = [match.start() + self.offset for match in pos_iter]
-            pos_motifs = [match[0] for match in pos_iter]
-
-            neg_iter = list(pattern.finditer(neg_strand))
-            neg_positions = [match.start() + self.offset for match in neg_iter]
-            neg_motifs = [match[0] for match in neg_iter]
-
-            # Add to lists
-            contigs.extend([contig] * len(pos_positions))
-            positions.extend(pos_positions)
-            strands.extend([True] * len(pos_positions))
-            motifs.extend(pos_motifs)
-
-            contigs.extend([contig] * len(neg_positions))
-            positions.extend(neg_positions)
-            strands.extend([False] * len(neg_positions))
-            motifs.extend(neg_motifs)
-
-        # Make a dataframe and return it
-        return pl.DataFrame({
-            "contig": contigs,
-            "position": positions,
-            "strand": strands,
-            "motif": motifs
-        }).lazy()
-
+        if df is None:
+            print(f"No data found for motif {self.motif}")
+            return None
+        
+        return df
 
     @cached_property
-    def data(self) -> pl.DataFrame:
-        # Get all the data for the motif
-        data_filter = (self.positions.select("contig", "position", "strand").with_columns(pl.col("position").alias("filter_end")))
-        data_filter = data_filter.rename({"contig": "filter_contig", "position": "filter_start", "strand": "filter_strand"})
-        data = self.genome.load_region_methylation_data(in_every_treatment=True, region_filter=data_filter)
+    def dmr_data(self) -> pl.LazyFrame:
+        # Check folder exists
+        dmr_dir = self.motif_data_path / "dmr"
+        if not dmr_dir.is_dir():
+            raise FileNotFoundError(f"DMR directory not found for motif {self.motif}")
 
-        data = data.with_columns(pl.col('sample').replace(self.genome._barcode_treatment_map).alias("Treatment"))
+        # Load DMR from each bed file formatted SAMPLE1_SAMPLE2.bed
+        all_data = []
+        for bed_file in dmr_dir.glob("*.bed"):
+            sample_a = bed_file.stem.split("_")[0]
+            sample_b = bed_file.stem.split("_")[1]
+            assert len(bed_file.stem.split("_")) == 2, f"DMR bed file name should be formatted as SAMPLE1_SAMPLE2.bed, found {bed_file.stem}"
 
-        # Get sequence
-        data = data.select("contig", "position", "strand", self.meth_type, self.canonical_base, "Treatment", "sample")
-
-        return data.collect(streaming=True)
+            # Load DMR data
+            dmr_data = (pl.scan_csv(str(bed_file), separator="\t", has_header=False, new_columns=["contig", "position", "end", "name", "score", "strand", "sample_a counts", "sample_a total",  "sample_b counts", "sample_b total", "sample_a percents", "sample_b percents", "sample_a fraction modified", "sample_b fraction modified"], 
+                                    schema_overrides={"contig": pl.String, "position": pl.Int64, "end": pl.Int64, "name": pl.String, "score": pl.Float64, "strand": pl.String})
+                         .with_columns((pl.col("strand") == "+").alias("strand"), pl.lit(sample_a).alias("treatment_a"), pl.lit(sample_b).alias("treatment_b"))
+                         .select("contig", "position", "strand", "score", "treatment_a", "treatment_b"))
+            
+            # Filter such that both treatments are in the requested ones
+            dmr_data = dmr_data.filter(pl.col("treatment_a").is_in(self.genome.default_treatments) & pl.col("treatment_b").is_in(self.genome.default_treatments))
+            
+            all_data.append(dmr_data)
+        
+        dmr_data = pl.concat(all_data)
+    
+        return dmr_data
 
 
 def generate_possible_sequences(seq):

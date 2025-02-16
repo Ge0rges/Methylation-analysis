@@ -47,6 +47,7 @@ metagenome_study = ({"barcode01": "S2-1",
                      'core-70': "Ice core 70 cm"
                      }, ["top", "middle", "bottom"])
 
+
 read_counts = {
     "barcode01": 1093788,
     "barcode02": 296042,
@@ -63,125 +64,6 @@ read_counts = {
     "barcode13": 39685,
     "barcode14": 96793,
 }
-
-colwellia_study = ({'barcode01': 'CTL-1',
-                    'barcode02': 'CTL-2',
-                    'barcode03': 'CTL-3',
-                    'barcode04': 'LN2-1',
-                    'barcode05': 'LN2-2',
-                    'barcode06': 'LN2-3',
-                    'barcode07': 'FREEZER-1',
-                    'barcode08': 'FREEZER-2',
-                    'barcode09': 'FREEZER-3',
-                    'barcode10': 'RNA_Later-1',
-                    'barcode11': 'RNA_Later-2',
-                    'barcode12': 'RNA_Later-3',
-                    'barcode13': 'CTL_Pellet-1',
-                    'barcode14': 'CTL_Pellet-2',
-                    'barcode15': 'CTL_Pellet-3',
-                    'barcode16': 'RNA_Pellet-1',
-                    'barcode17': 'RNA_Pellet-2',
-                    'barcode18': 'RNA_Pellet-3'
-                    },
-                   {'barcode01': 'CTL',
-                    'barcode02': 'CTL',
-                    'barcode03': 'CTL',
-                    'barcode04': 'LN2',
-                    'barcode05': 'LN2',
-                    'barcode06': 'LN2',
-                    'barcode07': 'FREEZER',
-                    'barcode08': 'FREEZER',
-                    'barcode09': 'FREEZER',
-                    'barcode10': 'RNA_Later',
-                    'barcode11': 'RNA_Later',
-                    'barcode12': 'RNA_Later',
-                    'barcode13': 'CTL_Pellet',
-                    'barcode14': 'CTL_Pellet',
-                    'barcode15': 'CTL_Pellet',
-                    'barcode16': 'RNA_Pellet',
-                    'barcode17': 'RNA_Pellet',
-                    'barcode18': 'RNA_Pellet',
-
-                    # Readable versions
-                    'CTL': 'Immediate extraction',
-                    'LN2': 'Liquid Nitrogen',
-                    'FREEZER': '–80°C Freezer',
-                    'RNA_Later': 'RNA Later',
-                    'CTL_Pellet': 'Pellet then extraction',
-                    'RNA_Pellet': 'Pellet + RNA Later'
-                    }, ["CTL", "CTL_Pellet", "LN2", "FREEZER", "RNA_Later", "RNA_Pellet"])
-
-sar11_study = ({"barcode01": "S2-1",
-                "barcode02": "S2-2",
-                "barcode03": "S2-3",
-                "barcode04": "control",
-                "barcode05": "S3-1",
-                "barcode06": "S3-2",
-                "barcode07": "S3-3",
-                "barcode08": "S4-1",
-                "barcode09": "S4-2",
-                "barcode10": "S4-3",
-                "barcode11": "IC3-1 (30 cm)",
-                "barcode12": "IC3-2 (160 cm)",
-                "barcode13": "IC3-3 (205 cm)",
-                "barcode14": "IC3-4 (70 cm)",
-                "uisw_101": "uisw_101",
-                "uisw_104": "uisw_104",
-                "uisw_106": "uisw_106",
-                "uisw_113": "uisw_113",
-                "uisw_114": "uisw_114",
-                "uisw_116": "uisw_116",
-                "uisw_121": "uisw_121",
-                "uisw_127": "uisw_127",
-                "uisw_130": "uisw_130",
-                "uisw_134": "uisw_134",
-                "uisw_136": "uisw_136",
-                "uisw_137": "uisw_137",
-                "uisw_90": "uisw_90",
-                "uisw_92": "uisw_92",
-                "uisw_94": "uisw_94"
-                },
-               {"barcode01": "top",
-                "barcode02": "middle",
-                "barcode03": "bottom",
-                "barcode04": "control",
-                "barcode05": "top",
-                "barcode06": "middle",
-                "barcode07": "bottom",
-                "barcode08": "top",
-                "barcode09": "middle",
-                "barcode10": "bottom",
-                "barcode11": "core-40",
-                "barcode12": "core-160",
-                "barcode13": "core-205",
-                "barcode14": "core-70",
-                "uisw_101": "culture",
-                "uisw_104": "culture",
-                "uisw_106": "culture",
-                "uisw_113": "culture",
-                "uisw_114": "culture",
-                "uisw_116": "culture",
-                "uisw_121": "culture",
-                "uisw_127": "culture",
-                "uisw_130": "culture",
-                "uisw_134": "culture",
-                "uisw_136": "culture",
-                "uisw_137": "culture",
-                "uisw_90": "culture",
-                "uisw_92": "culture",
-                "uisw_94": "culture",
-
-                # Readable versions
-                "top": "Sackhole Top (40 cm)",
-                "middle": "Sackhole Middle (70 cm)",
-                "bottom": "Sackhole Bottom (160 cm)",
-                "control": "Control",
-                "core-40": "Ice core (40 cm)",
-                "core-160": "Ice core (160 cm)",
-                "core-205": "Ice core (205 cm)",
-                'core-70': "Ice core (70 cm)",
-                "culture": "Culture"
-                }, ["top", "middle", "bottom", "culture"])
 
 
 def truncate_label(label, max_length, max_lines):
@@ -292,8 +174,23 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
 def normalize_data_by_pileup(df: pl.DataFrame | pl.LazyFrame) -> pl.LazyFrame | pl.DataFrame:
     for base, meth_group in base_methylation_map.items():
         norm_columns = meth_group + ["Ncanonical_" + base]
-        for meth_key in norm_columns:
-            df = df.with_columns(pl.col(meth_key) / pl.concat_list(*norm_columns).list.sum())
+        df = df.with_columns(pl.col(meth_key) / pl.concat_list(*norm_columns).list.sum() for meth_key in norm_columns)
+
+    return df
+
+
+def treatment_weighted_mean(df: pl.DataFrame | pl.LazyFrame) -> pl.LazyFrame | pl.DataFrame:
+    for base, meth_group in base_methylation_map.items():
+        norm_columns = meth_group + ["Ncanonical_" + base]
+
+        df = df.with_columns(pl.concat_list(*norm_columns).list.sum().alias(f"total_coverage_{base}"))
+        df = df.with_columns((pl.col(meth_key) / pl.col(f"total_coverage_{base}")).alias(meth_key+"_fraction") for meth_key in norm_columns)
+
+    df = df.group_by("contig", "position", "strand", "treatment").agg([
+        ((pl.col(meth_key+"_fraction") * pl.col(f"total_coverage_{base}")).sum() / pl.col(f"total_coverage_{base}").sum()).alias(meth_key)
+        for base, meth_group in base_methylation_map.items()
+        for meth_key in (meth_group + ["Ncanonical_" + base])
+    ])
 
     return df
 
