@@ -10,6 +10,8 @@ import openmeteo_requests
 import requests_cache
 from retry_requests import retry
 from math import ceil
+import matplotlib
+import numpy as np
 
 
 def fetch_atmospheric_temperature(longitude, latitude, date):
@@ -111,20 +113,28 @@ def load_or_fetch_data(json_path, data_csv_path):
 
         # If the DataFrame has the same number of rows as the data, return it
         if final_df.shape[0] == len(data['features']):
+            print("Data already fetched, returning cached results.")
             return final_df
 
         # Otherwise, only process remaining features
         else:
             data['features'] = data['features'][final_df.shape[0]:]
+            print(f"Remaining features to process: {len(data['features'])}")
 
     # Process each feature to fetch data and append to results
     for feature in data['features']:
         df = make_request(feature)
+        if os.path.exists(data_csv_path):
+            # Write the first result with headers
+            df.to_csv(data_csv_path, mode='a', index=False, header=False)
+        else:
+            # Append subsequent results without headers
+            df.to_csv(data_csv_path, mode='w', index=False, header=True)
+
         results.append(df)
 
-    # Concatenate all fetched data into a single DataFrame and save to CSV
+    # Concatenate all fetched data into a single DataFrame
     final_df = pd.concat(results, ignore_index=True) if final_df is None else pd.concat([final_df] + results, ignore_index=True)
-    final_df.to_csv(data_csv_path, index=False)
 
     return final_df
 
@@ -162,9 +172,28 @@ def plot_drift_track(results_df, variables_to_plot, names, cmaps, legend_labels,
         ax.add_feature(cartopy.feature.COASTLINE)
         ax.add_feature(cartopy.feature.RIVERS)
 
-        # Plot data
-        scatter = ax.scatter(results_df['longitude'], results_df['latitude'], c=results_df[variable_to_plot],
-                             cmap=cmaps[i], transform=ccrs.PlateCarree(), marker='o')
+        # Center color map on 0 for atmospheric temperature
+        longitude = results_df['longitude']
+        latitude = results_df['latitude']
+        variable = results_df[variable_to_plot]
+
+        if variable_to_plot == "atmospheric_temperature" and len(variables_to_plot) == 1:
+            max_val = max(variable.max(), 5)
+            norm = matplotlib.colors.TwoSlopeNorm(vmin=variable.min(), vcenter=0, vmax=max_val)
+            scatter = ax.scatter(longitude, latitude, c=variable, transform=ccrs.PlateCarree(), marker='o', s=8,
+                                 norm=norm, cmap=cmaps[i])
+
+            # Add a colorbar
+            cb = plt.colorbar(scatter, ax=ax, shrink=0.7, label=legend_labels[i], location="bottom")
+            cb.ax.set_xscale('linear')
+
+        else:
+            # Plot data
+            scatter = ax.scatter(longitude, latitude, c=variable, cmap=cmaps[i], transform=ccrs.PlateCarree(), s=8,
+                                 marker='o')
+
+            # Add a colorbar
+            plt.colorbar(scatter, ax=ax, shrink=0.7, label=legend_labels[i], location="right")
 
         # Annotate some points with the date
         for j, row in results_df.iterrows():
@@ -176,9 +205,6 @@ def plot_drift_track(results_df, variables_to_plot, names, cmaps, legend_labels,
                             arrowprops=dict(arrowstyle="->", connectionstyle="arc3"),  # Style of the arrow
                             transform=ccrs.PlateCarree(),  # Coordinate system for the point
                             ha='right', va='bottom')  # Alignment of the text
-
-        # Add a colorbar
-        plt.colorbar(scatter, ax=ax, shrink=0.5, label=legend_labels[i])
 
         # Add grid lines and labels
         gl = ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False, linewidth=1, color='gray',
@@ -205,7 +231,7 @@ def plot_drift_track(results_df, variables_to_plot, names, cmaps, legend_labels,
     plt.tight_layout()
 
     # Save the figure
-    plt.savefig(save_path, format="svg", transparent=True)
+    plt.savefig(save_path, format="pdf", transparent=True)
 
 
 if __name__ == "__main__":
@@ -214,21 +240,21 @@ if __name__ == "__main__":
     retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
     openmeteo = openmeteo_requests.Client(session=retry_session)
 
-    data = load_or_fetch_data("../data/drift/floe.json", "../../data/drift/drift_track.csv")
-    # plot_drift_track(data, variables_to_plot=["sithick", "siage", "sisnthick", "so", "thetao", "atmospheric_temperature"],
-    #                  names=["Sea-ice thickness", "Age of sea ice", "Sea-ice snow thickness", "Sea water salinity", "Sea water potential temperature", "Atmospheric temperature"],
-    #                  cmaps=["Blues", "Blues", "Greys", "viridis", "coolwarm", "coolwarm"],
-    #                  legend_labels=["Thickness (m)", "Age (days)", "Thickness (m)", "Salinity (PSU)", "Potential temperature (°C)", "Temperature (°C)"],
-    #                  save_path="../../plots/drift_track_multiple_variables.svg")
+    data = load_or_fetch_data("../data/drift/floe.json", "../data/drift/drift_track.csv")
+    plot_drift_track(data, variables_to_plot=["sithick", "siage", "sisnthick", "so", "thetao", "atmospheric_temperature"],
+                     names=["Sea-ice thickness", "Age of sea ice", "Sea-ice snow thickness", "Sea water salinity", "Sea water potential temperature", "Atmospheric temperature"],
+                     cmaps=["Blues", "Blues", "Greys", "viridis", "coolwarm", "coolwarm"],
+                     legend_labels=["Thickness (m)", "Age (days)", "Thickness (m)", "Salinity (PSU)", "Potential temperature (°C)", "Temperature (°C)"],
+                     save_path="../plots/drift_track_multiple_variables.pdf")
     plot_drift_track(data,
                      variables_to_plot=["siage"],
                      names=["Age of sea ice"],
                      cmaps=["Blues"],
                      legend_labels=["Age (days)"],
-                     save_path="../plots/drift_track_siage.svg")
+                     save_path="../plots/drift_track_siage.pdf")
     plot_drift_track(data,
                      variables_to_plot=["atmospheric_temperature"],
                      names=["Atmospheric temperature"],
                      cmaps=["coolwarm"],
                      legend_labels=["Temperature (°C)"],
-                     save_path="../plots/drift_track_atmtemp.svg")
+                     save_path="../plots/drift_track_atmtemp.pdf")
