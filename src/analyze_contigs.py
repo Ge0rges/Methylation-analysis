@@ -20,10 +20,10 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
         for motif in contig.motifs:
             motif_df = motif.data(normalize=False).collect(streaming=True)
             motif_df = motif_df.with_columns(pl.col("sample").replace_strict(contig.parent_genome.barcode_treatment_map).replace_strict(contig.parent_genome.treatment_name_map).alias("treatment"))
-            motif_df = treatment_weighted_mean(motif_df).rename({"treatment": "Treatment"})
+            motif_df = treatment_weighted_mean(motif_df)
             
             for treatment in motif_df.get_column("treatment").unique():
-                methylation_fraction = motif_df.filter(pl.col("treatment") == treatment).select(pl.col(motif.meth_type)).mean()
+                methylation_fraction = motif_df.filter(pl.col("treatment") == treatment).select(motif.meth_type).mean()
                 
                 data.append({
                     "contig_name": contig.contig_name,
