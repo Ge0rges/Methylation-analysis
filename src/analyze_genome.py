@@ -42,10 +42,38 @@ def plot_whole_methylome(
         alpha=0.7,
         hue_order=sorted(df.get_column("Treatment").unique().to_list(), key=genome.treatment_order_map.get)
     )
+    
+    # Add a blue point of the average methylation fraction at each nucleotide, and then draw a smoothed line connecting those
+    avg_df = df.group_by("genome_position").agg(pl.col(motif.meth_type).mean()).to_pandas()
+    
+    # Plot blue points for average values
+    sns.scatterplot(
+        data=avg_df,
+        x="genome_position",
+        y=motif.meth_type,
+        color="blue",
+        ax=ax,
+        s=8,
+        alpha=0.9,
+        label="Average methylation"
+    )
+    
+    # # Fit polynomial regression (degree 3 for a good balance)
+    # x = avg_df["genome_position"].values
+    # y = avg_df[motif.meth_type].values
+    # z = np.polyfit(x, y, 3)  # cubic polynomial
+    # p = np.poly1d(z)
+    
+    # # Generate smooth curve with more points
+    # x_smooth = np.linspace(x.min(), x.max(), 300)
+    # y_smooth = p(x_smooth)
+    
+    # # Plot the polynomial regression line
+    # ax.plot(x_smooth, y_smooth, color="blue", linewidth=2)
 
     ax.set_xlabel("Genome position (bp)")
     ax.set_ylabel(f"Fraction of {readable_modification_name[motif.meth_type]} methylation")
-    ax.set_title(f"{genome.readable_name} - Whole Methylome ({motif.motif})")
+    ax.set_title(f"{genome.readable_name} - {motif.motif} Methylome")
     ax.legend(bbox_to_anchor=(1, 1), loc="upper left", fontsize=8)
 
     out_file = output_dir / f"{genome.readable_name}_whole_methylome_{motif.motif}.pdf"
@@ -127,7 +155,7 @@ def plot_dmr_scores_heatmap(
     
     # Make a distribution plot of DMR scores
     score_df = dmr.to_pandas()
-    fig, ax = plt.subplots(figsize=(8, 5), constrained_layout=True)
+    _, ax = plt.subplots(figsize=(8, 5), constrained_layout=True)
     sns.histplot(data=score_df, x="score", bins=20, kde=True, ax=ax)
     ax.set_yscale("log")
     ax.set_ylim(1, 1e3)
@@ -285,6 +313,7 @@ def extract_motif_data_all_transitions(
     unique_transitions_df = pivoted.select(sorted_treatments).unique()
 
     # 7. For each unique transition, filter the data and output a CSV.
+    result = []
     for transition_row in unique_transitions_df.iter_rows(named=True):
         # Build the transition tuple in the sorted treatment order.
         transitions = tuple(transition_row[col] for col in sorted_treatments)
@@ -340,6 +369,9 @@ def extract_motif_data_all_transitions(
         # 11. Write the annotated data to CSV. The filename encodes the transition pattern.
         data.write_csv(out_file)
         print(f"Saved CSV for transition {transitions}: {out_file}")
+        result.append(data)
+    
+    return pl.concat(result)
 
 
 ##############################################################################
@@ -381,10 +413,54 @@ def extract_diff_methylated_genes(
     data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
     gc = GeneCollection(data.get_column("gene_callers_id_end").unique().to_list(), genome)
     data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
+    
+    # Logic to filter down the table by creating a ranking system
+    # Create ranking columns based on priority criteria
+    data = data.with_columns([
+        # First priority: gene_callers_id is not -1 (has gene annotation)
+        (pl.col("gene_callers_id") != -1).cast(pl.Int32).alias("has_gene"),
+        
+        # Create a sort priority column with clear priority rules
+        pl.struct([
+            # First priority: gene_callers_id is not -1 (has direct gene annotation)
+            pl.col("gene_callers_id") != -1,
+            
+            # Second priority: KOfam > COG20_FUNCTION > others for direct annotation
+            pl.when(pl.col("source") == "KOfam").then(3)
+              .when(pl.col("source") == "COG20_FUNCTION").then(2)
+              .otherwise(1),
+            
+            # Third priority: consistent annotations across direct and nearest genes
+            (pl.col("source") == pl.col("source_start")) & (pl.col("source") == pl.col("source_end")),
+            
+            # Fourth priority: quality of nearest gene annotations
+            pl.when(pl.col("source_start") == "KOfam").then(3)
+              .when(pl.col("source_start") == "COG20_FUNCTION").then(2)
+              .otherwise(1),
+            
+            pl.when(pl.col("source_end") == "KOfam").then(3)
+              .when(pl.col("source_end") == "COG20_FUNCTION").then(2)
+              .otherwise(1)
+        ]).alias("sort_priority")
+    ])
 
+    # Sort the data by priority within each position group
+    data = data.sort("sort_priority", descending=True)
+    
+    # Group by position identifiers and take only the first row (highest priority) from each group
+    data = data.group_by(["contig", "position", "strand"]).agg(
+        pl.all().exclude(["contig", "position", "strand", "sort_priority"]).first()
+    )
+        
+    # Take top_n rows by score if requested
+    if top_n > 0 and data.height > top_n:
+        data = data.sort("score", descending=True).head(top_n)
+    
     # Write to CSV
-    data.write_csv(genome.output_dir / f"{genome.readable_name}_{motif.motif}_top_diff_genes.csv")
-
+    output_file = genome.output_dir / f"{genome.readable_name}_{motif.motif}_top_diff_genes.csv"
+    data.write_csv(output_file)
+    
+    return data
 
 
 def write_basic_stats(genome, motif):
@@ -408,3 +484,10 @@ def write_basic_stats(genome, motif):
         f.write(f"Average {motif.meth_type} fraction: {avg_fraction}\n")
 
     print(f"Saved file: {out_file}")
+
+
+def extract_consensus_genes(genome, trans, dmrs, motif):
+    # Get the intersection
+    dmrs = dmrs.select("contig", "position", "strand", "score")
+    consensus = trans.join(dmrs, how="inner", on=["contig", "position", "strand"])
+    consensus.write_csv(genome.output_dir / f"{genome.readable_name}_{motif.motif}_innerjoin_dmr_trans_genes.csv")

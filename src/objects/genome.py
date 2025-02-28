@@ -117,7 +117,7 @@ class Genome(object):
         # Create a "readable_name" for display
         self.readable_name: str = (genome_path.stem.capitalize().split("_r-contigs")[0] + " sp.")
 
-
+    
     @cached_property
     def sequence(self) -> dict[str, SeqRecord.SeqRecord]:
         """
@@ -135,10 +135,9 @@ class Genome(object):
     @cached_property
     def motifs(self) -> list[Motif]:
         """
-        Load Motif objects. Marked as TODO if you no longer load from modkit
-        or you have an alternative approach for motif analysis.
+        Load Motif objects.
         """
-        return Motif.load_from_modkit(self)
+        return Motif.load_from_modkit(genome=self, contig=None)
 
 
     @cached_property

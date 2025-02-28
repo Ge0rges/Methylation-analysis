@@ -311,7 +311,7 @@ def load_methylation_data(
         triplicate_positions = (triplicate_positions.group_by("contig", "strand", "position")
                                 .agg(pl.col("treatment").n_unique().alias("treatment_count"), pl.col("sample"))
                                 .explode("sample")
-                                .filter(pl.col("treatment_count").eq(len(treatments))))
+                                .filter(pl.col("treatment_count").eq(len(treatments))))  # We already checked the treatments are the same
 
         result = (result.join(triplicate_positions, on=["contig", "strand", "position", "sample"], how="inner")
                     .select(*og_columns))

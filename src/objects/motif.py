@@ -2,20 +2,20 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from functools import cached_property, lru_cache
 import itertools
-import re
 import polars as pl
 import Bio.Data.IUPACData as bd
 
-from src.utilities.utils import methylation_base_map, reshape_pileup_to_matrix_polars, readable_modification_name, normalize_data_by_pileup
+from src.utilities.utils import methylation_base_map
 from src.utilities.data_loading import load_methylation_data
 
 if TYPE_CHECKING:  # Only for type hints
     from genome import Genome
+    from contig import Contig
 
 
 class Motif(object):
 
-    def __init__(self, genome: Genome, motif: str):
+    def __init__(self, genome: Genome, contig: Contig, motif: str):
         self.genome: Genome = genome
         self.motif: str = motif
         self.meth_type: str = ""
@@ -24,7 +24,14 @@ class Motif(object):
         self.high_count: int = -1
         self.low_count: int = -1
         self.mid_count: int = -1
-        self.motif_data_path = genome.methylation_data_dir / motif
+        self.contig = contig
+        
+        # Set the path
+        if contig is None:
+            self.motif_data_path = genome.methylation_data_dir / motif
+        else:
+            self.motif_data_path = genome.methylation_data_dir / contig.contig_name / motif
+
         if not self.motif_data_path.exists():
             raise FileNotFoundError(f"Motif data directory not found: {self.motif_data_path}")
 
@@ -37,17 +44,23 @@ class Motif(object):
 
 
     @classmethod
-    def load_from_modkit(cls, genome: Genome) -> list[Motif]:
-        motifs_path = genome.methylation_data_dir / f"{genome.default_coverage}_motifs.tsv"
+    def load_from_modkit(cls, genome: Genome, contig: Contig) -> list[Motif]:
+        motifs_path = genome.methylation_data_dir /"motifs" / f"{genome.default_coverage}_motifs.tsv"
+        if contig is not None:
+            motifs_path = genome.methylation_data_dir / "motifs" / f"{contig.default_coverage}_{contig.contig_name}_motifs.tsv"
+        
         if not motifs_path.exists():
             raise FileNotFoundError(f"Motif list file not found at {motifs_path}, check coverage parameter")
         
-        motifs = pl.read_csv(str(motifs_path), separator="\t", has_header=True)
+        try:
+            motifs = pl.read_csv(str(motifs_path), separator="\t", has_header=True)
+        except pl.exceptions.NoDataError as e:
+            return []
 
         # Create a Motif object for each row
         motif_objs = []
         for row in motifs.iter_rows(named=True):
-            motif = Motif(genome, row["motif"])
+            motif = Motif(genome, contig, row["motif"])
 
             # Header: mod_code	motif	offset	frac_mod	high_count	low_count	mid_count
             motif.meth_type = row["mod_code"]
@@ -131,6 +144,12 @@ class Motif(object):
                 all_data.append(dmr_data)
 
             except Exception as e:
+                # If the file reads "Error! not enough datapoints, got" then ignore the error
+                with open(bed_file, "r") as f:
+                    if "Error! not enough datapoints, got" in f.read():
+                        continue
+                
+                # Unexpected issue happened
                 print(f"Encountered an error reading the CSV: {e} file was {bed_file}")
                 continue
             
