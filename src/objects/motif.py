@@ -5,7 +5,7 @@ import itertools
 import polars as pl
 import Bio.Data.IUPACData as bd
 
-from src.utilities.utils import methylation_base_map
+from src.utilities.utils import methylation_base_map, readable_methylation_name
 from src.utilities.data_loading import load_methylation_data
 
 if TYPE_CHECKING:  # Only for type hints
@@ -24,11 +24,12 @@ class Motif(object):
         self.high_count: int = -1
         self.low_count: int = -1
         self.mid_count: int = -1
-        self.contig = contig
+        self.contig: Contig = contig
+        self.readable_motif: str = None
         
         # Set the path
         if contig is None:
-            self.motif_data_path = genome.methylation_data_dir / motif
+            self.motif_data_path = genome.methylation_data_dir / "motifs" / motif
         else:
             self.motif_data_path = genome.methylation_data_dir / contig.contig_name / motif
 
@@ -36,16 +37,18 @@ class Motif(object):
             raise FileNotFoundError(f"Motif data directory not found: {self.motif_data_path}")
 
         self.strings: list[str] = generate_possible_sequences(motif)
-
+        
+    @cached_property
+    def readable_motif(self):
+        return self.motif[:self.offset] + f"[{readable_methylation_name[self.meth_type]}]" + self.motif[self.offset+1]
 
     @cached_property
     def canonical_base(self):
         return f"Ncanonical_{methylation_base_map[self.meth_type]}"
 
-
     @classmethod
     def load_from_modkit(cls, genome: Genome, contig: Contig) -> list[Motif]:
-        motifs_path = genome.methylation_data_dir /"motifs" / f"{genome.default_coverage}_motifs.tsv"
+        motifs_path = genome.methylation_data_dir / "motifs" / f"{genome.default_coverage}_motifs.tsv"
         if contig is not None:
             motifs_path = genome.methylation_data_dir / "motifs" / f"{contig.default_coverage}_{contig.contig_name}_motifs.tsv"
         

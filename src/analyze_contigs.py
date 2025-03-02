@@ -32,10 +32,9 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
                 data.append({
                     "contig_name": contig.contig_name,
                     "treatment": treatment,
-                    "motif_string": motif.motif,
+                    "motif_string": motif.readable_motif,
                     "methylation_fraction": methylation_fraction,
                     "contig_taxonomy": contig.taxonomy("c"),
-                    "methylation_type": motif.meth_type
                 })
         
     df = pl.DataFrame(data)
@@ -43,7 +42,7 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     # Pivot the data with polars
     pivot_df = df.to_pandas().pivot(
         index="contig_name",
-        columns=["motif_string", "treatment", "methylation_type"],
+        columns=["motif_string", "treatment"],
         values="methylation_fraction"
     )
     
@@ -55,7 +54,7 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     treatment_colors = df.with_columns(pl.col("treatment").replace_strict(contigs[0].parent_genome.treatment_color_map).alias("Treatment")).select("motif_string", "treatment", "Treatment")
     contig_colors = df.with_columns(pl.col("contig_taxonomy").replace_strict(lut).alias("Taxonomy")).select("contig_name", "Taxonomy")
     
-    treatment_colors = treatment_colors.to_pandas().drop_duplicates().set_index(pivot_df.columns, drop=True).drop(columns=["motif_string", "treatment", "methylation_type"])
+    treatment_colors = treatment_colors.to_pandas().drop_duplicates().set_index(pivot_df.columns, drop=True).drop(columns=pivot_df.columns)
     contig_colors = contig_colors.to_pandas().drop_duplicates("contig_name").set_index("contig_name")
     
     # Create a copy of pivot_df for clustering

@@ -117,7 +117,6 @@ class Genome(object):
         # Create a "readable_name" for display
         self.readable_name: str = (genome_path.stem.capitalize().split("_r-contigs")[0] + " sp.")
 
-    
     @cached_property
     def sequence(self) -> dict[str, SeqRecord.SeqRecord]:
         """
