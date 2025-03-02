@@ -1,8 +1,12 @@
 import polars as pl
 import matplotlib.pyplot as plt
 from src.objects.contig import Contig
-from src.objects.motif  import Motif
-from src.utilities.utils import treatment_weighted_mean, readable_modification_name
+from src.utilities.utils import treatment_weighted_mean
+import seaborn as sns
+import pandas as pd
+from matplotlib.patches import Patch
+from scipy.cluster.hierarchy import linkage
+import numpy as np
 
 
 def plot_contig_motif_heatmap(contigs: list[Contig]):
@@ -23,17 +27,85 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
             motif_df = treatment_weighted_mean(motif_df)
             
             for treatment in motif_df.get_column("treatment").unique():
-                methylation_fraction = motif_df.filter(pl.col("treatment") == treatment).select(motif.meth_type).mean()
+                methylation_fraction = motif_df.filter(pl.col("treatment") == treatment).select(motif.meth_type).mean().item()
                 
                 data.append({
                     "contig_name": contig.contig_name,
                     "treatment": treatment,
                     "motif_string": motif.motif,
                     "methylation_fraction": methylation_fraction,
-                    "contig_taxonomy": contig.taxonomy("g)")
+                    "contig_taxonomy": contig.taxonomy("c"),
+                    "methylation_type": motif.meth_type
                 })
         
     df = pl.DataFrame(data)
     
+    # Pivot the data with polars
+    pivot_df = df.to_pandas().pivot(
+        index="contig_name",
+        columns=["motif_string", "treatment", "methylation_type"],
+        values="methylation_fraction"
+    )
     
+    # Create colors
+    unique_taxonomies = df.get_column("contig_taxonomy").unique().to_list()
+    pal = sns.hls_palette(len(unique_taxonomies), h=.5)
+    lut = dict(zip(unique_taxonomies, pal))
     
+    treatment_colors = df.with_columns(pl.col("treatment").replace_strict(contigs[0].parent_genome.treatment_color_map).alias("Treatment")).select("motif_string", "treatment", "Treatment")
+    contig_colors = df.with_columns(pl.col("contig_taxonomy").replace_strict(lut).alias("Taxonomy")).select("contig_name", "Taxonomy")
+    
+    treatment_colors = treatment_colors.to_pandas().drop_duplicates().set_index(pivot_df.columns, drop=True).drop(columns=["motif_string", "treatment", "methylation_type"])
+    contig_colors = contig_colors.to_pandas().drop_duplicates("contig_name").set_index("contig_name")
+    
+    # Create a copy of pivot_df for clustering
+    pivot_values = pivot_df.values
+    
+    # Handle NaN values by replacing them with 0 for clustering purposes
+    pivot_values_filled = np.nan_to_num(pivot_values, nan=-1.0)
+    
+    # Compute linkage matrices for rows and columns
+    row_linkage = linkage(pivot_values_filled, method='ward', metric='euclidean')
+    col_linkage = linkage(pivot_values_filled.T, method='ward', metric='euclidean')
+        
+    # Create the clustered heatmap
+    g = sns.clustermap(
+        pivot_df,
+        figsize=(15, 10),
+        row_colors=contig_colors,
+        col_colors=treatment_colors,
+        row_linkage=row_linkage,
+        col_linkage=col_linkage,
+        mask=pivot_df.isna(),
+        cmap="coolwarm",
+        linewidths=0.1,
+        cbar_kws={"label": "Methylation fraction"},
+    )
+    
+    # Modify x-axis labels to show only motifs, not treatments
+    motifs = [motif for motif, _ in pivot_df.columns]
+    g.ax_heatmap.set_xticklabels(motifs)
+    g.ax_row_dendrogram.set_visible(False)
+    g.ax_col_dendrogram.set_visible(False)
+
+    # Create legends
+    taxonomy_handles = [Patch(color=lut[taxa], label=taxa) for taxa in lut]    
+    treatment_handles = [Patch(color=contigs[0].parent_genome.treatment_color_map[treatment], label=treatment) 
+                        for treatment in df['treatment'].unique()]
+    # Create legends with non-overlapping positions
+    g.fig.legend(handles=taxonomy_handles, title="Taxonomy", bbox_to_anchor=(0.01, 0.6), loc='center right')
+    g.fig.legend(handles=treatment_handles, title="Treatment", bbox_to_anchor=(0.01, 0.5), loc='center right')
+    
+    # Set X axis title
+    g.ax_heatmap.set_xlabel("Motif")
+    
+    if contigs[0].is_viral:
+        g.ax_heatmap.set_ylabel("Viral contig")
+
+        plt.suptitle("Viral motif heatmap")
+        g.savefig(f"{contigs[0].parent_genome.output_dir}/virus_motif_heatmap.pdf",)
+    else:
+        g.ax_heatmap.set_ylabel("Contig")
+
+        plt.suptitle("Contig motif heatmap")
+        g.savefig(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap.pdf")

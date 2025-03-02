@@ -63,7 +63,7 @@ class Motif(object):
             motif = Motif(genome, contig, row["motif"])
 
             # Header: mod_code	motif	offset	frac_mod	high_count	low_count	mid_count
-            motif.meth_type = row["mod_code"]
+            motif.meth_type = str(row["mod_code"])
             motif.motif = row["motif"]
             motif.offset = row["offset"]
             motif.frac_mod = row["frac_mod"]

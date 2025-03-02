@@ -98,15 +98,22 @@ class Contig:
                 separator="\t"
             )
             
-            # GeNomad is: root;realm;kingdom;phylum;class;family;
+            # GeNomad is: root;realm;kingdom;phylum;class;family;subfamily;genus;subgenus;species;
             # Taxonomy is a string like "Viruses;Duplodnaviria;Heunggongvirae;Uroviricota;Caudoviricetes;;"
             taxonomy = df.filter(pl.col("seq_name") == self.contig_name).select("taxonomy").item()
-            rank_i = 5 if rank == "f" else 4 if rank == "c" else 3 if rank == "p" else 2 if rank == "k" else 1 if rank == "r" else 0
+            rank_i = 9 if rank == "s" else 8 if rank == "sg" else 7 if rank == "g" else 6 if rank == "sf" else 5 if rank == "f" else 4 if rank == "c" else 3 if rank == "p" else 2 if rank == "k" else 1 if rank == "r" else 0
             
             try:
-                return taxonomy.split(";")[rank_i]
+                taxonomy = taxonomy.split(";")
+                if "Unclassified" in taxonomy:
+                    return "Unclassified"
+                else:
+                    taxonomy = taxonomy[rank_i]
+                    if taxonomy == "":
+                        taxonomy = "Unknown at this rank"
+                    return taxonomy
             except:
-                print(f"No rank {rank} for contig {self.contig.contig_name}, printing last available.")
+                print(f"No rank {rank} for contig {self.contig_name}, printing last available.")
                 return ""
             
         else:

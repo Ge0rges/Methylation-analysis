@@ -84,7 +84,7 @@ class Genome(object):
                         raise ValueError("Treatment info TSV file must have header 'treatment', 'readable_treatment', 'color', and 'order' at {treatment_info}.")
                 
                 treatment_name_map[row[0]] = row[1]
-                treatment_color_map[row[1]] = row[2]
+                treatment_color_map[row[1]] = row[2].replace(" ", "")
                 treatment_order_map[row[1]] = row[3]
         
         self.treatment_name_map: dict[str, str] = treatment_name_map
