@@ -115,7 +115,7 @@ class Genome(object):
         self.barcode_replicate_map: dict[str, str] = barcode_replicate_map
 
         # Create a "readable_name" for display
-        self.readable_name: str = ". ".join(genome_path.stem.split("__")[0:2]).capitalize()
+        self.readable_name: str = ". ".join([s.capitalize() for s in genome_path.stem.split("__")[0:2]])
 
     @cached_property
     def sequence(self) -> dict[str, SeqRecord.SeqRecord]:

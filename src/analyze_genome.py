@@ -42,8 +42,8 @@ def plot_whole_methylome(
         y=motif.meth_type,
         hue="Treatment",
         ax=ax,
-        s=4,
-        alpha=0.7,
+        s=6,
+        alpha=1,
         hue_order=hue_order,
         palette=[genome.treatment_color_map[treatment] for treatment in hue_order]
     )
@@ -72,10 +72,9 @@ def plot_whole_methylome(
     ax.set_xlabel("Genome position (bp)")
     ax.set_ylabel(f"Fraction of {readable_modification_name[motif.meth_type]} methylation")
     ax.set_title(f"{genome.readable_name} - {motif.motif} Methylome")
-    ax.legend(bbox_to_anchor=(1, 1), loc="upper left")
 
     out_file = output_dir / f"{genome.readable_name}_whole_methylome_{motif.motif}.pdf"
-    plt.savefig(out_file, format="pdf")
+    plt.savefig(out_file)
     plt.close()
     print(f"Saved PDF: {out_file}")
 

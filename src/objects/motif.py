@@ -25,7 +25,6 @@ class Motif(object):
         self.low_count: int = -1
         self.mid_count: int = -1
         self.contig: Contig = contig
-        self.readable_motif: str = None
         
         # Set the path
         if contig is None:
@@ -40,7 +39,7 @@ class Motif(object):
         
     @cached_property
     def readable_motif(self):
-        return self.motif[:self.offset] + f"[{readable_methylation_name[self.meth_type]}]" + self.motif[self.offset+1]
+        return self.motif[:self.offset] + f"[{readable_methylation_name[self.meth_type]}]" + self.motif[self.offset + 1:]
 
     @cached_property
     def canonical_base(self):

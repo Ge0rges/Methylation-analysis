@@ -54,7 +54,7 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     treatment_colors = df.with_columns(pl.col("treatment").replace_strict(contigs[0].parent_genome.treatment_color_map).alias("Treatment")).select("motif_string", "treatment", "Treatment")
     contig_colors = df.with_columns(pl.col("contig_taxonomy").replace_strict(lut).alias("Taxonomy")).select("contig_name", "Taxonomy")
     
-    treatment_colors = treatment_colors.to_pandas().drop_duplicates().set_index(pivot_df.columns, drop=True).drop(columns=pivot_df.columns)
+    treatment_colors = treatment_colors.to_pandas().drop_duplicates().set_index(pivot_df.columns, drop=True).drop(columns=["motif_string", "treatment"])
     contig_colors = contig_colors.to_pandas().drop_duplicates("contig_name").set_index("contig_name")
     
     # Create a copy of pivot_df for clustering
