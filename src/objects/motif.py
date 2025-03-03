@@ -133,17 +133,23 @@ class Motif(object):
                                         new_columns=["contig", "position", "end", "name", "score", "strand", 
                                                      "sample_a counts", "sample_a total",  
                                                     "sample_b counts", "sample_b total", "sample_a percents", 
-                                                    "sample_b percents", "sample_a fraction modified", "sample_b fraction modified"], 
+                                                    "sample_b percents", "sample_a fraction modified", "sample_b fraction modified",
+                                                    "map_pvalue", "effect_size", "balanced_map_pvalue", "balanced_effect_size",
+                                                    # "pct_a_samples", "pct_b_samples", "per_replicate_pvalues", "per_replicate_effect_sizes"
+                                                    ], 
                                         schema_overrides={"contig": pl.String, "position": pl.Int64, "end": pl.Int64, 
-                                                          "name": pl.String, "score": pl.Float64, "strand": pl.String})
+                                                          "name": pl.String, "score": pl.Float64, "strand": pl.String,
+                                                          "map_pvalue": pl.Float64, "effect_size": pl.Float64,
+                                                          "balanced_map_pvalue": pl.Float64, "balanced_effect_size": pl.Float64})
                             .with_columns((pl.col("strand") == "+").alias("strand"),
                                            pl.lit(sample_a).alias("treatment_a"), 
                                            pl.lit(sample_b).alias("treatment_b"))
-                            .select("contig", "position", "strand", "score", "treatment_a", "treatment_b"))
+                            .select("contig", "position", "strand", "score", "treatment_a", "treatment_b", "map_pvalue", "effect_size", "balanced_map_pvalue", "balanced_effect_size"))
                 
                 # Filter such that both treatments are in the requested ones
                 dmr_data = dmr_data.filter(pl.col("treatment_a").is_in(self.genome.default_treatments), 
-                                           pl.col("treatment_b").is_in(self.genome.default_treatments))
+                                           pl.col("treatment_b").is_in(self.genome.default_treatments),
+                                           pl.col("balanced_map_pvalue") < 0.05)  # Filter by p-value
                 all_data.append(dmr_data)
 
             except Exception as e:

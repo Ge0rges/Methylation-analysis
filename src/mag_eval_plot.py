@@ -14,7 +14,7 @@ sns.set_theme(context="poster", style="white")
 readable_sample_name = metagenome_study[0]
 barcode_replicate_map = metagenome_study[1]
 
-def plot_coverage():
+def plot_coverage(coverm_path, output_dir):
     """
     Plot the coverage metrics.
     :return: Saves a file
@@ -22,7 +22,7 @@ def plot_coverage():
     """
 
     # Load data
-    coverage = get_coverage(Path(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/"))).collect().to_pandas()
+    coverage = get_coverage(coverm_path).collect().to_pandas()
     coverage.rename(inplace=True, columns=barcode_replicate_map)
     coverage.rename(inplace=True, columns=readable_sample_name)
     
@@ -30,9 +30,8 @@ def plot_coverage():
     coverage = coverage[coverage['Genome'] != "metagenome_assembly"]
 
     # Clean the mag names
-    coverage['Genome'] = coverage['Genome'].str.title()
+    coverage['Genome'] = coverage['Genome'].str.split('__bin', expand=True)[0].str.split("__", expand=True)[:][0] + "__" + coverage['Genome'].str.split('__bin', expand=True)[0].str.split("__", expand=True)[:][1]
     coverage.columns = coverage.columns.str.title()
-    coverage['Genome'] = coverage['Genome'].str.replace("_R-Contigs", " sp.")
     
     # Rename column Control_barcode04 to Control and exclude Core-* columns
     coverage.rename(inplace=True, columns={"Control_Barcode04": "Control"})
@@ -46,7 +45,7 @@ def plot_coverage():
     coverage = coverage.groupby(by=coverage.columns, axis=1).sum()
 
     # Make a plot
-    fig, axes = plt.subplots(1, 1, figsize=(15, 15))
+    _, axes = plt.subplots(1, 1, figsize=(60, 60), layout="constrained")
 
     # Change the order of the X axis so that the samples are ordered alphabetically
     coverage = coverage.reindex(sorted(coverage.columns), axis=1)
@@ -58,59 +57,42 @@ def plot_coverage():
     axes.set_xlabel("Samples", fontsize=16)
     axes.set_ylabel("MAG names", fontsize=16)
 
-    plt.savefig(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../plots/mag_coverage.pdf"), format='pdf', bbox_inches='tight')
+    plt.savefig(output_dir / "mag_coverage.pdf", format='pdf')
 
 
-def plot_mag_eval():
+def plot_mag_qual(checkm_tsv, output_dir):
     """
     Plot MAG contamiantion and redundancy.
     :return: Saves a file
     """
     # Load data
-    checkm2_quality = pd.read_csv(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/mag_eval/checkm2.tsv"), sep="\t", header=0)
-    anvio_quality = pd.read_csv(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../data/mag_eval/anvio.tsv"), sep="\t", header=0)
-
-    # Merge the quality dataframes
-    checkm2_quality['Name'] = checkm2_quality['Name'].str.replace("_r-contigs", "_r")
-    quality = pd.merge(checkm2_quality, anvio_quality, left_on="Name", right_on="bins", how="inner")
+    quality = pd.read_csv(checkm_tsv, sep="\t", header=0)
+    
+    quality = quality[quality['Name'] != "metagenome_assembly"]
+    quality = quality[quality['Name'] != "viruses"]
 
     # Clean the mag names
-    quality['Name'] = quality['Name'].str.title()
-    quality['Name'] = quality['Name'].str.replace("_R", " sp.")
-    quality.rename(inplace=True, columns={"percent_completion": "Anvi'o Completeness",
-                                          "percent_redundancy": "Anvi'o Redundancy",
-                                          "Completeness": "CheckM2 Completeness",
-                                          "Contamination": "CheckM2 Redundancy"})
-
+    quality['Name'] = quality['Name'].str.split('__bin', expand=True)[0].str.title()
+    quality.rename(inplace=True, columns={"Completeness": "CheckM2 Completeness", "Contamination": "CheckM2 Redundancy"})
 
     # Format it
-    bar_chart_data = pd.melt(quality[["Name", "CheckM2 Completeness", "CheckM2 Redundancy",
-                                      "Anvi'o Completeness", "Anvi'o Redundancy"]],
-                             id_vars="Name", var_name="Metric", value_name="percent")
+    bar_chart_data = pd.melt(quality[["Name", "CheckM2 Completeness", "CheckM2 Redundancy"]], id_vars="Name", var_name="Metric", value_name="percent")
 
     # Define colors and hatches
-    colors = sns.color_palette(["lightgreen", "lightcoral", "lightgreen", "lightcoral"])
+    colors = sns.color_palette(["lightgreen", "lightcoral"])
 
     # Makea plot
-    fig, axes = plt.subplots(1, 1, figsize=(27, 10), layout="constrained")
+    _, axes = plt.subplots(1, 1, figsize=(90, 29), layout="constrained")
 
     #  Bar chart with Completeness and Contamination percentages
     sns.barplot(data=bar_chart_data, x='Name', y='percent', hue="Metric", palette=colors, ax=axes)
-
-    # Apply hatch patterns to each group of four bars
-    for i, bar in enumerate(axes.patches):
-        group = i // len(bar_chart_data['Name'].unique())
-        if 4 > group > 1:
-            bar.set_hatch("//")
-
-        elif group == 4 and len(bar_chart_data['Metric'].unique()) > i - len(bar_chart_data['Metric'].unique()) * len(bar_chart_data['Name'].unique()) >= len(bar_chart_data['Metric'].unique()) - 2:
-            bar.set_hatch("//")
 
     # Set the format for the bar labels
     for i in range(0, len(axes.containers)):
         axes.bar_label(axes.containers[i], fontsize=10, fmt="%.2f")
 
     axes.axhline(y=10, color='red', linestyle='--', linewidth=1)  # 10% line
+    axes.axhline(y=30, color='orange', linestyle='--', linewidth=1)  # 30% line
     axes.axhline(y=90, color='green', linestyle='--', linewidth=1)  # 90% line
 
     axes.set_title("MAG quality assessment", fontsize=20)
@@ -119,17 +101,44 @@ def plot_mag_eval():
     axes.yaxis.grid(False)
     axes.legend(loc='center right')
 
-    # # Table with the MAG name and Taxonomy classification
-    # taxonomy = pd.read_csv("data/mag_eval/gtdbtk.tsv", sep="\t", header=0)
-    # table_data = taxonomy[['user_genome', 'classification']]
-    # table = axes[2].table(cellText=table_data.values, colLabels=table_data.columns, loc='center')
-    # table.set_fontsize(10)
-    # table.scale(1.2, 1.2)
-    # axes[2].axis('off')  # Hide the axes for the table
+    # Display the figure save based on curent file path
+    plt.savefig(output_dir / "mag_eval.pdf", format='pdf')
+
+
+def plot_microbemod(microbemod_tsv, output_dir):
+    """
+    Barplot by of number of genes by RM type, and enzyme type (methyltransferase, restriction enzyme)
+    MicrobeMod TSV Example:
+    Operon	Gene	System Type	Gene type	HMM	Evalue	REBASE homolog	Homolog identity(%)	Homolog methylation	Homolog motif
+    Singleton #1	c_000000073274_55	RM_Type_II	MT	Type_II_MTases_FAM_3	9e-104	M.PgiNP1I	99.438	m6A	GANTC
+    """
+    # Load data
+    microbemod = pd.read_csv(microbemod_tsv, sep="\t", header=0)
+
+    # Keep only Gene type which are RE, MT, or IIG
+    microbemod = microbemod[microbemod['Gene type'].str.contains("MT|RE")]        
+    microbemod['Gene type'] = microbemod['Gene type'].str.replace("MT", "Methyltransferase").str.replace("RE", "Restriction enzyme")#.str.replace("IIG", "Type IIG RM system")
+    microbemod['System type'] = microbemod['System Type'].str.split("_", expand=True)[2]
+    microbemod['System type'] = pd.Categorical(microbemod['System type'], ['I','II', 'III','IV'])
+
+    # Make a plot
+    _, axes = plt.subplots(figsize=(10, 20), layout="constrained")
+
+    # Bar chart with number of genes by RM type, and enzyme type (methyltransferase, restriction enzyme)
+    sns.histplot(data=microbemod, x='System type', hue="Gene type", ax=axes, stat="count", discrete=True, multiple="dodge", shrink=0.8)
+
+    # Set the format for the bar labels
+    for i in range(0, len(axes.containers)):
+        axes.bar_label(axes.containers[i], fmt="%d")
+
+    axes.set_title("Count of RM genes in the metagenome")
+    axes.set_xlabel("System type")
+    axes.set_ylabel("Count")
+    axes.yaxis.grid(False)
 
     # Display the figure save based on curent file path
-    plt.savefig( os.path.join(os.path.dirname(os.path.realpath(__file__)), "../plots/mag_eval.pdf"), format='pdf', bbox_inches='tight')
-
+    plt.savefig(output_dir / "microbemod.pdf", format='pdf')
+    
 
 def read_count_plot():
     """
@@ -176,6 +185,4 @@ def read_count_plot():
 
 
 if __name__ == "__main__":
-    plot_mag_eval()
-    plot_coverage()
     read_count_plot()

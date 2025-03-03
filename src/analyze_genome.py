@@ -33,8 +33,9 @@ def plot_whole_methylome(
     if df.is_empty():
         return
     
-    _, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
-        
+    _, ax = plt.subplots(figsize=(24, 12), constrained_layout=True)
+    
+    hue_order = sorted(df.get_column("Treatment").unique().to_list(), key=genome.treatment_order_map.get)
     sns.scatterplot(
         data=df.to_pandas(),
         x="genome_position",
@@ -43,29 +44,35 @@ def plot_whole_methylome(
         ax=ax,
         s=4,
         alpha=0.7,
-        hue_order=sorted(df.get_column("Treatment").unique().to_list(), key=genome.treatment_order_map.get)
+        hue_order=hue_order,
+        palette=[genome.treatment_color_map[treatment] for treatment in hue_order]
     )
-    
-    # Add a blue point of the average methylation fraction at each nucleotide, and then draw a smoothed line connecting those
-    avg_df = df.group_by("genome_position").agg(pl.col(motif.meth_type).mean()).to_pandas()
-    
-    # Fit polynomial regression (degree 3 for a good balance)
-    x = avg_df["genome_position"].values
-    y = avg_df[motif.meth_type].values
-    z = np.polyfit(x, y, 3)  # cubic polynomial
-    p = np.poly1d(z)
-    
-    # Generate smooth curve with more points
-    x_smooth = np.linspace(x.min(), x.max(), 300)
-    y_smooth = p(x_smooth)
-    
-    # Plot the polynomial regression line
-    ax.plot(x_smooth, y_smooth, color="blue", linewidth=2)
+            
+    for treatment in hue_order:
+        # Filter data for this treatment
+        treatment_df = df.filter(df["Treatment"] == treatment).to_pandas()
+        
+        # Group by genome position and calculate mean for this treatment
+        avg_df = treatment_df.groupby("genome_position")[motif.meth_type].mean().reset_index()
+        
+        if len(avg_df) > 4:  # Need at least 5 points for a quartic fit
+            # Fit polynomial regression
+            x = avg_df["genome_position"].values
+            y = avg_df[motif.meth_type].values
+            z = np.polyfit(x, y, 4)  # quartic polynomial
+            p = np.poly1d(z)
+            
+            # Generate smooth curve with more points
+            x_smooth = np.linspace(x.min(), x.max(), 300)
+            y_smooth = p(x_smooth)
+            
+            # Plot the polynomial regression line using the treatment's color
+            ax.plot(x_smooth, y_smooth, color=genome.treatment_color_map[treatment], linewidth=2)
 
     ax.set_xlabel("Genome position (bp)")
     ax.set_ylabel(f"Fraction of {readable_modification_name[motif.meth_type]} methylation")
     ax.set_title(f"{genome.readable_name} - {motif.motif} Methylome")
-    ax.legend(bbox_to_anchor=(1, 1), loc="upper left", fontsize=8)
+    ax.legend(bbox_to_anchor=(1, 1), loc="upper left")
 
     out_file = output_dir / f"{genome.readable_name}_whole_methylome_{motif.motif}.pdf"
     plt.savefig(out_file, format="pdf")
@@ -103,7 +110,7 @@ def plot_motif_methylation_distribution(
 
     # One approach: single figure, color by treatment. Another approach: subplots per treatment.
     # Example: single figure, multiple histplot calls with "multiple='dodge'"
-    _, ax = plt.subplots(figsize=(8, 5), constrained_layout=True)
+    _, ax = plt.subplots(figsize=(32, 20), constrained_layout=True)
 
     sns.histplot(
         data=df.to_pandas(),
@@ -149,7 +156,7 @@ def plot_dmr_scores_heatmap(
     
     # Make a distribution plot of DMR scores
     score_df = dmr.to_pandas()
-    _, ax = plt.subplots(figsize=(8, 5), constrained_layout=True)
+    _, ax = plt.subplots(figsize=(16, 10), constrained_layout=True)
     sns.histplot(data=score_df, x="score", bins=20, kde=True, ax=ax)
     ax.set_yscale("log")
     ax.set_ylim(1, 1e3)
@@ -423,7 +430,7 @@ def extract_diff_methylated_genes(
         # Create a sort priority column with clear priority rules
         pl.struct([
             # First priority: gene_callers_id is not -1 (has direct gene annotation)
-            pl.col("gene_callers_id") != -1,
+            (pl.col("gene_callers_id") != -1),
             
             # Second priority: KOfam > COG20_FUNCTION > others for direct annotation
             pl.when(pl.col("source") == "KOfam").then(3)
@@ -440,7 +447,7 @@ def extract_diff_methylated_genes(
             
             pl.when(pl.col("source_end") == "KOfam").then(3)
               .when(pl.col("source_end") == "COG20_FUNCTION").then(2)
-              .otherwise(1).alias("nearest_priority_end"),
+              .otherwise(1).alias("nearest_priority_end")
         ]).alias("sort_priority")
     ])
 
@@ -449,7 +456,7 @@ def extract_diff_methylated_genes(
     
     # Group by position identifiers and take only the first row (highest priority) from each group
     data = data.group_by(["contig", "position", "strand"]).agg(
-        pl.all().exclude(["contig", "position", "strand", "sort_priority"]).first()
+        pl.all().exclude(["contig", "position", "strand", "sort_priority", "has_gene"]).first()
     )
         
     # Take top_n rows by score if requested
@@ -471,7 +478,7 @@ def write_basic_stats(genome, motif):
     df = df.with_columns(pl.col("sample").replace_strict(genome.barcode_treatment_map).replace_strict(genome.treatment_name_map).alias("treatment"))
     df_fraction = treatment_weighted_mean(df).rename({"treatment": "Treatment"})
 
-    avg_fraction = df_fraction.select(pl.col(motif.meth_type).mean()).to_series()[0]
+    avg_fraction = df_fraction.select(pl.col(motif.meth_type).mean()).item()
 
     out_file = genome.output_dir / f"{genome.readable_name}_{motif.motif}_basic_stats.txt"
     with open(out_file, "w") as f:
@@ -488,6 +495,6 @@ def write_basic_stats(genome, motif):
 
 def extract_consensus_genes(genome, trans, dmrs, motif):
     # Get the intersection
-    dmrs = dmrs.select("contig", "position", "strand", "score")
+    dmrs = dmrs.select("contig", "position", "strand", "score", "balanced_map_pvalue", "balanced_effect_size", "treatment_a", "treatment_b")
     consensus = trans.join(dmrs, how="inner", on=["contig", "position", "strand"])
     consensus.write_csv(genome.output_dir / f"{genome.readable_name}_{motif.motif}_innerjoin_dmr_trans_genes.csv")

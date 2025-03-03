@@ -148,7 +148,7 @@ def get_coverage(data_dir: Path, genome_name=None, agg=False) -> pl.LazyFrame:
     """
     Load the coverage data from a file. If aggregate, returns the mean coverage for the group.
     """
-    coverage = pl.scan_csv(data_dir / "mag_eval" / "coverm.tsv", separator="\t")
+    coverage = pl.scan_csv(data_dir, separator="\t")
 
     # Replace the coverage column names based on dictionnary mapping
     coverage = coverage.rename(lambda x: x.replace(".fastq Mean", ""))

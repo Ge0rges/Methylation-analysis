@@ -4,7 +4,7 @@ from src.objects.genome import Genome
 from src.objects.contig import Contig
 from analyze_genome import *
 from analyze_contigs import *
-
+from mag_eval_plot import *
 
 @click.group(help="A multi-command CLI for methylation analysis.")
 @click.pass_context
@@ -90,7 +90,7 @@ def analyze_genome(
         # Extract top diff methylated genes
         trans = extract_motif_data_all_transitions(genome, motif)
         dmrs = extract_diff_methylated_genes(genome, motif, top_n=0)
-        if dmrs is not None:
+        if dmrs is not None and trans is not None:
             extract_consensus_genes(genome, trans, dmrs, motif)
         
         # Basic stats file
@@ -184,6 +184,29 @@ def analyze_viruses(
     contigs = [Contig(genome, contig_name, genomad_summary_tsv, is_viral=True) for contig_name in contig_names]
     
     plot_contig_motif_heatmap(contigs)
+    
+    
+@cli.command(short_help="Plot quality and coverage data for MAGs.")
+@click.option("--checkm-tsv", "-q", required=True, type=click.Path(exists=True), help="CheckM2 quality_report.tsv file.")
+@click.option("--output-dir", "-o", required=True, type=click.Path(), help="Directory to store the analysis results (tables, plots, processed data, etc.).")
+@click.option("--coverm-path", "-c", required=True, type=click.Path(exists=True), help="Path to the coverm coverage file.")
+def quality_coverage(checkm_tsv: str, output_dir: str, coverm_path: int):
+    checkm_tsv = Path(checkm_tsv)
+    coverm_path = Path(coverm_path)
+    output_dir = Path(output_dir)
+    
+    plot_coverage(coverm_path, output_dir)
+    plot_mag_qual(checkm_tsv, output_dir)
+
+
+@cli.command(short_help="Plot barplot of microbemod result.")
+@click.option("--microbemod-tsv", "-t", required=True, type=click.Path(exists=True), help="MicrobeMod output file.")
+@click.option("--output-dir", "-o", required=True, type=click.Path(), help="Directory to store the analysis results (tables, plots, processed data, etc.).")
+def microbemod_plot(microbemod_tsv: str, output_dir: str):
+    microbemod_tsv = Path(microbemod_tsv)
+    output_dir = Path(output_dir)
+
+    plot_microbemod(microbemod_tsv, output_dir)
 
 
 if __name__ == "__main__":
