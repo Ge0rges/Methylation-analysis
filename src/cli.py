@@ -90,7 +90,8 @@ def analyze_genome(
         # Extract top diff methylated genes
         trans = extract_motif_data_all_transitions(genome, motif)
         dmrs = extract_diff_methylated_genes(genome, motif, top_n=0)
-        extract_consensus_genes(genome, trans, dmrs, motif)
+        if dmrs is not None:
+            extract_consensus_genes(genome, trans, dmrs, motif)
         
         # Basic stats file
         write_basic_stats(genome, motif)

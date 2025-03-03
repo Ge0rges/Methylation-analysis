@@ -30,6 +30,9 @@ def plot_whole_methylome(
     df = treatment_weighted_mean(df).collect(streaming=True)
     df = genome.add_genome_relative_position(df).rename({"treatment": "Treatment"})
 
+    if df.is_empty():
+        return
+    
     _, ax = plt.subplots(figsize=(12, 6), constrained_layout=True)
         
     sns.scatterplot(
@@ -46,30 +49,18 @@ def plot_whole_methylome(
     # Add a blue point of the average methylation fraction at each nucleotide, and then draw a smoothed line connecting those
     avg_df = df.group_by("genome_position").agg(pl.col(motif.meth_type).mean()).to_pandas()
     
-    # Plot blue points for average values
-    sns.scatterplot(
-        data=avg_df,
-        x="genome_position",
-        y=motif.meth_type,
-        color="blue",
-        ax=ax,
-        s=8,
-        alpha=0.9,
-        label="Average methylation"
-    )
+    # Fit polynomial regression (degree 3 for a good balance)
+    x = avg_df["genome_position"].values
+    y = avg_df[motif.meth_type].values
+    z = np.polyfit(x, y, 3)  # cubic polynomial
+    p = np.poly1d(z)
     
-    # # Fit polynomial regression (degree 3 for a good balance)
-    # x = avg_df["genome_position"].values
-    # y = avg_df[motif.meth_type].values
-    # z = np.polyfit(x, y, 3)  # cubic polynomial
-    # p = np.poly1d(z)
+    # Generate smooth curve with more points
+    x_smooth = np.linspace(x.min(), x.max(), 300)
+    y_smooth = p(x_smooth)
     
-    # # Generate smooth curve with more points
-    # x_smooth = np.linspace(x.min(), x.max(), 300)
-    # y_smooth = p(x_smooth)
-    
-    # # Plot the polynomial regression line
-    # ax.plot(x_smooth, y_smooth, color="blue", linewidth=2)
+    # Plot the polynomial regression line
+    ax.plot(x_smooth, y_smooth, color="blue", linewidth=2)
 
     ax.set_xlabel("Genome position (bp)")
     ax.set_ylabel(f"Fraction of {readable_modification_name[motif.meth_type]} methylation")
@@ -101,6 +92,9 @@ def plot_motif_methylation_distribution(
     """
     df = motif.data(normalize=False).collect(streaming=True)
 
+    if df.is_empty():
+        return
+    
     # Replace sample → treatment name
     df = df.with_columns(pl.col("sample").replace_strict(genome.barcode_treatment_map).replace_strict(genome.treatment_name_map).alias("treatment"))
 
@@ -211,6 +205,9 @@ def plot_parallel_categories_methylation(
     
     df = treatment_weighted_mean(df)
     
+    if df.is_empty():
+        return
+    
     # Pivot by (contig, position, strand), columns = treatment, values = fraction_meth
     pivoted = df.pivot(
         index=["contig", "position", "strand"],
@@ -269,6 +266,9 @@ def extract_motif_data_all_transitions(
     """
     # 1. Collect the full motif data and map samples to treatments.
     df = motif.data(normalize=False).collect(streaming=True)
+    if df.is_empty():
+        return
+    
     df = df.with_columns(
         pl.col("sample")
           .replace_strict(genome.barcode_treatment_map)
@@ -428,7 +428,7 @@ def extract_diff_methylated_genes(
             # Second priority: KOfam > COG20_FUNCTION > others for direct annotation
             pl.when(pl.col("source") == "KOfam").then(3)
               .when(pl.col("source") == "COG20_FUNCTION").then(2)
-              .otherwise(1),
+              .otherwise(1).alias("source_priority"),
             
             # Third priority: consistent annotations across direct and nearest genes
             (pl.col("source") == pl.col("source_start")) & (pl.col("source") == pl.col("source_end")),
@@ -436,11 +436,11 @@ def extract_diff_methylated_genes(
             # Fourth priority: quality of nearest gene annotations
             pl.when(pl.col("source_start") == "KOfam").then(3)
               .when(pl.col("source_start") == "COG20_FUNCTION").then(2)
-              .otherwise(1),
+              .otherwise(1).alias("nearest_priority"),
             
             pl.when(pl.col("source_end") == "KOfam").then(3)
               .when(pl.col("source_end") == "COG20_FUNCTION").then(2)
-              .otherwise(1)
+              .otherwise(1).alias("nearest_priority_end"),
         ]).alias("sort_priority")
     ])
 
