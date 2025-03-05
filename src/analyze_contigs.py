@@ -34,7 +34,7 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
                     "treatment": treatment,
                     "motif_string": motif.readable_motif,
                     "methylation_fraction": methylation_fraction,
-                    "contig_taxonomy": contig.taxonomy("c"),
+                    "contig_taxonomy": contig.taxonomy("g"),
                 })
         
     df = pl.DataFrame(data)
@@ -70,7 +70,7 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     # Create the clustered heatmap
     g = sns.clustermap(
         pivot_df,
-        figsize=(15, 10),
+        figsize=(len(df.get_column('motif_string').unique())*2, len(df.get_column("contig_name").unique())/1.5),
         row_colors=contig_colors,
         col_colors=treatment_colors,
         row_linkage=row_linkage,
@@ -82,7 +82,7 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     )
     
     # Modify x-axis labels to show only motifs, not treatments
-    motifs = [motif for motif, _ in pivot_df.columns]
+    motifs = [label.get_text().split("-")[0] for label in g.ax_heatmap.get_xticklabels()]
     g.ax_heatmap.set_xticklabels(motifs)
     g.ax_row_dendrogram.set_visible(False)
     g.ax_col_dendrogram.set_visible(False)
@@ -91,9 +91,13 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     taxonomy_handles = [Patch(color=lut[taxa], label=taxa) for taxa in lut]    
     treatment_handles = [Patch(color=contigs[0].parent_genome.treatment_color_map[treatment], label=treatment) 
                         for treatment in df['treatment'].unique()]
+    
     # Create legends with non-overlapping positions
-    g.fig.legend(handles=taxonomy_handles, title="Taxonomy", bbox_to_anchor=(0.01, 0.6), loc='center right')
-    g.fig.legend(handles=treatment_handles, title="Treatment", bbox_to_anchor=(0.01, 0.5), loc='center right')
+    g.figure.legend(handles=taxonomy_handles, title="Taxonomy", loc='upper left')
+    g.figure.legend(handles=treatment_handles, title="Treatment", loc='upper right')
+    # Move colorbar to center left
+    cbar_pos = g.ax_cbar.get_position()
+    g.ax_cbar.set_position([cbar_pos.x0, 0.5 - cbar_pos.height/2, cbar_pos.width, cbar_pos.height])
     
     # Set X axis title
     g.ax_heatmap.set_xlabel("Motif")
@@ -102,9 +106,9 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
         g.ax_heatmap.set_ylabel("Viral contig")
 
         plt.suptitle("Viral motif heatmap")
-        g.savefig(f"{contigs[0].parent_genome.output_dir}/virus_motif_heatmap.pdf",)
+        g.savefig(f"{contigs[0].parent_genome.output_dir}/virus_motif_heatmap.svg", transparent=True)
     else:
         g.ax_heatmap.set_ylabel("Contig")
 
         plt.suptitle("Contig motif heatmap")
-        g.savefig(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap.pdf")
+        g.savefig(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap.svg", transparent=True)

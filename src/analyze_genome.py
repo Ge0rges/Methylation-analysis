@@ -33,47 +33,48 @@ def plot_whole_methylome(
     if df.is_empty():
         return
     
-    _, ax = plt.subplots(figsize=(24, 12), constrained_layout=True)
-    
+    _, axes = plt.subplots(2, 1, figsize=(24, 12), constrained_layout=True)
     hue_order = sorted(df.get_column("Treatment").unique().to_list(), key=genome.treatment_order_map.get)
-    sns.scatterplot(
-        data=df.to_pandas(),
-        x="genome_position",
-        y=motif.meth_type,
-        hue="Treatment",
-        ax=ax,
-        s=6,
-        alpha=1,
-        hue_order=hue_order,
-        palette=[genome.treatment_color_map[treatment] for treatment in hue_order]
-    )
-            
-    for treatment in hue_order:
-        # Filter data for this treatment
-        treatment_df = df.filter(df["Treatment"] == treatment).to_pandas()
-        
-        # Group by genome position and calculate mean for this treatment
-        avg_df = treatment_df.groupby("genome_position")[motif.meth_type].mean().reset_index()
-        
-        if len(avg_df) > 4:  # Need at least 5 points for a quartic fit
-            # Fit polynomial regression
-            x = avg_df["genome_position"].values
-            y = avg_df[motif.meth_type].values
-            z = np.polyfit(x, y, 4)  # quartic polynomial
-            p = np.poly1d(z)
-            
-            # Generate smooth curve with more points
-            x_smooth = np.linspace(x.min(), x.max(), 300)
-            y_smooth = p(x_smooth)
-            
-            # Plot the polynomial regression line using the treatment's color
-            ax.plot(x_smooth, y_smooth, color=genome.treatment_color_map[treatment], linewidth=2)
 
-    ax.set_xlabel("Genome position (bp)")
-    ax.set_ylabel(f"Fraction of {readable_modification_name[motif.meth_type]} methylation")
-    ax.set_title(f"{genome.readable_name} - {motif.motif} Methylome")
+    for i, ax in enumerate(axes):
+        sns.scatterplot(
+            data=df.filter(pl.col("strand").eq(i==0)).to_pandas(),
+            x="genome_position",
+            y=motif.meth_type,
+            hue="Treatment",
+            ax=ax,
+            s=6,
+            alpha=1,
+            hue_order=hue_order,
+            palette=[genome.treatment_color_map[treatment] for treatment in hue_order]
+        )
+            
+        for treatment in hue_order:
+            # Filter data for this treatment
+            treatment_df = df.filter(df["Treatment"] == treatment).to_pandas()
+            
+            # Group by genome position and calculate mean for this treatment
+            avg_df = treatment_df.groupby("genome_position")[motif.meth_type].mean().reset_index()
+            
+            if len(avg_df) > 4:  # Need at least 5 points for a quartic fit
+                # Fit polynomial regression
+                x = avg_df["genome_position"].values
+                y = avg_df[motif.meth_type].values
+                z = np.polyfit(x, y, 4)  # quartic polynomial
+                p = np.poly1d(z)
+                
+                # Generate smooth curve with more points
+                x_smooth = np.linspace(x.min(), x.max(), 300)
+                y_smooth = p(x_smooth)
+                
+                # Plot the polynomial regression line using the treatment's color
+                ax.plot(x_smooth, y_smooth, color=genome.treatment_color_map[treatment], linewidth=2)
 
-    out_file = output_dir / f"{genome.readable_name}_whole_methylome_{motif.motif}.pdf"
+        ax.set_xlabel("Genome position (bp)")
+        ax.set_ylabel(f"Fraction of {readable_modification_name[motif.meth_type]} methylation")
+        ax.set_title(f"{genome.readable_name} - {motif.motif} Methylome - Strand: {['+', '-'][i]}")
+
+    out_file = output_dir / f"{genome.readable_name}_whole_methylome_{motif.readable_motif}.pdf"
     plt.savefig(out_file)
     plt.close()
     print(f"Saved PDF: {out_file}")
@@ -126,7 +127,7 @@ def plot_motif_methylation_distribution(
     ax.set_ylabel("Count of sites")
     ax.set_title(f"{genome.readable_name} - Distribution of {motif.motif} Methylation")
 
-    out_file = output_dir / f"{genome.readable_name}_{motif.motif}_methylation_distribution.pdf"
+    out_file = output_dir / f"{genome.readable_name}_{motif.readable_motif}_methylation_distribution.pdf"
     plt.savefig(out_file, format="pdf")
     plt.close()
     print(f"Saved PDF: {out_file}")
@@ -185,7 +186,7 @@ def plot_dmr_scores_heatmap(
     ax.set_xlabel("Treatment B")
     ax.set_ylabel("Treatment A")
 
-    out_file = output_dir / f"{genome.readable_name}_{motif.motif}_dmr_heatmap.pdf"
+    out_file = output_dir / f"{genome.readable_name}_{motif.readable_motif}_dmr_heatmap.pdf"
     plt.savefig(out_file, format="pdf")
     plt.close()
     print(f"Saved PDF: {out_file}")
@@ -243,7 +244,7 @@ def plot_parallel_categories_methylation(
     
     fig.update_layout(title=f"Methylation state transitions in {genome.readable_name} across conditions", coloraxis_showscale=False)
     
-    out_file = output_dir / f"{genome.readable_name}_{motif.motif}_parallel_categories.html"
+    out_file = output_dir / f"{genome.readable_name}_{motif.readable_motif}_parallel_categories.html"
     fig.write_html(str(out_file))
     print(f"Saved HTML: {out_file}")
 
@@ -346,7 +347,7 @@ def extract_motif_data_all_transitions(
         data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id", how="left")
         
         # Check if we can continue
-        out_file = genome.output_dir / f"{genome.readable_name}_{motif.motif}_motif_transition_{'_'.join(transitions)}.csv"
+        out_file = genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_motif_transition_{'_'.join(transitions)}.csv"
         if data.is_empty():
             # Print "No data for this transition" to output file
             with open(out_file, "w") as f:
@@ -463,7 +464,7 @@ def extract_diff_methylated_genes(
         data = data.sort("score", descending=True).head(top_n)
     
     # Write to CSV
-    output_file = genome.output_dir / f"{genome.readable_name}_{motif.motif}_top_diff_genes.csv"
+    output_file = genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_top_diff_genes.csv"
     data.write_csv(output_file)
     
     return data
@@ -479,7 +480,7 @@ def write_basic_stats(genome, motif):
 
     avg_fraction = df_fraction.select(pl.col(motif.meth_type).mean()).item()
 
-    out_file = genome.output_dir / f"{genome.readable_name}_{motif.motif}_basic_stats.txt"
+    out_file = genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_basic_stats.txt"
     with open(out_file, "w") as f:
         f.write(f"Number of sites: {site_count}\n")
         treatments = df.get_column("treatment").unique().to_list()
@@ -496,4 +497,4 @@ def extract_consensus_genes(genome, trans, dmrs, motif):
     # Get the intersection
     dmrs = dmrs.select("contig", "position", "strand", "score", "balanced_map_pvalue", "balanced_effect_size", "treatment_a", "treatment_b")
     consensus = trans.join(dmrs, how="inner", on=["contig", "position", "strand"])
-    consensus.write_csv(genome.output_dir / f"{genome.readable_name}_{motif.motif}_innerjoin_dmr_trans_genes.csv")
+    consensus.write_csv(genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_innerjoin_dmr_trans_genes.csv")

@@ -128,7 +128,7 @@ class Contig:
                         else:
                             taxonomy = line_cols[7].split(";")
                             rank_i = 6 if rank == "s" else 5 if rank == "g" else 4 if rank == "f" else 3 if rank == "o" else 2 if rank == "c" else 1 if rank == "p" else 0
-                            return taxonomy[rank].strip()
+                            return taxonomy[rank_i].strip()
     
         
     def add_gene_caller_id(self, df: pl.LazyFrame, include_intergenic: bool = False) -> pl.LazyFrame:
