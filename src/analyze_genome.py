@@ -26,9 +26,21 @@ def plot_whole_methylome(
       - fraction = motif_type / (motif_type + canonical base)
       - x-axis = genome_position, color by sample
     """
-    df = motif.data(normalize=False).with_columns(pl.col("sample").replace_strict(genome.barcode_treatment_map).replace_strict(genome.treatment_name_map).alias("treatment"))
-    df = treatment_weighted_mean(df).collect(streaming=True)
-    df = genome.add_genome_relative_position(df).rename({"treatment": "Treatment"})
+    df = motif.data().collect(streaming=True)
+    
+    # Order the contigs by their mean methylation
+    ordered_contigs = None
+    if "0_9_3" in genome.genome_path.stem:
+        ordered_contigs = df.group_by("contig").agg(pl.col(motif.meth_type).mean().alias("mean_meth")).sort("mean_meth").get_column("contig").to_list()
+        ordered_contigs = [
+        "c_000000069174", "c_000000073274", "c_000000091796", "c_000000032055",
+        "c_000000070176", "c_000000071756", "c_000000077392", "c_000000091831",
+        "c_000000028731", "c_000000071011", "c_000000070925", "c_000000070918",
+        "c_000000070876", "c_000000070869", "c_000000070843", "c_000000070810",
+        "c_000000070403", "c_000000070398", "c_000000071322", "c_000000077581",
+        "c_000000077510", "c_000000070967", "c_000000091805"]
+
+    df = genome.add_genome_relative_position(df, order=ordered_contigs).rename({"treatment": "Treatment"})
 
     if df.is_empty():
         return
@@ -48,8 +60,14 @@ def plot_whole_methylome(
             hue_order=hue_order,
             palette=[genome.treatment_color_map[treatment] for treatment in hue_order]
         )
+        
+        # Add vertical lines marking ori and term
+        # Ori:537,590 Ter:152,210 if genome is g__pelagibacter_0_9_3
+        if "0_9_3" in genome.genome_path.stem:
+            ax.axvline(537590, color="green", linestyle="--", linewidth=5)
+            ax.axvline(152210, color="red", linestyle="--", linewidth=5)
             
-        for treatment in hue_order:
+        for j, treatment in enumerate(hue_order):
             # Filter data for this treatment
             treatment_df = df.filter(df["Treatment"] == treatment).to_pandas()
             
@@ -60,15 +78,20 @@ def plot_whole_methylome(
                 # Fit polynomial regression
                 x = avg_df["genome_position"].values
                 y = avg_df[motif.meth_type].values
-                z = np.polyfit(x, y, 4)  # quartic polynomial
+                z = np.polyfit(x, y, 4)
                 p = np.poly1d(z)
+                
+                # Add R-squared value and p value of fit
+                r2 = np.corrcoef(x, p(x))[0, 1] ** 2
+                ax.text(0.05, 0.95-j*0.1, f"R^2: {r2:.2f}", transform=ax.transAxes, fontsize=10) 
+                ax.text(0.05, 0.90-j*0.1, f"p: {z}", transform=ax.transAxes, fontsize=10)
                 
                 # Generate smooth curve with more points
                 x_smooth = np.linspace(x.min(), x.max(), 300)
                 y_smooth = p(x_smooth)
                 
                 # Plot the polynomial regression line using the treatment's color
-                ax.plot(x_smooth, y_smooth, color=genome.treatment_color_map[treatment], linewidth=2)
+                ax.plot(x_smooth, y_smooth, color=genome.treatment_color_map[treatment], linewidth=2) 
 
         ax.set_xlabel("Genome position (bp)")
         ax.set_ylabel(f"Fraction of {readable_modification_name[motif.meth_type]} methylation")
@@ -97,16 +120,10 @@ def plot_motif_methylation_distribution(
     - We'll do a single figure with multiple histplot calls, or subplots, showing how
       many sites fall in each fraction bin per sample.
     """
-    df = motif.data(normalize=False).collect(streaming=True)
-
+    df = motif.data().collect(streaming=True).rename({"treatment": "Treatment"})
+    
     if df.is_empty():
         return
-    
-    # Replace sample → treatment name
-    df = df.with_columns(pl.col("sample").replace_strict(genome.barcode_treatment_map).replace_strict(genome.treatment_name_map).alias("treatment"))
-
-    # For each positiomn take a mean
-    df = treatment_weighted_mean(df).rename({"treatment": "Treatment"})
 
     # One approach: single figure, color by treatment. Another approach: subplots per treatment.
     # Example: single figure, multiple histplot calls with "multiple='dodge'"
@@ -206,12 +223,9 @@ def plot_parallel_categories_methylation(
     Create a Plotly parallel categories plot with clearer bin labels ("Low", "Medium", "High") 
     and color. For instance, we color by the first dimension's value.
     """
-    df = motif.data(normalize=False).collect(streaming=True)
-    df = df.with_columns(pl.col("sample").replace_strict(genome.barcode_treatment_map).replace_strict(genome.treatment_name_map).alias("treatment"))
+    df = motif.data().collect(streaming=True)
     treatments = df.get_column("treatment").unique().to_list()
-    
-    df = treatment_weighted_mean(df)
-    
+        
     if df.is_empty():
         return
     
@@ -256,7 +270,7 @@ def extract_motif_data_all_transitions(
     bins: int = 3,
 ) -> None:
     """
-    Extract all motif data (from motif.data(normalize=False)) for each unique methylation
+    Extract all motif data for each unique methylation
     transition across treatments. For each unique transition found in the data, this function
     outputs a separate CSV file (with gene annotations).
 
@@ -272,16 +286,9 @@ def extract_motif_data_all_transitions(
       None. (CSV files are written to genome.output_dir.)
     """
     # 1. Collect the full motif data and map samples to treatments.
-    df = motif.data(normalize=False).collect(streaming=True)
+    df = motif.data().collect(streaming=True)
     if df.is_empty():
         return
-    
-    df = df.with_columns(
-        pl.col("sample")
-          .replace_strict(genome.barcode_treatment_map)
-          .replace_strict(genome.treatment_name_map)
-          .alias("treatment")
-    )
 
     # Add a composite key for later filtering.
     df = df.with_columns(
@@ -292,9 +299,6 @@ def extract_motif_data_all_transitions(
             separator="_"
         ).alias("composite_key")
     )
-
-    # (Optional) Apply treatment weighting if your workflow requires it.
-    df = treatment_weighted_mean(df)
 
     # 2. Pivot the data so that each row (identified by contig, position, strand)
     #    has one column per treatment with methylation values given by motif.meth_type.
@@ -474,11 +478,8 @@ def write_basic_stats(genome, motif):
     site_count = motif.positions.unique(subset=["contig", "position", "strand"]).collect().height
     
     # Compute weighted fraction using treatment_weighted_mean
-    df = motif.data(normalize=False).collect(streaming=True)
-    df = df.with_columns(pl.col("sample").replace_strict(genome.barcode_treatment_map).replace_strict(genome.treatment_name_map).alias("treatment"))
-    df_fraction = treatment_weighted_mean(df).rename({"treatment": "Treatment"})
-
-    avg_fraction = df_fraction.select(pl.col(motif.meth_type).mean()).item()
+    df = motif.data().collect(streaming=True)
+    avg_fraction = df.select(pl.col(motif.meth_type).mean()).item()
 
     out_file = genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_basic_stats.txt"
     with open(out_file, "w") as f:

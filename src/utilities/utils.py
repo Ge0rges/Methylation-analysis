@@ -3,50 +3,13 @@ import textwrap
 import random
 import polars as pl
 import numpy as np
+import csv
+
 
 readable_modification_name = {"21839": "4mC", "m": "5mC", "a": "6mA", "Ncanonical_A": "A", "Ncanonical_C": "C"}
 readable_methylation_name = {"21839": "4mC", "m": "5mC", "a": "6mA"}
 methylation_base_map = {"21839": "C", "m": "C", "a": "A"}
 base_methylation_map = {"C": ["21839", "m"], "A": ["a"]}
-
-metagenome_study = ({"barcode01": "S2-1",
-                     "barcode02": "S2-2",
-                     "barcode03": "S2-3",
-                     "barcode04": "control",
-                     "barcode05": "S3-1",
-                     "barcode06": "S3-2",
-                     "barcode07": "S3-3",
-                     "barcode08": "S4-1",
-                     "barcode09": "S4-2",
-                     "barcode10": "S4-3",
-                     "barcode11": "IC3-1 (30 cm)",
-                     "barcode12": "IC3-2 (160 cm)",
-                     "barcode13": "IC3-3 (205 cm)",
-                     "barcode14": "IC3-4 (70 cm)",
-                     },
-                    {"barcode01": "top",
-                     "barcode02": "middle",
-                     "barcode03": "bottom",
-                     "barcode05": "top",
-                     "barcode06": "middle",
-                     "barcode07": "bottom",
-                     "barcode08": "top",
-                     "barcode09": "middle",
-                     "barcode10": "bottom",
-                     "barcode11": "core-40",
-                     "barcode12": "core-160",
-                     "barcode13": "core-205",
-                     "barcode14": "core-70",
-                     "top": "Sackhole Top (40 cm)",
-                     "middle": "Sackhole Middle (70 cm)",
-                     "bottom": "Sackhole Bottom (160 cm)",
-                     "barcode04": "control",
-                     "control": "Control",
-                     "core-40": "Ice core 40 cm",
-                     "core-160": "Ice core 160 cm",
-                     "core-205": "Ice core 205 cm",
-                     'core-70': "Ice core 70 cm"
-                     }, ["top", "middle", "bottom"])
 
 
 read_counts = {
@@ -172,14 +135,6 @@ def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[st
     return result.select(*og_columns)
 
 
-def normalize_data_by_pileup(df: pl.DataFrame | pl.LazyFrame) -> pl.LazyFrame | pl.DataFrame:
-    for base, meth_group in base_methylation_map.items():
-        norm_columns = meth_group + ["Ncanonical_" + base]
-        df = df.with_columns(pl.col(meth_key) / pl.concat_list(*norm_columns).list.sum() for meth_key in norm_columns)
-
-    return df
-
-
 def treatment_weighted_mean(df: pl.DataFrame | pl.LazyFrame) -> pl.LazyFrame | pl.DataFrame:
     for base, meth_group in base_methylation_map.items():
         norm_columns = meth_group + ["Ncanonical_" + base]
@@ -251,3 +206,52 @@ def create_methylation_bins(num_bins: int, low: float = 0, high: float = 1) -> t
 
     # Remove the first and last bins to obtain the desired number of bins.
     return cut_points[1:-1], bin_labels[1:-1]
+
+
+def parse_treatment_tsv(treatment_info_path):
+    # Load treatment information mappings
+    treatment_name_map = {}
+    treatment_color_map = {}
+    treatment_order_map = {}
+    
+    with open(treatment_info_path, mode='r') as file:
+        reader = csv.reader(file, delimiter='\t')
+        for i, row in enumerate(reader):
+            if row == []:
+                print(f"Warning: Empty row found in treatment info file at line {i}. Skipping.")
+                continue
+            
+            if i==0:
+                if row == ["treatment", "readable_treatment", "color", "order"]:
+                    continue
+                else:
+                    raise ValueError("Treatment info TSV file must have header 'treatment', 'readable_treatment', 'color', and 'order' at {treatment_info}.")
+            
+            treatment_name_map[row[0]] = row[1]
+            treatment_color_map[row[1]] = row[2].replace(" ", "")
+            treatment_order_map[row[1]] = row[3]
+    
+    return treatment_name_map, treatment_color_map, treatment_order_map
+
+def parse_barcode_tsv(barcode_treatment_sample_file):
+    # Load barcode→treatment mappings
+    barcode_sample_map = {}
+    barcode_treatment_map = {}
+
+    with open(barcode_treatment_sample_file, mode='r') as file:
+        reader = csv.reader(file, delimiter='\t')
+        for i, row in enumerate(reader):
+            if i==0:
+                if row == []:
+                    print(f"Warning: Empty row found in treatment info file at line {i}. Skipping.")
+                    continue
+            
+                if row == ['barcode', 'treatment', 'sample']:
+                    continue
+                else:
+                    raise ValueError("Barcode treatment sample TSV file must have header 'barcode', 'treatment', and 'sample' at {barcode_treatment_sample_file}.")
+            
+            barcode_treatment_map[row[0]] = row[1]
+            barcode_sample_map[row[0]] = row[2]
+    
+    return barcode_treatment_map, barcode_sample_map

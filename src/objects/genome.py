@@ -66,53 +66,17 @@ class Genome(object):
             raise ValueError("At least two treatments must be provided.")
         
         # Load treatment information mappings
-        treatment_name_map = {}
-        treatment_color_map = {}
-        treatment_order_map = {}
-        
-        with open(treatment_info, mode='r') as file:
-            reader = csv.reader(file, delimiter='\t')
-            for i, row in enumerate(reader):
-                if row == []:
-                    print(f"Warning: Empty row found in treatment info file at line {i}. Skipping.")
-                    continue
-                
-                if i==0:
-                    if row == ["treatment", "readable_treatment", "color", "order"]:
-                        continue
-                    else:
-                        raise ValueError("Treatment info TSV file must have header 'treatment', 'readable_treatment', 'color', and 'order' at {treatment_info}.")
-                
-                treatment_name_map[row[0]] = row[1]
-                treatment_color_map[row[1]] = row[2].replace(" ", "")
-                treatment_order_map[row[1]] = row[3]
+        treatment_name_map, treatment_color_map, treatment_order_map = parse_treatment_tsv(treatment_info)
         
         self.treatment_name_map: dict[str, str] = treatment_name_map
         self.treatment_color_map: dict[str, str] = treatment_color_map
         self.treatment_order_map: dict[str, str] = treatment_order_map
         
-        # Load barcode→treatment mappings
-        barcode_replicate_map = {}
-        barcode_treatment_map = {}
-
-        with open(barcode_treatment_sample_file, mode='r') as file:
-            reader = csv.reader(file, delimiter='\t')
-            for i, row in enumerate(reader):
-                if i==0:
-                    if row == []:
-                        print(f"Warning: Empty row found in treatment info file at line {i}. Skipping.")
-                        continue
-                
-                    if row == ['barcode', 'treatment', 'sample']:
-                        continue
-                    else:
-                        raise ValueError("Barcode treatment sample TSV file must have header 'barcode', 'treatment', and 'sample' at {barcode_treatment_sample_file}.")
-                
-                barcode_treatment_map[row[0]] = row[1]
-                barcode_replicate_map[row[0]] = row[2]
+        # Load barcode mappings
+        barcode_treatment_map, barcode_sample_map = parse_barcode_tsv(barcode_treatment_sample_file)
 
         self.barcode_treatment_map: dict[str, str] = barcode_treatment_map                
-        self.barcode_replicate_map: dict[str, str] = barcode_replicate_map
+        self.barcode_sample_map: dict[str, str] = barcode_sample_map
 
         # Create a "readable_name" for display
         self.readable_name: str = ". ".join([s.capitalize() for s in genome_path.stem.split("__")[0:2]])
@@ -196,15 +160,21 @@ class Genome(object):
         return df
 
 
-    def add_genome_relative_position(self, df: pl.LazyFrame) -> pl.LazyFrame:
+    def add_genome_relative_position(self, df: pl.LazyFrame, order=None) -> pl.LazyFrame:
         # Get contigs cumsum
         contigs = list(self.sequence.keys())
         contigs.sort()
         cum_sum = 0
         offsets = {}
-        for key in contigs:
-            offsets[key] = cum_sum
-            cum_sum += len(self.sequence[key])
+        
+        if order: # Concatenate the contigs as indicated
+            for key in order:
+                offsets[key] = cum_sum
+                cum_sum += len(self.sequence[key])
+        else:   
+            for key in contigs:
+                offsets[key] = cum_sum
+                cum_sum += len(self.sequence[key])
 
         # Convert position to absolute
         return df.with_columns(pl.col("position").add(pl.col("contig").replace_strict(offsets, return_dtype=pl.UInt64)).alias("genome_position"))

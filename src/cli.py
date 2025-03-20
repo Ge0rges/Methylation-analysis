@@ -5,6 +5,7 @@ from src.objects.contig import Contig
 from analyze_genome import *
 from analyze_contigs import *
 from mag_eval_plot import *
+from src.utilities.utils import parse_treatment_tsv, parse_barcode_tsv
 
 @click.group(help="A multi-command CLI for methylation analysis.")
 @click.pass_context
@@ -139,7 +140,9 @@ def analyze_metagenome(
     contig_names = genome.sequence.keys()
     contigs = [Contig(genome, contig_name, contig_taxonomy_tsv, is_viral=False) for contig_name in contig_names]
 
-    plot_contig_motif_heatmap(contigs)
+    df = plot_contig_motif_heatmap(contigs)
+    extract_diff_methylated_genes(df, contigs)
+    write_basic_stats_about_contigs(df, contigs)
 
 
 @cli.command(short_help="Analyze viruses methylation data, assumes one virus per contig.")
@@ -190,12 +193,18 @@ def analyze_viruses(
 @click.option("--checkm-tsv", "-q", required=True, type=click.Path(exists=True), help="CheckM2 quality_report.tsv file.")
 @click.option("--output-dir", "-o", required=True, type=click.Path(), help="Directory to store the analysis results (tables, plots, processed data, etc.).")
 @click.option("--coverm-path", "-c", required=True, type=click.Path(exists=True), help="Path to the coverm coverage file.")
-def quality_coverage(checkm_tsv: str, output_dir: str, coverm_path: int):
+@click.option("--treatment-info", "-i", required=True, type=click.Path(exists=True), help="TSV file containing treatment information WITH HEADER. (e.g. 'treatment\treadable_treatment\tcolor\torder').")
+@click.option("--barcode-map-file", "-b", required=True, type=click.Path(exists=True), help="TSV mapping barcodes to treatments and samples WITH HEADER (e.g. 'barcode\ttreatment\tsample').")
+def quality_coverage(checkm_tsv: str, output_dir: str, coverm_path: int, treatment_info: str, barcode_map_file: str):
     checkm_tsv = Path(checkm_tsv)
     coverm_path = Path(coverm_path)
     output_dir = Path(output_dir)
     
-    plot_coverage(coverm_path, output_dir)
+    # Parse treatment info the get barcode replicate map
+    treatment_name_map, _, treatment_order_map = parse_treatment_tsv(treatment_info)
+    barcode_treatment_map, _ = parse_barcode_tsv(barcode_map_file)
+
+    plot_coverage(coverm_path, output_dir, treatment_name_map, barcode_treatment_map, treatment_order_map)
     plot_mag_qual(checkm_tsv, output_dir)
 
 

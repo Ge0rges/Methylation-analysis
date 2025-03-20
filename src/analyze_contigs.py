@@ -1,12 +1,14 @@
 import polars as pl
 import matplotlib.pyplot as plt
 from src.objects.contig import Contig
+from src.objects.gene_collection import GeneCollection
 from src.utilities.utils import treatment_weighted_mean
 import seaborn as sns
 import pandas as pd
 from matplotlib.patches import Patch
 from scipy.cluster.hierarchy import linkage
 import numpy as np
+import scipy.stats as stats
 
 
 def plot_contig_motif_heatmap(contigs: list[Contig]):
@@ -20,12 +22,12 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
 
     # Create a dataframe with columns: contig_name treatment motif_string methylation_fraction contig_taxonomy
     data = []
+
     for contig in contigs:
         for motif in contig.motifs:
-            motif_df = motif.data(normalize=False).collect(streaming=True)
-            motif_df = motif_df.with_columns(pl.col("sample").replace_strict(contig.parent_genome.barcode_treatment_map).replace_strict(contig.parent_genome.treatment_name_map).alias("treatment"))
-            motif_df = treatment_weighted_mean(motif_df)
+            motif_df = motif.data().collect(streaming=True)
             
+            # Add data with significance information
             for treatment in motif_df.get_column("treatment").unique():
                 methylation_fraction = motif_df.filter(pl.col("treatment") == treatment).select(motif.meth_type).mean().item()
                 
@@ -38,7 +40,7 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
                 })
         
     df = pl.DataFrame(data)
-    
+
     # Pivot the data with polars
     pivot_df = df.to_pandas().pivot(
         index="contig_name",
@@ -56,31 +58,36 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     
     treatment_colors = treatment_colors.to_pandas().drop_duplicates().set_index(pivot_df.columns, drop=True).drop(columns=["motif_string", "treatment"])
     contig_colors = contig_colors.to_pandas().drop_duplicates("contig_name").set_index("contig_name")
-    
-    # Create a copy of pivot_df for clustering
-    pivot_values = pivot_df.values
-    
-    # Handle NaN values by replacing them with 0 for clustering purposes
-    pivot_values_filled = np.nan_to_num(pivot_values, nan=-1.0)
-    
-    # Compute linkage matrices for rows and columns
-    row_linkage = linkage(pivot_values_filled, method='ward', metric='euclidean')
-    col_linkage = linkage(pivot_values_filled.T, method='ward', metric='euclidean')
         
-    # Create the clustered heatmap
+    # Sort columns by motif_string first, then treatment
+    pivot_df = pivot_df.sort_index(axis=1)
+
+    # Sort rows by taxonomy classification
+    contig_taxonomy_map = {row['contig_name']: row['contig_taxonomy'] 
+                          for row in df.select('contig_name', 'contig_taxonomy').unique().to_dicts()}
+    sorted_indices = sorted(pivot_df.index, key=lambda x: contig_taxonomy_map.get(x, ''))
+    pivot_df = pivot_df.loc[sorted_indices]
+
+    # Reindex row colors to match sorted rows
+    contig_colors = contig_colors.reindex(pivot_df.index)
+    
+    # Reindex column colors to match sorted columns
+    treatment_colors = treatment_colors.reindex(pivot_df.columns)
+    
+    # Create the heatmap without clustering to preserve sort order
     g = sns.clustermap(
         pivot_df,
         figsize=(len(df.get_column('motif_string').unique())*2, len(df.get_column("contig_name").unique())/1.5),
         row_colors=contig_colors,
         col_colors=treatment_colors,
-        row_linkage=row_linkage,
-        col_linkage=col_linkage,
         mask=pivot_df.isna(),
         cmap="coolwarm",
         linewidths=0.1,
         cbar_kws={"label": "Methylation fraction"},
+        row_cluster=False,  # Disable row clustering
+        col_cluster=False   # Disable column clustering
     )
-    
+
     # Modify x-axis labels to show only motifs, not treatments
     motifs = [label.get_text().split("-")[0] for label in g.ax_heatmap.get_xticklabels()]
     g.ax_heatmap.set_xticklabels(motifs)
@@ -107,8 +114,102 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
 
         plt.suptitle("Viral motif heatmap")
         g.savefig(f"{contigs[0].parent_genome.output_dir}/virus_motif_heatmap.svg", transparent=True)
+        g.savefig(f"{contigs[0].parent_genome.output_dir}/virus_motif_heatmap.pdf")
+
     else:
         g.ax_heatmap.set_ylabel("Contig")
 
         plt.suptitle("Contig motif heatmap")
         g.savefig(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap.svg", transparent=True)
+        g.savefig(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap.pdf")
+
+    return df
+
+
+def extract_diff_methylated_genes(df, contigs: list[Contig]):
+    """
+    Get the DMRs that are significantly different between treatments.
+    """
+    # Get all the dmrs together
+    all_data = []
+    for contig in contigs:
+        for motif in contig.motifs:
+            # Let's do 1) add gene_caller_id if needed
+            top_rows = motif.dmr_data.collect(streaming=True).sort("score", descending=True)
+            if top_rows.is_empty():
+                continue
+            
+            data = contig.parent_genome.add_gene_caller_id(top_rows.lazy(), include_intergenic=True).collect(streaming=True)
+            
+            # Add function
+            gc = GeneCollection(data.get_column("gene_callers_id").unique().to_list(), contig.parent_genome)
+            data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id", how="left")
+
+            # Add nearest gene if not in gene
+            data = contig.parent_genome.nearest_gene_to_positions(data)
+
+            # Add function of nearest genes
+            gc = GeneCollection(data.get_column("gene_callers_id_start").unique().to_list(), contig.parent_genome)
+            data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
+            gc = GeneCollection(data.get_column("gene_callers_id_end").unique().to_list(), contig.parent_genome)
+            data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
+            
+            # Logic to filter down the table by creating a ranking system
+            # Create ranking columns based on priority criteria
+            data = data.with_columns([
+                # First priority: gene_callers_id is not -1 (has gene annotation)
+                (pl.col("gene_callers_id") != -1).cast(pl.Int32).alias("has_gene"),
+                
+                # Create a sort priority column with clear priority rules
+                pl.struct([
+                    # First priority: gene_callers_id is not -1 (has direct gene annotation)
+                    (pl.col("gene_callers_id") != -1),
+                    
+                    # Second priority: KOfam > COG20_FUNCTION > others for direct annotation
+                    pl.when(pl.col("source") == "KOfam").then(3)
+                    .when(pl.col("source") == "COG20_FUNCTION").then(2)
+                    .otherwise(1).alias("source_priority"),
+                    
+                    # Third priority: consistent annotations across direct and nearest genes
+                    (pl.col("source") == pl.col("source_start")) & (pl.col("source") == pl.col("source_end")),
+                    
+                    # Fourth priority: quality of nearest gene annotations
+                    pl.when(pl.col("source_start") == "KOfam").then(3)
+                    .when(pl.col("source_start") == "COG20_FUNCTION").then(2)
+                    .otherwise(1).alias("nearest_priority"),
+                    
+                    pl.when(pl.col("source_end") == "KOfam").then(3)
+                    .when(pl.col("source_end") == "COG20_FUNCTION").then(2)
+                    .otherwise(1).alias("nearest_priority_end")
+                ]).alias("sort_priority")
+            ])
+
+            # Sort the data by priority within each position group
+            data = data.sort("sort_priority", descending=True)
+            
+            # Group by position identifiers and take only the first row (highest priority) from each group
+            data = data.group_by(["contig", "position", "strand"]).agg(
+                pl.all().exclude(["contig", "position", "strand", "sort_priority", "has_gene"]).first()
+            )
+                
+            all_data.append(data)
+            
+    # Write to CSV
+    output_file = contig.parent_genome.output_dir / f"{contig.parent_genome.readable_name}_all_top_diff_genes.csv"
+    pl.concat(all_data).write_csv(output_file)    
+
+
+def write_basic_stats_about_contigs(contigs: list[Contig], df):    
+    contigs_with_motifs = [contig for contig in contigs if contig.motifs]
+    motif_counts = [len(contig.motifs) for contig in contigs_with_motifs]    
+    dmr_counts = [sum([len(motif.dmrs) for motif in contig.motifs]) for contig in contigs_with_motifs]    
+    mdf = df.group_by("treatment").agg(pl.mean("methylation_fraction"))
+    
+    # Write those print statements to file
+    with open(contigs[0].parent_genome.output_dir / "contig_stats.txt", "w") as f:
+        f.write(f"Number of contigs: {len(contigs)}\n")
+        f.write(f"Number of contigs with at least one motif: {len(contigs_with_motifs)}\n")
+        f.write(f"Average number of motifs per contig: {sum(motif_counts) / len(motif_counts)}\n")
+        f.write(f"Average number of DMRs per contig: {sum(dmr_counts) / len(dmr_counts)}\n")
+        f.write(f"Mean of mean methylation difference across motifs: {mdf}\n")
+    

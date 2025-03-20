@@ -318,6 +318,7 @@ def load_methylation_data(
 
     # Normalize
     if normalize:
-        result = utils.normalize_data_by_pileup(result)
+        result = result.with_columns(pl.col("sample").replace_strict(genome.barcode_treatment_map).replace_strict(genome.treatment_name_map).alias("treatment"))
+        result = utils.treatment_weighted_mean(result)
 
     return result

@@ -5,57 +5,55 @@ import matplotlib.pylab as plt
 import os
 
 from src.utilities.data_loading import get_coverage
-from src.utilities.utils import metagenome_study, read_counts
+from src.utilities.utils import read_counts
 from matplotlib.colors import LogNorm
-from pathlib import Path
 
 sns.set_theme(context="poster", style="white")
 
-readable_sample_name = metagenome_study[0]
-barcode_replicate_map = metagenome_study[1]
 
-def plot_coverage(coverm_path, output_dir):
+def plot_coverage(coverm_path, output_dir, treatment_name_map, barcode_treatment_map, treatment_order_map):
     """
     Plot the coverage metrics.
     :return: Saves a file
     :rtype: None
     """
 
-    # Load data
-    coverage = get_coverage(coverm_path).collect().to_pandas()
-    coverage.rename(inplace=True, columns=barcode_replicate_map)
-    coverage.rename(inplace=True, columns=readable_sample_name)
+    # Load data using Polars
+    coverage = get_coverage(coverm_path).collect()
+    coverage = coverage.unpivot(index="Genome", variable_name="sample", value_name="coverage")
     
-    # Remove metagenome_assembly row in Genome
-    coverage = coverage[coverage['Genome'] != "metagenome_assembly"]
-
-    # Clean the mag names
-    coverage['Genome'] = coverage['Genome'].str.split('__bin', expand=True)[0].str.split("__", expand=True)[:][0] + "__" + coverage['Genome'].str.split('__bin', expand=True)[0].str.split("__", expand=True)[:][1]
-    coverage.columns = coverage.columns.str.title()
+    # Get treatments
+    coverage = coverage.with_columns(pl.col("sample").replace(barcode_treatment_map).replace(treatment_name_map).alias("Treatment"))
+    coverage = coverage.group_by("Treatment", "Genome").agg(pl.col("coverage").mean())
     
-    # Rename column Control_barcode04 to Control and exclude Core-* columns
-    coverage.rename(inplace=True, columns={"Control_Barcode04": "Control"})
-    coverage = coverage[coverage.columns[~coverage.columns.str.contains("Core-")]]
-
-    # Format it
-    coverage.set_index(coverage['Genome'], inplace=True)
-    coverage.drop(columns=['Genome'], inplace=True)
-
-    # Mean same samples
-    coverage = coverage.groupby(by=coverage.columns, axis=1).sum()
-
-    # Make a plot
-    _, axes = plt.subplots(1, 1, figsize=(60, 60), layout="constrained")
+    # Exclude columns that contain "core" and metagenome
+    coverage = coverage.filter(~pl.col("Genome").str.contains("metagenome"), ~pl.col("Treatment").str.contains("core"))
 
     # Change the order of the X axis so that the samples are ordered alphabetically
-    coverage = coverage.reindex(sorted(coverage.columns), axis=1)
+    coverage = coverage.pivot(on="Treatment", values="coverage", index="Genome").to_pandas()
+    
+    # Set index and reorder
+    coverage = coverage.set_index("Genome", drop=True)
+    coverage = coverage.reindex([k for k in sorted(treatment_order_map, key=lambda x: x[1]) if k in coverage.columns], axis="columns")
 
-    # Heatmap with MAG name as rows, samples as columns, and coverage as numbers
-    sns.heatmap(coverage[coverage.mean().sort_values().index], annot=True, ax=axes, square=True, cbar_kws={"shrink": 0.5}, fmt=".2f", norm=LogNorm())
-
-    axes.set_title("Coverage Heatmap", fontsize=20)
-    axes.set_xlabel("Samples", fontsize=16)
-    axes.set_ylabel("MAG names", fontsize=16)
+    # Sort by coverage
+    coverage = coverage.sort_values(by=[coverage.columns[i] for i in [1,2,3]], ascending=False)
+    
+    # Create a heatmap with MAG names as rows, samples as columns, and coverage as numbers
+    _, ax = plt.subplots(figsize=(30, 60), constrained_layout=True)
+    sns.heatmap(
+        coverage,
+        annot=True,
+        ax=ax,
+        square=True,
+        cbar_kws={"shrink": 0.5},
+        fmt=".2f",
+        norm=LogNorm()
+    )
+    
+    ax.set_title("Coverage Heatmap")
+    ax.set_xlabel("Samples")
+    ax.set_ylabel("MAG names")
 
     plt.savefig(output_dir / "mag_coverage.pdf", format='pdf')
 
@@ -68,21 +66,23 @@ def plot_mag_qual(checkm_tsv, output_dir):
     # Load data
     quality = pd.read_csv(checkm_tsv, sep="\t", header=0)
     
-    quality = quality[quality['Name'] != "metagenome_assembly"]
     quality = quality[quality['Name'] != "viruses"]
+    quality = quality[~quality['Name'].str.contains("metagenome")]
 
     # Clean the mag names
-    quality['Name'] = quality['Name'].str.split('__bin', expand=True)[0].str.title()
     quality.rename(inplace=True, columns={"Completeness": "CheckM2 Completeness", "Contamination": "CheckM2 Redundancy"})
 
     # Format it
     bar_chart_data = pd.melt(quality[["Name", "CheckM2 Completeness", "CheckM2 Redundancy"]], id_vars="Name", var_name="Metric", value_name="percent")
 
+    # Sort by completeness
+    bar_chart_data = bar_chart_data.sort_values(by="percent", ascending=False)
+    
     # Define colors and hatches
     colors = sns.color_palette(["lightgreen", "lightcoral"])
 
     # Makea plot
-    _, axes = plt.subplots(1, 1, figsize=(90, 29), layout="constrained")
+    _, axes = plt.subplots(1, 1, figsize=(300, 30), layout="constrained")
 
     #  Bar chart with Completeness and Contamination percentages
     sns.barplot(data=bar_chart_data, x='Name', y='percent', hue="Metric", palette=colors, ax=axes)
@@ -94,10 +94,13 @@ def plot_mag_qual(checkm_tsv, output_dir):
     axes.axhline(y=10, color='red', linestyle='--', linewidth=1)  # 10% line
     axes.axhline(y=30, color='orange', linestyle='--', linewidth=1)  # 30% line
     axes.axhline(y=90, color='green', linestyle='--', linewidth=1)  # 90% line
+    
+    # Add ticks every 10%
+    axes.set_yticks(range(0, 101, 10))
 
-    axes.set_title("MAG quality assessment", fontsize=20)
-    axes.set_xlabel("MAG names", fontsize=16)
-    axes.set_ylabel("Percentage", fontsize=16)
+    axes.set_title("MAG quality assessment")
+    axes.set_xlabel("MAG names")
+    axes.set_ylabel("Percentage")
     axes.yaxis.grid(False)
     axes.legend(loc='center right')
 
