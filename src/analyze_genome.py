@@ -265,8 +265,8 @@ def plot_parallel_categories_methylation(
      
 
 def extract_motif_data_all_transitions(
-    genome: "Genome",
-    motif: "Motif",
+    genome: Genome,
+    motif: Motif,
     bins: int = 3,
 ) -> None:
     """
@@ -474,27 +474,35 @@ def extract_diff_methylated_genes(
     return data
 
 
-def write_basic_stats(genome, motif):
-    site_count = motif.positions.unique(subset=["contig", "position", "strand"]).collect().height
-    
-    # Compute weighted fraction using treatment_weighted_mean
-    df = motif.data().collect(streaming=True)
-    avg_fraction = df.select(pl.col(motif.meth_type).mean()).item()
+def write_basic_stats(genome: Genome, motifs: list[Motif]):
+    text = []
+    for motif in motifs:
+        site_count = motif.positions.unique(subset=["contig", "position", "strand"]).collect().height
+        text.append(f"Number of sites: {site_count}\n")
 
-    out_file = genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_basic_stats.txt"
-    with open(out_file, "w") as f:
-        f.write(f"Number of sites: {site_count}\n")
+        # Compute weighted fraction using treatment_weighted_mean
+        df = motif.data().collect(streaming=True)
+        if df.is_empty():
+            continue
+        
+        avg_fraction = df.select(pl.col(motif.meth_type).mean()).item()
         treatments = df.get_column("treatment").unique().to_list()
         for t in treatments:
             slice_df = df.filter(pl.col("treatment") == t)
             site_count_treatment = slice_df.unique(subset=["contig", "position", "strand"]).height
-            f.write(f"Number of sites with data for {t}: {site_count_treatment}\n")
-        f.write(f"Average {motif.meth_type} fraction: {avg_fraction}\n")
+            text.append(f"Number of sites with data for {t}: {site_count_treatment}\n")
+        text.append(f"Average {motif.meth_type} fraction: {avg_fraction}\n")
 
+    text.append(f"Found motifs: {','.join([m.motif for m in motifs])}")
+    
+    out_file = genome.output_dir / f"{genome.readable_name}_motifs_basic_stats.txt"
+    with open(out_file, "w") as f:
+        f.writelines(text)
+        
     print(f"Saved file: {out_file}")
 
 
-def extract_consensus_genes(genome, trans, dmrs, motif):
+def extract_consensus_genes(genome: Genome, trans: pl.DataFrame, dmrs: pl.DataFrame, motif: Motif):
     # Get the intersection
     dmrs = dmrs.select("contig", "position", "strand", "score", "balanced_map_pvalue", "balanced_effect_size", "treatment_a", "treatment_b")
     consensus = trans.join(dmrs, how="inner", on=["contig", "position", "strand"])

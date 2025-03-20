@@ -108,7 +108,7 @@ def plot_mag_qual(checkm_tsv, output_dir):
     plt.savefig(output_dir / "mag_eval.pdf", format='pdf')
 
 
-def plot_microbemod(microbemod_tsv, output_dir):
+def plot_microbemod(microbemod_tsv, output_dir, name):
     """
     Barplot by of number of genes by RM type, and enzyme type (methyltransferase, restriction enzyme)
     MicrobeMod TSV Example:
@@ -134,7 +134,7 @@ def plot_microbemod(microbemod_tsv, output_dir):
     for i in range(0, len(axes.containers)):
         axes.bar_label(axes.containers[i], fmt="%d")
 
-    axes.set_title("Count of RM genes in the metagenome")
+    axes.set_title(f"Count of RM genes in {name}")
     axes.set_xlabel("System type")
     axes.set_ylabel("Count")
     axes.yaxis.grid(False)

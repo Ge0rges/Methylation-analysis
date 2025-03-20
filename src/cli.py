@@ -94,8 +94,8 @@ def analyze_genome(
         if dmrs is not None and trans is not None:
             extract_consensus_genes(genome, trans, dmrs, motif)
         
-        # Basic stats file
-        write_basic_stats(genome, motif)
+    # Basic stats file
+    write_basic_stats(genome, motifs)
 
     click.echo("Analysis complete.")
 
@@ -211,11 +211,12 @@ def quality_coverage(checkm_tsv: str, output_dir: str, coverm_path: int, treatme
 @cli.command(short_help="Plot barplot of microbemod result.")
 @click.option("--microbemod-tsv", "-t", required=True, type=click.Path(exists=True), help="MicrobeMod output file.")
 @click.option("--output-dir", "-o", required=True, type=click.Path(), help="Directory to store the analysis results (tables, plots, processed data, etc.).")
-def microbemod_plot(microbemod_tsv: str, output_dir: str):
+@click.option("--title-name", "-n", required=True, help="Title name for the plot.")
+def microbemod_plot(microbemod_tsv: str, output_dir: str, title_name: str):
     microbemod_tsv = Path(microbemod_tsv)
     output_dir = Path(output_dir)
 
-    plot_microbemod(microbemod_tsv, output_dir)
+    plot_microbemod(microbemod_tsv, output_dir, title_name)
 
 
 if __name__ == "__main__":

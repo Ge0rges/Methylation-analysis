@@ -203,7 +203,6 @@ def write_basic_stats_about_contigs(contigs: list[Contig], df):
     contigs_with_motifs = [contig for contig in contigs if contig.motifs]
     motif_counts = [len(contig.motifs) for contig in contigs_with_motifs]    
     dmr_counts = [sum([len(motif.dmrs) for motif in contig.motifs]) for contig in contigs_with_motifs]    
-    mdf = df.group_by("treatment").agg(pl.mean("methylation_fraction"))
     
     # Write those print statements to file
     with open(contigs[0].parent_genome.output_dir / "contig_stats.txt", "w") as f:
@@ -211,5 +210,4 @@ def write_basic_stats_about_contigs(contigs: list[Contig], df):
         f.write(f"Number of contigs with at least one motif: {len(contigs_with_motifs)}\n")
         f.write(f"Average number of motifs per contig: {sum(motif_counts) / len(motif_counts)}\n")
         f.write(f"Average number of DMRs per contig: {sum(dmr_counts) / len(dmr_counts)}\n")
-        f.write(f"Mean of mean methylation difference across motifs: {mdf}\n")
     
