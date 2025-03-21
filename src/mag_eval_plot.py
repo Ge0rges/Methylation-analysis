@@ -140,7 +140,7 @@ def plot_microbemod(microbemod_tsv, output_dir, name):
     axes.yaxis.grid(False)
 
     # Display the figure save based on curent file path
-    plt.savefig(output_dir / "microbemod.pdf")
+    plt.savefig(output_dir / f"microbemod_{name}.pdf")
     
 
 def read_count_plot():

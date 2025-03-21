@@ -142,7 +142,7 @@ def analyze_metagenome(
 
     df = plot_contig_motif_heatmap(contigs)
     extract_diff_methylated_genes(df, contigs)
-    write_basic_stats_about_contigs(df, contigs)
+    write_basic_stats_about_contigs(contigs, df)
 
 
 @cli.command(short_help="Analyze viruses methylation data, assumes one virus per contig.")

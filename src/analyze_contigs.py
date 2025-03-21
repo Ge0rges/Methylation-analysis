@@ -202,7 +202,7 @@ def extract_diff_methylated_genes(df, contigs: list[Contig]):
 def write_basic_stats_about_contigs(contigs: list[Contig], df):    
     contigs_with_motifs = [contig for contig in contigs if contig.motifs]
     motif_counts = [len(contig.motifs) for contig in contigs_with_motifs]    
-    dmr_counts = [sum([len(motif.dmrs) for motif in contig.motifs]) for contig in contigs_with_motifs]    
+    dmr_counts = [sum([motif.dmr_data.unique(subset=["contig", "position", "strand"]).height() for motif in contig.motifs]) for contig in contigs_with_motifs]    
     
     # Write those print statements to file
     with open(contigs[0].parent_genome.output_dir / "contig_stats.txt", "w") as f:
