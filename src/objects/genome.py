@@ -13,8 +13,6 @@ from src.utilities.data_loading import get_dataset_genes, load_methylation_data,
 from src.objects.gene_collection import GeneCollection
 from src.objects.motif import Motif
 
-import csv
-
 
 class Genome(object):
     """

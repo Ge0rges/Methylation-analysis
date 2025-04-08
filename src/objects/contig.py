@@ -98,10 +98,10 @@ class Contig:
                 separator="\t"
             )
             
-            # GeNomad is: root;realm;kingdom;phylum;class;family;subfamily;genus;subgenus;species;
+            # GeNomad is: root;realm;kingdom;phylum;class;order;
             # Taxonomy is a string like "Viruses;Duplodnaviria;Heunggongvirae;Uroviricota;Caudoviricetes;;"
             taxonomy = df.filter(pl.col("seq_name") == self.contig_name).select("taxonomy").item()
-            rank_i = 9 if rank == "s" else 8 if rank == "sg" else 7 if rank == "g" else 6 if rank == "sf" else 5 if rank == "f" else 4 if rank == "c" else 3 if rank == "p" else 2 if rank == "k" else 1 if rank == "r" else 0
+            rank_i = 5 if rank == "o" else 4 if rank == "c" else 3 if rank == "p" else 2 if rank == "k" else 1 if rank == "r" else 0
             
             try:
                 taxonomy = taxonomy.split(";")
@@ -117,18 +117,38 @@ class Contig:
                 return ""
             
         else:
-            # Parse Kaiju. Different lines have different column numbers, so go line by line.
-            # Kaiju is: superkingdom,phylum,class,order,family,genus,species
+            # Parse MEGAN6-LR, file is a TSV with contig name, max rank, and taxonomy seperated with ;
+            # Ordered: NCBI; cellular organisms/Viruses; Domain; phylum; class; order; family; genus; species; 
             with open(self.taxonomy_tsv, "r") as f:
                 for line in f:
                     line_cols = line.split("\t")
                     if line_cols[1] == self.contig_name:
-                        if line_cols[0] == "U":
+                        
+                        taxonomy = line_cols[2].split(";")
+                        rank_i = 8 if rank == "s" else 7 if rank == "g" else 6 if rank == "f" else 5 if rank == "o" else 4 if rank == "c" else 3 if rank == "p" else 2
+                        
+                        if len(taxonomy) <= rank_i:
                             return "Unclassified"
                         else:
-                            taxonomy = line_cols[7].split(";")
-                            rank_i = 6 if rank == "s" else 5 if rank == "g" else 4 if rank == "f" else 3 if rank == "o" else 2 if rank == "c" else 1 if rank == "p" else 0
                             return taxonomy[rank_i].strip()
+            
+            # # Parse Kaiju. Different lines have different column numbers, so go line by line.
+            # # Kaiju is: superkingdom,phylum,class,order,family,genus,species
+            # with open(self.taxonomy_tsv, "r") as f:
+            #     for line in f:
+            #         line_cols = line.split("\t")
+            #         if line_cols[1] == self.contig_name:
+            #             if line_cols[0] == "U":
+            #                 return "Unclassified"
+            #             else:
+            #                 taxonomy = line_cols[7].split(";")
+            #                 rank_i = 6 if rank == "s" else 5 if rank == "g" else 4 if rank == "f" else 3 if rank == "o" else 2 if rank == "c" else 1 if rank == "p" else 0
+            #                 taxonomy = taxonomy[rank_i].strip()
+                            
+            #                 if taxonomy == "" or taxonomy == "NA":
+            #                     return "Unknown at this rank"
+            #                 else:
+            #                     return taxonomy
     
         
     def add_gene_caller_id(self, df: pl.LazyFrame, include_intergenic: bool = False) -> pl.LazyFrame:

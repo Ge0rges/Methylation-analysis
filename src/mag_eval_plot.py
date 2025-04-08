@@ -3,6 +3,8 @@ import polars as pl
 import seaborn as sns
 import matplotlib.pylab as plt
 import os
+import glob
+from pathlib import Path
 
 from src.utilities.data_loading import get_coverage
 from src.utilities.utils import read_counts
@@ -37,7 +39,7 @@ def plot_coverage(coverm_path, output_dir, treatment_name_map, barcode_treatment
     coverage = coverage.reindex([k for k in sorted(treatment_order_map, key=lambda x: x[1]) if k in coverage.columns], axis="columns")
 
     # Sort by coverage
-    coverage = coverage.sort_values(by=[coverage.columns[i] for i in [1,2,3]], ascending=False)
+    coverage = coverage.sort_values(by=[coverage.columns[i] for i in [0, 1, 2]], ascending=False)
     
     # Create a heatmap with MAG names as rows, samples as columns, and coverage as numbers
     _, ax = plt.subplots(figsize=(30, 60), constrained_layout=True)
@@ -128,7 +130,7 @@ def plot_microbemod(microbemod_tsv, output_dir, name):
     _, axes = plt.subplots(figsize=(10, 20), layout="constrained")
 
     # Bar chart with number of genes by RM type, and enzyme type (methyltransferase, restriction enzyme)
-    sns.histplot(data=microbemod, x='System type', hue="Gene type", ax=axes, stat="count", discrete=True, multiple="dodge", shrink=0.8)
+    sns.histplot(data=microbemod, x='System type', hue="Gene type", ax=axes, stat="count", discrete=True, multiple="dodge", shrink=0.8, hue_order=["Methyltransferase", "Restriction enzyme"])
 
     # Set the format for the bar labels
     for i in range(0, len(axes.containers)):
@@ -141,7 +143,86 @@ def plot_microbemod(microbemod_tsv, output_dir, name):
 
     # Display the figure save based on curent file path
     plt.savefig(output_dir / f"microbemod_{name}.pdf")
+
+
+def cross_microbemod_identified_motifs(microbemod_tsv: Path, methylation_data_dir: Path, output_dir: Path):
+    motif_dfs: list = []
+    pattern: Path = methylation_data_dir / "motifs" / "*_motifs.tsv"
     
+    for file in glob.glob(str(pattern)):
+        # Extract contig name from filename (assumes format X_<contig name>_motifs.tsv)
+        base = os.path.basename(file)
+        parts = base.split("_")
+        contig_name = f"{parts[1]}_{parts[2]}"
+        
+        # Read the TSV file using Polars and select the desired columns
+        try: 
+            df = pl.read_csv(file, separator="\t", schema_overrides=[pl.String, pl.String, pl.Int64, pl.String]).select(["mod_code", "motif", "offset"])
+            
+            # If empty, add manual rows
+            if df.is_empty():
+                df = pl.DataFrame({
+                    "mod_code": ["No motif identified"],
+                    "motif": ["No motif identified"],
+                    "offset": [-1]
+                })
+            
+        except pl.exceptions.NoDataError:
+            df: pl.DataFrame = pl.DataFrame({
+            "mod_code": ["No data"],
+            "motif": ["No data"],
+            "offset": [-1]
+        })
+        
+        # Add the contig name as a new column
+        df = df.with_columns(pl.lit(contig_name).alias("Contig name"))
+        motif_dfs.append(df)
+        
+    motif_table: pl.DataFrame = pl.concat(motif_dfs)
+    
+    # Group by contig name
+    motif_table = motif_table.group_by("Contig name").agg(
+        pl.col("mod_code"),
+        pl.col("motif"),
+        pl.col("offset").cast(pl.String)
+    )
+    
+    motif_table = motif_table.with_columns(
+        pl.col("mod_code").list.join(",").alias("mod_codes"),
+        pl.col("motif").list.join(",").alias("De novo motifs"),
+        pl.col("offset").list.join(",").alias("offsets")
+    ).select("Contig name", "mod_codes", "De novo motifs", "offsets")
+
+    # Process microbemod file
+    rm_genes_df: pl.DataFrame = pl.read_csv(microbemod_tsv, separator="\t")
+    rm_genes_df = rm_genes_df.with_columns(("c_" + pl.col('Gene').str.split('_').list.get(1)).alias("Contig name"))
+    
+    # Group by contig name to aggregate:
+    # - Count of genes.
+    # - Unique, sorted gene types joined by commas.
+    # - Unique, sorted homolog motifs (dropping nulls) joined by commas.
+    rm_genes_df = rm_genes_df.group_by("Contig name").agg([
+        pl.count("Gene").alias("Number of genes"),
+        pl.col("Gene type"),
+        pl.col("Homolog motif"),
+        pl.col("REBASE homolog"),
+        pl.col("Homolog methylation")
+    ])
+    
+    # Join the gene types and homolog motifs into comma-separated strings
+    rm_genes_df = rm_genes_df.with_columns(
+        pl.col("Gene type").list.join(",").alias("Gene types"),
+        pl.col("Homolog motif").list.join(",").alias("Homolog motifs"),
+        pl.col("REBASE homolog").list.join(",").alias("REBASE homologs"),
+        pl.col("Homolog methylation").list.join(",").alias("Homolog methylation")
+    ).select("Contig name", "Number of genes", "Gene types", "Homolog motifs", "REBASE homologs", "Homolog methylation")
+
+    # Join the motif and gene tables on "contig name"
+    result = motif_table.join(rm_genes_df, on="Contig name", how="full").select("Contig name", "De novo motifs", "Homolog motifs", "Number of genes", "Gene types", "REBASE homologs", "Homolog methylation", "mod_codes", "offsets")
+
+    # Write the resulting DataFrame as a TSV
+    result.write_csv(output_dir / methylation_data_dir.stem / "motifs_vs_microbemod.tsv", separator="\t")
+
 
 def read_count_plot():
     """

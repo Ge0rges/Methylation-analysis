@@ -36,11 +36,15 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
                     "treatment": treatment,
                     "motif_string": motif.readable_motif,
                     "methylation_fraction": methylation_fraction,
-                    "contig_taxonomy": contig.taxonomy("g"),
+                    "contig_taxonomy": contig.taxonomy("c" if contig.is_viral else "f"),
                 })
         
     df = pl.DataFrame(data)
 
+    if df.is_empty():
+        print(f"No data to plot in {contigs[0].parent_genome.readable_name}")
+        return df
+    
     # Pivot the data with polars
     pivot_df = df.to_pandas().pivot(
         index="contig_name",
@@ -115,6 +119,9 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
         plt.suptitle("Viral motif heatmap")
         g.savefig(f"{contigs[0].parent_genome.output_dir}/virus_motif_heatmap.svg", transparent=True)
         g.savefig(f"{contigs[0].parent_genome.output_dir}/virus_motif_heatmap.pdf")
+        
+        # Save a CSV of the data
+        pivot_df.to_csv(f"{contigs[0].parent_genome.output_dir}/virus_motif_heatmap.csv")
 
     else:
         g.ax_heatmap.set_ylabel("Contig")
@@ -122,11 +129,14 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
         plt.suptitle("Contig motif heatmap")
         g.savefig(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap.svg", transparent=True)
         g.savefig(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap.pdf")
+        
+        # Save a CSV of the data
+        pivot_df.to_csv(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap.csv")
 
     return df
 
 
-def extract_diff_methylated_genes(df, contigs: list[Contig]):
+def extract_diff_methylated_genes_contigs(df, contigs: list[Contig]):
     """
     Get the DMRs that are significantly different between treatments.
     """
@@ -196,13 +206,17 @@ def extract_diff_methylated_genes(df, contigs: list[Contig]):
             
     # Write to CSV
     output_file = contig.parent_genome.output_dir / f"{contig.parent_genome.readable_name}_all_top_diff_genes.csv"
+    if len(all_data) == 0:
+        print(f"No data to write in {contig.parent_genome.readable_name}")
+        return
+    
     pl.concat(all_data).write_csv(output_file)    
 
 
 def write_basic_stats_about_contigs(contigs: list[Contig], df):    
     contigs_with_motifs = [contig for contig in contigs if contig.motifs]
     motif_counts = [len(contig.motifs) for contig in contigs_with_motifs]    
-    dmr_counts = [sum([motif.dmr_data.unique(subset=["contig", "position", "strand"]).height() for motif in contig.motifs]) for contig in contigs_with_motifs]    
+    dmr_counts = [sum([motif.dmr_data.unique(subset=["contig", "position", "strand"]).collect(streaming=True).height for motif in contig.motifs]) for contig in contigs_with_motifs]    
     
     # Write those print statements to file
     with open(contigs[0].parent_genome.output_dir / "contig_stats.txt", "w") as f:

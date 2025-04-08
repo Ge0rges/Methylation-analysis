@@ -141,7 +141,7 @@ def analyze_metagenome(
     contigs = [Contig(genome, contig_name, contig_taxonomy_tsv, is_viral=False) for contig_name in contig_names]
 
     df = plot_contig_motif_heatmap(contigs)
-    extract_diff_methylated_genes(df, contigs)
+    extract_diff_methylated_genes_contigs(df, contigs)
     write_basic_stats_about_contigs(contigs, df)
 
 
@@ -186,7 +186,9 @@ def analyze_viruses(
     contig_names = genome.sequence.keys()
     contigs = [Contig(genome, contig_name, genomad_summary_tsv, is_viral=True) for contig_name in contig_names]
     
-    plot_contig_motif_heatmap(contigs)
+    df = plot_contig_motif_heatmap(contigs)
+    extract_diff_methylated_genes_contigs(df, contigs)
+    write_basic_stats_about_contigs(contigs, df)
     
     
 @cli.command(short_help="Plot quality and coverage data for MAGs.")
@@ -212,11 +214,14 @@ def quality_coverage(checkm_tsv: str, output_dir: str, coverm_path: int, treatme
 @click.option("--microbemod-tsv", "-t", required=True, type=click.Path(exists=True), help="MicrobeMod output file.")
 @click.option("--output-dir", "-o", required=True, type=click.Path(), help="Directory to store the analysis results (tables, plots, processed data, etc.).")
 @click.option("--title-name", "-n", required=True, help="Title name for the plot.")
-def microbemod_plot(microbemod_tsv: str, output_dir: str, title_name: str):
+@click.option("--methylation-data-dir", "-m", required=True, type=click.Path(exists=True), help="Directory containing pileup .bed files for the viruses.")
+def microbemod(microbemod_tsv: str, output_dir: str, title_name: str, methylation_data_dir: str):
     microbemod_tsv = Path(microbemod_tsv)
+    methylation_data_dir = Path(methylation_data_dir)
     output_dir = Path(output_dir)
-
+    
     plot_microbemod(microbemod_tsv, output_dir, title_name)
+    cross_microbemod_identified_motifs(microbemod_tsv, methylation_data_dir, output_dir)
 
 
 if __name__ == "__main__":

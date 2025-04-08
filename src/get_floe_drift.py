@@ -244,7 +244,7 @@ if __name__ == "__main__":
     plot_drift_track(data, variables_to_plot=["sithick", "siage", "sisnthick", "so", "thetao", "atmospheric_temperature"],
                      names=["Sea-ice thickness", "Age of sea ice", "Sea-ice snow thickness", "Sea water salinity", "Sea water potential temperature", "Atmospheric temperature"],
                      cmaps=["Blues", "Blues", "Greys", "viridis", "coolwarm", "coolwarm"],
-                     legend_labels=["Thickness (m)", "Age (days)", "Thickness (m)", "Salinity (PSU)", "Potential temperature (°C)", "Temperature (°C)"],
+                     legend_labels=["Thickness (m)", "Age (days)", "Thickness (m)", "Salinity", "Potential temperature (°C)", "Temperature (°C)"],
                      save_path="../plots/drift_track_multiple_variables.pdf")
     plot_drift_track(data,
                      variables_to_plot=["siage"],

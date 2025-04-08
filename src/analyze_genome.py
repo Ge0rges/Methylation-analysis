@@ -61,12 +61,6 @@ def plot_whole_methylome(
             palette=[genome.treatment_color_map[treatment] for treatment in hue_order]
         )
         
-        # Add vertical lines marking ori and term
-        # Ori:537,590 Ter:152,210 if genome is g__pelagibacter_0_9_3
-        if "0_9_3" in genome.genome_path.stem:
-            ax.axvline(537590, color="green", linestyle="--", linewidth=5)
-            ax.axvline(152210, color="red", linestyle="--", linewidth=5)
-            
         for j, treatment in enumerate(hue_order):
             # Filter data for this treatment
             treatment_df = df.filter(df["Treatment"] == treatment).to_pandas()
@@ -80,12 +74,7 @@ def plot_whole_methylome(
                 y = avg_df[motif.meth_type].values
                 z = np.polyfit(x, y, 4)
                 p = np.poly1d(z)
-                
-                # Add R-squared value and p value of fit
-                r2 = np.corrcoef(x, p(x))[0, 1] ** 2
-                ax.text(0.05, 0.95-j*0.1, f"R^2: {r2:.2f}", transform=ax.transAxes, fontsize=10) 
-                ax.text(0.05, 0.90-j*0.1, f"p: {z}", transform=ax.transAxes, fontsize=10)
-                
+                                
                 # Generate smooth curve with more points
                 x_smooth = np.linspace(x.min(), x.max(), 300)
                 y_smooth = p(x_smooth)
