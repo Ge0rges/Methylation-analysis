@@ -139,7 +139,7 @@ def load_or_fetch_data(json_path, data_csv_path):
     return final_df
 
 
-def plot_drift_track(results_df, variables_to_plot, names, cmaps, legend_labels, save_path):
+def plot_drift_track(results_df, variables_to_plot, names, cmaps, legend_labels, save_path, figure=False):
     """
     Plots the drift track of sea ice using given variables.
     Generates a multi-panel plot for visualizing different data aspects.
@@ -177,7 +177,7 @@ def plot_drift_track(results_df, variables_to_plot, names, cmaps, legend_labels,
         latitude = results_df['latitude']
         variable = results_df[variable_to_plot]
 
-        if variable_to_plot == "atmospheric_temperature" and len(variables_to_plot) == 1:
+        if variable_to_plot == "atmospheric_temperature" and figure:
             max_val = max(variable.max(), 5)
             norm = matplotlib.colors.TwoSlopeNorm(vmin=variable.min(), vcenter=0, vmax=max_val)
             scatter = ax.scatter(longitude, latitude, c=variable, transform=ccrs.PlateCarree(), marker='o', s=8,
@@ -198,13 +198,21 @@ def plot_drift_track(results_df, variables_to_plot, names, cmaps, legend_labels,
         # Annotate some points with the date
         for j, row in results_df.iterrows():
             if j % 100 == 0 or j == results_df.shape[0] - 1:
-                ax.annotate(row['time'].split(" ")[0],  # Text to display
+                # Convert the date string to the desired format
+                date_str = row['time'].split(" ")[0]
+                date_obj = pd.to_datetime(date_str)
+                formatted_date = date_obj.strftime("%d %b. %Y")
+                
+                ax.annotate(formatted_date,  # Text to display in new format
                             xy=(row['longitude'], row['latitude']),  # Point to annotate
                             xytext=(-40, 20),  # Position of text relative to the point
                             textcoords='offset points',  # Interpret xytext as offset in points
                             arrowprops=dict(arrowstyle="->", connectionstyle="arc3"),  # Style of the arrow
                             transform=ccrs.PlateCarree(),  # Coordinate system for the point
-                            ha='right', va='bottom')  # Alignment of the text
+                            ha='right', va='bottom',  # Alignment of the text
+                            fontweight='bold',  # Make text bold
+                            color='black',  # Make text black
+                            fontsize=10)  # Increase font size
 
         # Add grid lines and labels
         gl = ax.gridlines(draw_labels=True, dms=True, x_inline=False, y_inline=False, linewidth=1, color='gray',
@@ -225,13 +233,15 @@ def plot_drift_track(results_df, variables_to_plot, names, cmaps, legend_labels,
                     color='blue', fontsize=8, weight='normal')
 
         # Title for each subplot
-        ax.set_title(f'{names[i]} along floe drift path')
+        if not figure:
+            ax.set_title(f'{names[i]} along floe drift path')
 
     # Adjust layout to prevent overlap
     plt.tight_layout()
 
     # Save the figure
     plt.savefig(save_path, format="pdf", transparent=True)
+    plt.savefig(save_path[:-3] + "svg", format="svg", transparent=True)
 
 
 if __name__ == "__main__":
@@ -244,7 +254,7 @@ if __name__ == "__main__":
     plot_drift_track(data, variables_to_plot=["sithick", "siage", "sisnthick", "so", "thetao", "atmospheric_temperature"],
                      names=["Sea-ice thickness", "Age of sea ice", "Sea-ice snow thickness", "Sea water salinity", "Sea water potential temperature", "Atmospheric temperature"],
                      cmaps=["Blues", "Blues", "Greys", "viridis", "coolwarm", "coolwarm"],
-                     legend_labels=["Thickness (m)", "Age (days)", "Thickness (m)", "Salinity", "Potential temperature (°C)", "Temperature (°C)"],
+                     legend_labels=["Thickness (m)", "Age (days)", "Thickness (m)", "Practical salinity", "Potential temperature (°C)", "Temperature (°C)"],
                      save_path="../plots/drift_track_multiple_variables.pdf")
     plot_drift_track(data,
                      variables_to_plot=["siage"],
@@ -257,4 +267,5 @@ if __name__ == "__main__":
                      names=["Atmospheric temperature"],
                      cmaps=["coolwarm"],
                      legend_labels=["Temperature (°C)"],
-                     save_path="../plots/drift_track_atmtemp.pdf")
+                     save_path="../plots/drift_track_atmtemp.pdf",
+                     figure=True)

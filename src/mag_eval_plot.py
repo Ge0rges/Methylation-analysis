@@ -127,7 +127,7 @@ def plot_microbemod(microbemod_tsv, output_dir, name):
     microbemod['System type'] = pd.Categorical(microbemod['System type'], ['I','II', 'III','IV'])
 
     # Make a plot
-    _, axes = plt.subplots(figsize=(10, 20), layout="constrained")
+    _, axes = plt.subplots(figsize=(4, 8), layout="constrained")
 
     # Bar chart with number of genes by RM type, and enzyme type (methyltransferase, restriction enzyme)
     sns.histplot(data=microbemod, x='System type', hue="Gene type", ax=axes, stat="count", discrete=True, multiple="dodge", shrink=0.8, hue_order=["Methyltransferase", "Restriction enzyme"])
@@ -136,10 +136,12 @@ def plot_microbemod(microbemod_tsv, output_dir, name):
     for i in range(0, len(axes.containers)):
         axes.bar_label(axes.containers[i], fmt="%d")
 
-    axes.set_title(f"Count of RM genes in {name}")
     axes.set_xlabel("System type")
     axes.set_ylabel("Count")
     axes.yaxis.grid(False)
+    
+    # Remove legend title
+    axes.legend().set_title(None)
 
     # Display the figure save based on curent file path
     plt.savefig(output_dir / f"microbemod_{name}.pdf")

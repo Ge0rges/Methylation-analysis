@@ -11,7 +11,9 @@ from src.objects.gene_collection import GeneCollection
 from src.objects.motif import Motif
 from src.utilities.utils import treatment_weighted_mean, readable_modification_name, create_methylation_bins
 import numpy as np
+from sklearn.metrics import r2_score
 
+sns.set_theme(context="poster", style="whitegrid")
 ##############################################################################
 # 1) WHOLE METHYLOME (unchanged logic)
 ##############################################################################
@@ -27,25 +29,13 @@ def plot_whole_methylome(
       - x-axis = genome_position, color by sample
     """
     df = motif.data().collect(streaming=True)
-    
-    # Order the contigs by their mean methylation
-    ordered_contigs = None
-    if "0_9_3" in genome.genome_path.stem:
-        ordered_contigs = df.group_by("contig").agg(pl.col(motif.meth_type).mean().alias("mean_meth")).sort("mean_meth").get_column("contig").to_list()
-        ordered_contigs = [
-        "c_000000069174", "c_000000073274", "c_000000091796", "c_000000032055",
-        "c_000000070176", "c_000000071756", "c_000000077392", "c_000000091831",
-        "c_000000028731", "c_000000071011", "c_000000070925", "c_000000070918",
-        "c_000000070876", "c_000000070869", "c_000000070843", "c_000000070810",
-        "c_000000070403", "c_000000070398", "c_000000071322", "c_000000077581",
-        "c_000000077510", "c_000000070967", "c_000000091805"]
 
-    df = genome.add_genome_relative_position(df, order=ordered_contigs).rename({"treatment": "Treatment"})
+    df = genome.add_genome_relative_position(df).rename({"treatment": "Treatment"})
 
     if df.is_empty():
         return
     
-    _, axes = plt.subplots(2, 1, figsize=(24, 12), constrained_layout=True)
+    _, axes = plt.subplots(2, 1, figsize=(8, 4), constrained_layout=True)
     hue_order = sorted(df.get_column("Treatment").unique().to_list(), key=genome.treatment_order_map.get)
 
     for i, ax in enumerate(axes):
@@ -55,7 +45,7 @@ def plot_whole_methylome(
             y=motif.meth_type,
             hue="Treatment",
             ax=ax,
-            s=6,
+            s=12,
             alpha=1,
             hue_order=hue_order,
             palette=[genome.treatment_color_map[treatment] for treatment in hue_order]
@@ -79,12 +69,25 @@ def plot_whole_methylome(
                 x_smooth = np.linspace(x.min(), x.max(), 300)
                 y_smooth = p(x_smooth)
                 
+                # Calculate R-squared value
+                y_pred = p(x)  # Predicted values at original x points
+                r_squared = r2_score(y, y_pred)
+
+                # Add R-squared as text to the plot
+                ax.text(0.98, 0.95 - j*0.05, f"{treatment}: R² = {r_squared:.3f}", 
+                    transform=ax.transAxes, ha='right', 
+                    color=genome.treatment_color_map[treatment])
+                
                 # Plot the polynomial regression line using the treatment's color
                 ax.plot(x_smooth, y_smooth, color=genome.treatment_color_map[treatment], linewidth=2) 
 
         ax.set_xlabel("Genome position (bp)")
-        ax.set_ylabel(f"Fraction of {readable_modification_name[motif.meth_type]} methylation")
-        ax.set_title(f"{genome.readable_name} - {motif.motif} Methylome - Strand: {['+', '-'][i]}")
+        ax.set_ylabel(f"Methylation fraction")
+        # ax.set_title(f"{genome.readable_name} - {motif.motif} Methylome - Strand: {['+', '-'][i]}")
+    
+    # Add panel labels 'A' and 'B' to the top left corner of each subplot
+    axes[0].text(0.02, 0.98, 'A', transform=axes[0].transAxes, fontweight='bold', va='top')
+    axes[1].text(0.02, 0.98, 'B', transform=axes[1].transAxes, fontweight='bold', va='top')
 
     out_file = output_dir / f"{genome.readable_name}_whole_methylome_{motif.readable_motif}.pdf"
     plt.savefig(out_file)
