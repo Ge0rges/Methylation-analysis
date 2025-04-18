@@ -10,6 +10,7 @@ from scipy.cluster.hierarchy import linkage
 import numpy as np
 import scipy.stats as stats
 
+sns.set_theme(context="poster", style="whitegrid")
 
 def plot_contig_motif_heatmap(contigs: list[Contig]):
     """
@@ -24,22 +25,50 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     data = []
 
     for contig in contigs:
-        for motif in contig.motifs:
-            motif_df = motif.data().collect(streaming=True)
+        for motif in contig.motifs:            
             
+            # For contigs, we don't care about comparing exact positions, but general means across contig so include points not in ever sample and then filter by breadth.
+            motif_df = motif.data(in_every_treatment=True).collect(streaming=True)
+
             # Add data with significance information
             for treatment in motif_df.get_column("treatment").unique():
-                methylation_fraction = motif_df.filter(pl.col("treatment") == treatment).select(motif.meth_type).mean().item()
                 
+                # For us to take a mean, there must be at least 40% of positions
+                methylation_fractions = motif_df.filter(pl.col("treatment") == treatment).select(motif.meth_type)
+                if len(methylation_fractions)/motif.positions.collect().height < 0.3:
+                    continue
+    
+                methylation_fraction_mean = methylation_fractions.mean().item()
                 data.append({
                     "contig_name": contig.contig_name,
                     "treatment": treatment,
                     "motif_string": motif.readable_motif,
-                    "methylation_fraction": methylation_fraction,
+                    "methylation_fraction": methylation_fraction_mean,
                     "contig_taxonomy": contig.taxonomy("c" if contig.is_viral else "f"),
                 })
-        
-    df = pl.DataFrame(data)
+    
+    # Convert data list to a Polars DataFrame first
+    df_partial = pl.DataFrame(data)
+
+    if df_partial.is_empty():
+        print(f"No data to plot in {contigs[0].parent_genome.readable_name}")
+        return df_partial # Return the empty dataframe early
+
+    # Get unique combinations and treatments
+    unique_contig_motifs = df_partial.select("contig_name", "motif_string", "contig_taxonomy").unique()
+    unique_treatments = df_partial.select("treatment").unique()
+
+    # Create the complete grid by cross joining
+    df_complete = unique_contig_motifs.join(unique_treatments, how="cross")
+
+    # Left join the partial data onto the complete grid
+    # This ensures every (contig, motif, treatment) combination exists
+    # Missing methylation_fraction values will be null
+    df = df_complete.join(
+        df_partial.select("contig_name", "motif_string", "treatment", "methylation_fraction"),
+        on=["contig_name", "motif_string", "treatment"],
+        how="left"
+    )
 
     if df.is_empty():
         print(f"No data to plot in {contigs[0].parent_genome.readable_name}")
@@ -54,7 +83,7 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     
     # Create colors
     unique_taxonomies = df.get_column("contig_taxonomy").unique().to_list()
-    pal = sns.hls_palette(len(unique_taxonomies), h=.5)
+    pal = sns.color_palette(palette="tab20", n_colors=len(unique_taxonomies), as_cmap=False)
     lut = dict(zip(unique_taxonomies, pal))
     
     treatment_colors = df.with_columns(pl.col("treatment").replace_strict(contigs[0].parent_genome.treatment_color_map).alias("Treatment")).select("motif_string", "treatment", "Treatment")
@@ -67,9 +96,8 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     pivot_df = pivot_df.sort_index(axis=1)
 
     # Sort rows by taxonomy classification
-    contig_taxonomy_map = {row['contig_name']: row['contig_taxonomy'] 
-                          for row in df.select('contig_name', 'contig_taxonomy').unique().to_dicts()}
-    sorted_indices = sorted(pivot_df.index, key=lambda x: contig_taxonomy_map.get(x, ''))
+    contig_taxonomy_map = {row['contig_name']: row['contig_taxonomy'] for row in df.select('contig_name', 'contig_taxonomy').unique().to_dicts()}
+    sorted_indices = sorted(pivot_df.index, key=lambda x: (str(contig_taxonomy_map.get(x, '')) == "Unclassified", str(contig_taxonomy_map.get(x, ''))))
     pivot_df = pivot_df.loc[sorted_indices]
 
     # Reindex row colors to match sorted rows
@@ -79,17 +107,35 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     treatment_colors = treatment_colors.reindex(pivot_df.columns)
     
     # Create the heatmap without clustering to preserve sort order
+    # Calculate dynamic figure size based on the number of rows and columns
+    # Aim for roughly 0.3 inches per row and 0.3 inches per column for the heatmap itself
+    # Add margins for labels, colorbars, and legends
+    num_rows, num_cols = pivot_df.shape
+    
+    # Heuristic sizing: Adjust base factors and margins as needed for aesthetics
+    row_height_factor = 0.3  # inches per row
+    col_width_factor = 0.3   # inches per column
+    height_margin = 1        # inches for x-axis labels, title, legends etc.
+    width_margin = 2         # inches for y-axis labels, colorbar, legends etc.
+
+    # Ensure a minimum size for readability, especially with few rows/columns
+    fig_height = max(6, num_rows * row_height_factor + height_margin)
+    fig_width = max(8, num_cols * col_width_factor + width_margin)
+
     g = sns.clustermap(
         pivot_df,
-        figsize=(len(df.get_column('motif_string').unique())*2, len(df.get_column("contig_name").unique())/1.5),
+        figsize=(fig_width, fig_height), # Use dynamically calculated size
         row_colors=contig_colors,
         col_colors=treatment_colors,
         mask=pivot_df.isna(),
         cmap="coolwarm",
-        linewidths=0.1,
         cbar_kws={"label": "Methylation fraction"},
         row_cluster=False,  # Disable row clustering
-        col_cluster=False   # Disable column clustering
+        col_cluster=False,   # Disable column clustering
+        linewidths=0.5, # Add faint lines between cells
+        linecolor='lightgrey',
+        vmin=0,
+        vmax=1
     )
 
     # Modify x-axis labels to show only motifs, not treatments
@@ -97,26 +143,81 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     g.ax_heatmap.set_xticklabels(motifs)
     g.ax_row_dendrogram.set_visible(False)
     g.ax_col_dendrogram.set_visible(False)
+    g.ax_cbar.remove()
 
     # Create legends
-    taxonomy_handles = [Patch(color=lut[taxa], label=taxa) for taxa in lut]    
+    ordered_taxonomies = [contig_taxonomy_map[i] for i in pivot_df.index]
+    ordered_taxonomies = pd.unique(ordered_taxonomies)  # preserve order of occurrence
+    taxonomy_handles = [Patch(color=lut[t], label=t) for t in ordered_taxonomies]
     treatment_handles = [Patch(color=contigs[0].parent_genome.treatment_color_map[treatment], label=treatment) 
                         for treatment in df['treatment'].unique()]
     
-    # Create legends with non-overlapping positions
-    g.figure.legend(handles=taxonomy_handles, title="Taxonomy", loc='upper left')
-    g.figure.legend(handles=treatment_handles, title="Treatment", loc='upper right')
-    # Move colorbar to center left
-    cbar_pos = g.ax_cbar.get_position()
-    g.ax_cbar.set_position([cbar_pos.x0, 0.5 - cbar_pos.height/2, cbar_pos.width, cbar_pos.height])
+    # Remove automatic figure legends to avoid overlap
+    if g.figure.legends:
+        for leg in g.figure.legends:
+            leg.remove()
     
+    # Get legends
+    legend1 = g.fig.legend(handles=treatment_handles, title="Treatment")
+    legend2 = g.fig.legend(handles=taxonomy_handles, title="Taxonomy")
+    fig = g.fig
+    
+    # Get the figure renderer
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    
+    # Get the bounding boxes of the legends in figure coordinates
+    legend1_bbox = legend1.get_window_extent(renderer).transformed(fig.transFigure.inverted())
+    legend2_bbox = legend2.get_window_extent(renderer).transformed(fig.transFigure.inverted())
+    
+    # Get the plot bbox in figure coordinates
+    plot_bbox = g.ax_heatmap.get_position()
+    
+    # Calculate the left position (centered with legends)
+    legend_width = legend2_bbox.width
+    cbar_width = legend_width * 0.25  # Colorbar width is 1/4 of legend width
+    
+    # Calculate left position to center all elements
+    left_pos = plot_bbox.x0 * 0.5  # Position on the left side of the plot
+    
+    # Position the first legend at the top
+    legend1_height = legend1_bbox.height
+    legend1_top = plot_bbox.y0 + plot_bbox.height  # Align with top of plot
+    legend1_left = left_pos
+    legend1.set_bbox_to_anchor([legend1_left, legend1_top], transform=fig.transFigure)
+    
+    # Position the second legend below the first
+    legend2_height = legend2_bbox.height
+    legend2_top = legend1_top - legend1_height
+    legend2_left = left_pos
+    legend2.set_bbox_to_anchor([legend2_left, legend2_top], transform=fig.transFigure)
+    
+    # Calculate colorbar height and position
+    available_height = legend2_top - legend2_height - plot_bbox.y0  - 0.05# Space between bottom of legend2 and bottom of plot
+    cbar_top = legend2_top - legend2_height
+    
+    # Adjust the colorbar axes
+    cbar_left = left_pos - (legend_width - cbar_width)  # Center colorbar relative to legends
+    cbar_height = min(available_height, 0.5 * plot_bbox.height)  # Limit height to not exceed plot bottom
+    cbar_y = cbar_top - cbar_height - 0.05
+    
+    # Set colorbar position
+    # Add color bar
+    cbar_ax = g.fig.add_axes([cbar_left, cbar_y, cbar_width, cbar_height])
+    cbar = plt.colorbar(g.ax_heatmap.collections[0], cax=cbar_ax, anchor = (cbar_left, cbar_y), orientation="vertical")
+    cbar.set_ticks([0, 0.2, 0.4, 0.6, 0.8, 1])
+    cbar.ax.set_yticklabels(['0', '0.2', '0.4', '0.6', '0.8', '1'])
+    cbar.ax.tick_params(axis='y', which='major', length=0, pad=15)
+        
+    # Redraw the figure to apply changes
+    fig.canvas.draw()
+
     # Set X axis title
     g.ax_heatmap.set_xlabel("Motif")
     
     if contigs[0].is_viral:
         g.ax_heatmap.set_ylabel("Viral contig")
 
-        plt.suptitle("Viral motif heatmap")
         g.savefig(f"{contigs[0].parent_genome.output_dir}/virus_motif_heatmap.svg", transparent=True)
         g.savefig(f"{contigs[0].parent_genome.output_dir}/virus_motif_heatmap.pdf")
         
@@ -124,9 +225,8 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
         pivot_df.to_csv(f"{contigs[0].parent_genome.output_dir}/virus_motif_heatmap.csv")
 
     else:
-        g.ax_heatmap.set_ylabel("Contig")
+        g.ax_heatmap.set_ylabel("Bacterial contig")
 
-        plt.suptitle("Contig motif heatmap")
         g.savefig(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap.svg", transparent=True)
         g.savefig(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap.pdf")
         

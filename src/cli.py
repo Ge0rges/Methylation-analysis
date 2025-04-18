@@ -111,6 +111,7 @@ def analyze_genome(
 @click.option("--treatments", "-t", required=True, multiple=True, help="Treatments to be compared must define at least two (e.g. -t top -t bottom).")
 @click.option("--treatment-info", "-i", required=True, type=click.Path(exists=True), help="TSV file containing treatment information WITH HEADER. (e.g. 'treatment\treadable_treatment\tcolor\torder').")
 @click.option("--contig-taxonomy-tsv", "-x", required=True, type=click.Path(exists=True), help="TSV file mapping contigs to taxonomy.")
+@click.option("--taxonomy-generator", "-y", required=True, help="Generator of taxonomy file.")
 def analyze_metagenome(
     fna_file: str,
     barcode_map_file: str,
@@ -121,7 +122,8 @@ def analyze_metagenome(
     function_calls: str,
     treatments: list[str],
     treatment_info: str,
-    contig_taxonomy_tsv: str
+    contig_taxonomy_tsv: str,
+    taxonomy_generator: str
 ):
     # Convert click paths to Path objects
     fna_file = Path(fna_file)
@@ -138,7 +140,7 @@ def analyze_metagenome(
     
     genome = Genome(fna_file, methylation_data_dir, gene_calls, function_calls, barcode_map_file, output_dir, treatments, coverage, treatment_info)
     contig_names = genome.sequence.keys()
-    contigs = [Contig(genome, contig_name, contig_taxonomy_tsv, is_viral=False) for contig_name in contig_names]
+    contigs = [Contig(genome, contig_name, contig_taxonomy_tsv, taxonomy_generator, is_viral=False) for contig_name in contig_names]
 
     df = plot_contig_motif_heatmap(contigs)
     extract_diff_methylated_genes_contigs(df, contigs)
@@ -156,6 +158,7 @@ def analyze_metagenome(
 @click.option("--treatments", "-t", required=True, multiple=True, help="Treatments to be compared must define at least two (e.g. -t top -t bottom).")
 @click.option("--treatment-info", "-i", required=True, type=click.Path(exists=True), help="TSV file containing treatment information WITH HEADER. (e.g. 'treatment\treadable_treatment\tcolor\torder').")
 @click.option("--genomad-summary-tsv", "-x", required=True, type=click.Path(exists=True), help="virus_summary TSV file output by genomad.")
+@click.option("--taxonomy-generator", "-y", required=True, help="Generator of taxonomy file.")
 def analyze_viruses(
     fna_file: str,
     barcode_map_file: str,
@@ -166,7 +169,8 @@ def analyze_viruses(
     function_calls: str,
     treatments: list[str],
     treatment_info: str,
-    genomad_summary_tsv: str
+    genomad_summary_tsv: str,
+    taxonomy_generator: str
 ):
     
     # Convert click paths to Path objects
@@ -184,7 +188,7 @@ def analyze_viruses(
     
     genome = Genome(fna_file, methylation_data_dir, gene_calls, function_calls, barcode_map_file, output_dir, treatments, coverage, treatment_info)
     contig_names = genome.sequence.keys()
-    contigs = [Contig(genome, contig_name, genomad_summary_tsv, is_viral=True) for contig_name in contig_names]
+    contigs = [Contig(genome, contig_name, genomad_summary_tsv, taxonomy_generator, is_viral=True) for contig_name in contig_names]
     
     df = plot_contig_motif_heatmap(contigs)
     extract_diff_methylated_genes_contigs(df, contigs)
@@ -201,6 +205,9 @@ def quality_coverage(checkm_tsv: str, output_dir: str, coverm_path: int, treatme
     checkm_tsv = Path(checkm_tsv)
     coverm_path = Path(coverm_path)
     output_dir = Path(output_dir)
+    
+    # Ensure output directories exist
+    output_dir.mkdir(parents=True, exist_ok=True)
     
     # Parse treatment info the get barcode replicate map
     treatment_name_map, _, treatment_order_map = parse_treatment_tsv(treatment_info)
@@ -219,6 +226,9 @@ def microbemod(microbemod_tsv: str, output_dir: str, title_name: str, methylatio
     microbemod_tsv = Path(microbemod_tsv)
     methylation_data_dir = Path(methylation_data_dir)
     output_dir = Path(output_dir)
+    
+    # Ensure output directories exist
+    output_dir.mkdir(parents=True, exist_ok=True)
     
     plot_microbemod(microbemod_tsv, output_dir, title_name)
     cross_microbemod_identified_motifs(microbemod_tsv, methylation_data_dir, output_dir)

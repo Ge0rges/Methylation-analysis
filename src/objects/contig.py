@@ -15,7 +15,7 @@ class Contig:
     """
     A class that represents a single contig within a Genome
     """
-    def __init__(self, parent_genome: Genome, contig_name: str, taxonomy_tsv: Path, is_viral: bool):
+    def __init__(self, parent_genome: Genome, contig_name: str, taxonomy_tsv: Path, taxonomy_generator: str, is_viral: bool):
         # Check if contig exists in the parent genome
         if contig_name not in parent_genome.sequence.keys():
             raise ValueError(f"Contig '{contig_name}' not found in genome")
@@ -37,6 +37,15 @@ class Contig:
         self.taxonomy_tsv = taxonomy_tsv
         
         self.is_viral = is_viral
+        
+        if taxonomy_generator == "kaiju":
+            self.taxonomy_generator = "kaiju"
+        elif taxonomy_generator == "megan":
+            self.taxonomy_generator = "megan"
+        elif taxonomy_generator == "genomad":
+            self.taxonomy_generator = "genomad"
+        else:
+            raise ValueError(f"Unknown taxonomy generator: {taxonomy_generator}")
 
     @cached_property
     def sequence(self):
@@ -103,52 +112,55 @@ class Contig:
             taxonomy = df.filter(pl.col("seq_name") == self.contig_name).select("taxonomy").item()
             rank_i = 5 if rank == "o" else 4 if rank == "c" else 3 if rank == "p" else 2 if rank == "k" else 1 if rank == "r" else 0
             
-            try:
-                taxonomy = taxonomy.split(";")
-                if "Unclassified" in taxonomy:
-                    return "Unclassified"
-                else:
-                    taxonomy = taxonomy[rank_i]
-                    if taxonomy == "":
-                        taxonomy = "Unknown at this rank"
-                    return taxonomy
-            except:
-                print(f"No rank {rank} for contig {self.contig_name}, printing last available.")
-                return ""
+            taxonomy = taxonomy.split(";")
+            if "Unclassified" in taxonomy:
+                return "Unclassified"
+            else:
+                taxonomy_str = taxonomy[rank_i]
+                while rank_i > 0 and taxonomy_str == "":
+                    rank_i -= 1
+                    taxonomy_str = taxonomy[rank_i]
+                return taxonomy_str
             
         else:
-            # Parse MEGAN6-LR, file is a TSV with contig name, max rank, and taxonomy seperated with ;
-            # Ordered: NCBI; cellular organisms/Viruses; Domain; phylum; class; order; family; genus; species; 
-            with open(self.taxonomy_tsv, "r") as f:
-                for line in f:
-                    line_cols = line.split("\t")
-                    if line_cols[1] == self.contig_name:
-                        
-                        taxonomy = line_cols[2].split(";")
-                        rank_i = 8 if rank == "s" else 7 if rank == "g" else 6 if rank == "f" else 5 if rank == "o" else 4 if rank == "c" else 3 if rank == "p" else 2
-                        
-                        if len(taxonomy) <= rank_i:
-                            return "Unclassified"
-                        else:
+            if self.taxonomy_generator == "megan":
+                # Parse MEGAN6-LR, file is a TSV with contig name, max rank, and taxonomy seperated with ;
+                # Ordered: NCBI; cellular organisms/Viruses; Domain; phylum; class; order; family; genus; species; 
+                with open(self.taxonomy_tsv, "r") as f:
+                    for line in f:
+                        line_cols = line.split("\t")
+                        if line_cols[1] == self.contig_name:
+                            
+                            taxonomy = line_cols[2].split(";")
+                            rank_i = 8 if rank == "s" else 7 if rank == "g" else 6 if rank == "f" else 5 if rank == "o" else 4 if rank == "c" else 3 if rank == "p" else 2
+                            
+                            while rank_i > 0 and len(taxonomy) <= rank_i:
+                                rank_i -= 1
+                                
                             return taxonomy[rank_i].strip()
             
-            # # Parse Kaiju. Different lines have different column numbers, so go line by line.
-            # # Kaiju is: superkingdom,phylum,class,order,family,genus,species
-            # with open(self.taxonomy_tsv, "r") as f:
-            #     for line in f:
-            #         line_cols = line.split("\t")
-            #         if line_cols[1] == self.contig_name:
-            #             if line_cols[0] == "U":
-            #                 return "Unclassified"
-            #             else:
-            #                 taxonomy = line_cols[7].split(";")
-            #                 rank_i = 6 if rank == "s" else 5 if rank == "g" else 4 if rank == "f" else 3 if rank == "o" else 2 if rank == "c" else 1 if rank == "p" else 0
-            #                 taxonomy = taxonomy[rank_i].strip()
-                            
-            #                 if taxonomy == "" or taxonomy == "NA":
-            #                     return "Unknown at this rank"
-            #                 else:
-            #                     return taxonomy
+            elif self.taxonomy_generator == "kaiju":
+                # Parse Kaiju. Different lines have different column numbers, so go line by line.
+                # Kaiju is: superkingdom,phylum,class,order,family,genus,species
+                with open(self.taxonomy_tsv, "r") as f:
+                    for line in f:
+                        line_cols = line.split("\t")
+                        if line_cols[1] == self.contig_name:
+                            if line_cols[0] == "U":
+                                return "Unclassified"
+                            else:
+                                taxonomy = line_cols[7].split(";")
+                                rank_i = 6 if rank == "s" else 5 if rank == "g" else 4 if rank == "f" else 3 if rank == "o" else 2 if rank == "c" else 1 if rank == "p" else 0
+                                taxonomy_str = taxonomy[rank_i].strip()
+                                
+                                while rank_i > 0 and (taxonomy_str == "" or taxonomy_str == "NA"):
+                                    rank_i -= 1
+                                    taxonomy_str = taxonomy[rank_i].strip()
+                                
+                                if taxonomy_str == "" or taxonomy_str == "NA":
+                                    return "Unclassified"
+                                else:
+                                    return taxonomy_str
     
         
     def add_gene_caller_id(self, df: pl.LazyFrame, include_intergenic: bool = False) -> pl.LazyFrame:

@@ -91,7 +91,7 @@ class Motif(object):
         return positions
 
     @lru_cache
-    def data(self, normalize=True) -> pl.LazyFrame:
+    def data(self, normalize=True, in_every_treatment=True) -> pl.LazyFrame:
         # Get all the data for the motif by loading all bed files except "location.bed" in the data directory
         
         # Gather every .bed file except 'location.bed'
@@ -102,7 +102,7 @@ class Motif(object):
         df = load_methylation_data(
             genome=self.genome,
             bed_files=bed_files,
-            in_every_treatment=True,
+            in_every_treatment=in_every_treatment,
             triplicates_only=False,
             treatments=self.genome.default_treatments,
             normalize=normalize

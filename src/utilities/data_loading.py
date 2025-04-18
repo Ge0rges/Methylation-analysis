@@ -253,7 +253,7 @@ def load_methylation_data(
             raise ValueError("region_filter must be pl.Expr, pl.LazyFrame, or None.")
 
         # Reshape the data
-        methyl_data =utils.reshape_pileup_to_matrix_polars(methyl_data)
+        methyl_data = utils.reshape_pileup_to_matrix_polars(methyl_data)
         if methyl_data is None:  # Data was empty before reshape upon collecting
             continue
 

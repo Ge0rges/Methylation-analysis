@@ -13,7 +13,7 @@ from src.utilities.utils import treatment_weighted_mean, readable_modification_n
 import numpy as np
 from sklearn.metrics import r2_score
 
-sns.set_theme(context="poster", style="whitegrid")
+sns.set_theme(context="paper", style="whitegrid")
 ##############################################################################
 # 1) WHOLE METHYLOME (unchanged logic)
 ##############################################################################
@@ -30,67 +30,78 @@ def plot_whole_methylome(
     """
     df = motif.data().collect(streaming=True)
 
-    df = genome.add_genome_relative_position(df).rename({"treatment": "Treatment"})
+    # Order the contigs by their mean methylation
+    ordered_contigs = None
+    if "0_9_3" in genome.genome_path.stem:
+        ordered_contigs = df.group_by("contig").agg(pl.col(motif.meth_type).mean().alias("mean_meth")).sort("mean_meth").get_column("contig").to_list()
+        ordered_contigs = [
+        "c_000000069174", "c_000000073274", "c_000000091796", "c_000000032055",
+        "c_000000070176", "c_000000071756", "c_000000077392", "c_000000091831",
+        "c_000000028731", "c_000000071011", "c_000000070925", "c_000000070918",
+        "c_000000070876", "c_000000070869", "c_000000070843", "c_000000070810",
+        "c_000000070403", "c_000000070398", "c_000000071322", "c_000000077581",
+        "c_000000077510", "c_000000070967", "c_000000091805"]
 
+    df = genome.add_genome_relative_position(df, order=ordered_contigs).rename({"treatment": "Treatment"})
+    
     if df.is_empty():
         return
     
-    _, axes = plt.subplots(2, 1, figsize=(8, 4), constrained_layout=True)
+    _, ax = plt.subplots(1, 1, figsize=(8, 5), constrained_layout=True)
     hue_order = sorted(df.get_column("Treatment").unique().to_list(), key=genome.treatment_order_map.get)
-
-    for i, ax in enumerate(axes):
-        sns.scatterplot(
-            data=df.filter(pl.col("strand").eq(i==0)).to_pandas(),
-            x="genome_position",
-            y=motif.meth_type,
-            hue="Treatment",
-            ax=ax,
-            s=12,
-            alpha=1,
-            hue_order=hue_order,
-            palette=[genome.treatment_color_map[treatment] for treatment in hue_order]
-        )
+    
+    sns.scatterplot(
+        data=df.to_pandas(),
+        x="genome_position",
+        y=motif.meth_type,
+        hue="Treatment",
+        ax=ax,
+        s=16,
+        alpha=1,
+        hue_order=hue_order,
+        palette=[genome.treatment_color_map[treatment] for treatment in hue_order]
+    )
+    
+    for j, treatment in enumerate(hue_order):
+        # Filter data for this treatment
+        treatment_df = df.filter(df["Treatment"] == treatment).to_pandas()
         
-        for j, treatment in enumerate(hue_order):
-            # Filter data for this treatment
-            treatment_df = df.filter(df["Treatment"] == treatment).to_pandas()
+        # Group by genome position and calculate mean for this treatment
+        avg_df = treatment_df.groupby("genome_position")[motif.meth_type].mean().reset_index()
+        
+        if len(avg_df) > 4:  # Need at least 5 points for a fit
+            # Fit polynomial regression
+            x = avg_df["genome_position"].values
+            y = avg_df[motif.meth_type].values
+            z = np.polyfit(x, y, 3)
+            p = np.poly1d(z)
+                            
+            # Generate smooth curve with more points
+            x_smooth = np.linspace(x.min(), x.max(), 300)
+            y_smooth = p(x_smooth)
             
-            # Group by genome position and calculate mean for this treatment
-            avg_df = treatment_df.groupby("genome_position")[motif.meth_type].mean().reset_index()
-            
-            if len(avg_df) > 4:  # Need at least 5 points for a quartic fit
-                # Fit polynomial regression
-                x = avg_df["genome_position"].values
-                y = avg_df[motif.meth_type].values
-                z = np.polyfit(x, y, 4)
-                p = np.poly1d(z)
-                                
-                # Generate smooth curve with more points
-                x_smooth = np.linspace(x.min(), x.max(), 300)
-                y_smooth = p(x_smooth)
-                
-                # Calculate R-squared value
-                y_pred = p(x)  # Predicted values at original x points
-                r_squared = r2_score(y, y_pred)
+            # Plot the smoothed average line using the treatment's color
+            ax.plot(x_smooth, y_smooth, color=genome.treatment_color_map[treatment], linewidth=2)
 
-                # Add R-squared as text to the plot
-                ax.text(0.98, 0.95 - j*0.05, f"{treatment}: R² = {r_squared:.3f}", 
-                    transform=ax.transAxes, ha='right', 
-                    color=genome.treatment_color_map[treatment])
-                
-                # Plot the polynomial regression line using the treatment's color
-                ax.plot(x_smooth, y_smooth, color=genome.treatment_color_map[treatment], linewidth=2) 
+            # Calculate R-squared value
+            y_pred = p(x)  # Predicted values at original x points
+            r_squared = r2_score(y, y_pred)
+
+            # Add R-squared as text to the plot
+            ax.text(0.1, 0.05 - j*0.03, f"R² = {r_squared:.2f}",
+                transform=ax.transAxes, ha='right',
+                color=genome.treatment_color_map[treatment],
+                bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', boxstyle='round,pad=0.2'))
+
+            # Plot the polynomial regression line using the treatment's color
+            ax.plot(x_smooth, y_smooth, color=genome.treatment_color_map[treatment], linewidth=2) 
 
         ax.set_xlabel("Genome position (bp)")
         ax.set_ylabel(f"Methylation fraction")
-        # ax.set_title(f"{genome.readable_name} - {motif.motif} Methylome - Strand: {['+', '-'][i]}")
-    
-    # Add panel labels 'A' and 'B' to the top left corner of each subplot
-    axes[0].text(0.02, 0.98, 'A', transform=axes[0].transAxes, fontweight='bold', va='top')
-    axes[1].text(0.02, 0.98, 'B', transform=axes[1].transAxes, fontweight='bold', va='top')
 
     out_file = output_dir / f"{genome.readable_name}_whole_methylome_{motif.readable_motif}.pdf"
     plt.savefig(out_file)
+    plt.savefig(str(out_file)[:-3] + "svg", format="svg")
     plt.close()
     print(f"Saved PDF: {out_file}")
 

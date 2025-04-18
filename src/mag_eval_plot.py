@@ -10,7 +10,7 @@ from src.utilities.data_loading import get_coverage
 from src.utilities.utils import read_counts
 from matplotlib.colors import LogNorm
 
-sns.set_theme(context="poster", style="white")
+sns.set_theme(context="paper", style="white")
 
 
 def plot_coverage(coverm_path, output_dir, treatment_name_map, barcode_treatment_map, treatment_order_map):
@@ -127,21 +127,19 @@ def plot_microbemod(microbemod_tsv, output_dir, name):
     microbemod['System type'] = pd.Categorical(microbemod['System type'], ['I','II', 'III','IV'])
 
     # Make a plot
-    _, axes = plt.subplots(figsize=(4, 8), layout="constrained")
+    _, axes = plt.subplots(figsize=(5, 9), layout="constrained")
 
     # Bar chart with number of genes by RM type, and enzyme type (methyltransferase, restriction enzyme)
     sns.histplot(data=microbemod, x='System type', hue="Gene type", ax=axes, stat="count", discrete=True, multiple="dodge", shrink=0.8, hue_order=["Methyltransferase", "Restriction enzyme"])
-
+    
     # Set the format for the bar labels
     for i in range(0, len(axes.containers)):
         axes.bar_label(axes.containers[i], fmt="%d")
 
     axes.set_xlabel("System type")
-    axes.set_ylabel("Count")
+    axes.set_ylabel(f"Count of genes in {name}")
+    axes.get_legend().set_title("")
     axes.yaxis.grid(False)
-    
-    # Remove legend title
-    axes.legend().set_title(None)
 
     # Display the figure save based on curent file path
     plt.savefig(output_dir / f"microbemod_{name}.pdf")
@@ -223,7 +221,7 @@ def cross_microbemod_identified_motifs(microbemod_tsv: Path, methylation_data_di
     result = motif_table.join(rm_genes_df, on="Contig name", how="full").select("Contig name", "De novo motifs", "Homolog motifs", "Number of genes", "Gene types", "REBASE homologs", "Homolog methylation", "mod_codes", "offsets")
 
     # Write the resulting DataFrame as a TSV
-    result.write_csv(output_dir / methylation_data_dir.stem / "motifs_vs_microbemod.tsv", separator="\t")
+    result.write_csv(output_dir / "motifs_vs_microbemod.tsv", separator="\t")
 
 
 def read_count_plot():
