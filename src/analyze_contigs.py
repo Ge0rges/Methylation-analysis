@@ -28,16 +28,22 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
         for motif in contig.motifs:            
             
             # For contigs, we don't care about comparing exact positions, but general means across contig so include points not in ever sample and then filter by breadth.
-            motif_df = motif.data(in_every_treatment=True).collect(streaming=True)
+            motif_df = motif.data()
+            if motif_df is None:
+                continue
+            
+            motif_df = motif_df.collect()
 
             # Add data with significance information
-            for treatment in motif_df.get_column("treatment").unique():
-                
+            i = 0
+            treatments = motif_df.get_column("treatment").unique()
+            for treatment in treatments:
                 # For us to take a mean, there must be at least 40% of positions
-                methylation_fractions = motif_df.filter(pl.col("treatment") == treatment).select(motif.meth_type)
-                if len(methylation_fractions)/motif.positions.collect().height < 0.3:
+                methylation_fractions = motif_df.filter(pl.col("treatment") == treatment).select(motif.meth_type).drop_nans().drop_nulls()
+                if len(methylation_fractions)/motif.positions.collect().height < 0.2:
                     continue
-    
+                
+                i += 1
                 methylation_fraction_mean = methylation_fractions.mean().item()
                 data.append({
                     "contig_name": contig.contig_name,
@@ -46,7 +52,24 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
                     "methylation_fraction": methylation_fraction_mean,
                     "contig_taxonomy": contig.taxonomy("c" if contig.is_viral else "f"),
                 })
-    
+            
+            # Calculate the statistical difference
+            if i == 2:
+                # Separate Data for Each Group
+                group1_label, group2_label = treatments
+                group1_data = motif_df.filter(pl.col("treatment").eq(group1_label)).select(motif.meth_type).drop_nans().drop_nulls()
+                group2_data = motif_df.filter(pl.col("treatment").eq(group2_label)).select(motif.meth_type).drop_nans().drop_nulls()
+
+                if len(group1_data) > 0 and len(group2_data) > 0:
+                    # Perform Kolmogorov-Smirnov Test ---
+                    _, ks_pvalue = stats.ks_2samp(group1_data, group2_data)
+                    if ks_pvalue < 0.05:
+                        data[-2]["significant"] = True
+                        data[-1]["significant"] = True
+                    else:
+                        data[-2]["significant"] = False
+                        data[-1]["significant"] = False
+
     # Convert data list to a Polars DataFrame first
     df_partial = pl.DataFrame(data)
 
@@ -65,7 +88,7 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     # This ensures every (contig, motif, treatment) combination exists
     # Missing methylation_fraction values will be null
     df = df_complete.join(
-        df_partial.select("contig_name", "motif_string", "treatment", "methylation_fraction"),
+        df_partial.select("contig_name", "motif_string", "treatment", "methylation_fraction", "significant"),
         on=["contig_name", "motif_string", "treatment"],
         how="left"
     )
@@ -137,6 +160,27 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
         vmin=0,
         vmax=1
     )
+    
+    # Add asterisks to significant cells
+    if 'significant' in df.columns:
+        # Create a pivot table for significance data
+        sig_pivot = df.to_pandas().pivot(
+            index="contig_name",
+            columns=["motif_string", "treatment"],
+            values="significant"
+        )
+        
+        # Match the order of rows and columns to the methylation pivot table
+        sig_pivot = sig_pivot.reindex(index=pivot_df.index, columns=pivot_df.columns)
+        
+        # Add asterisks to significant cells
+        for i, row_idx in enumerate(pivot_df.index):
+            for j, col_idx in enumerate(pivot_df.columns):
+                if sig_pivot.loc[row_idx, col_idx] == True:
+                    # Add asterisk to the cell, centered
+                    g.ax_heatmap.text(j + 0.5, i + 0.5, '*',
+                                    ha='center', va='center',
+                                    color='black', fontsize="small", fontweight='bold')
 
     # Modify x-axis labels to show only motifs, not treatments
     motifs = [label.get_text().split("-")[0] for label in g.ax_heatmap.get_xticklabels()]
@@ -207,7 +251,8 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     cbar = plt.colorbar(g.ax_heatmap.collections[0], cax=cbar_ax, anchor = (cbar_left, cbar_y), orientation="vertical")
     cbar.set_ticks([0, 0.2, 0.4, 0.6, 0.8, 1])
     cbar.ax.set_yticklabels(['0', '0.2', '0.4', '0.6', '0.8', '1'])
-    cbar.ax.tick_params(axis='y', which='major', length=0, pad=15)
+    cbar.ax.tick_params(axis='y', which='major')
+    cbar.outline.set_visible(False)
         
     # Redraw the figure to apply changes
     fig.canvas.draw()

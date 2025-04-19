@@ -105,12 +105,27 @@ class Motif(object):
             in_every_treatment=in_every_treatment,
             triplicates_only=False,
             treatments=self.genome.default_treatments,
-            normalize=normalize
+            normalize=normalize,
         )
 
         if df is None:
             print(f"No data found for motif {self.motif}")
             return None
+        
+        # Select the methylation type we need, make sure there is still data for each position
+        df = df.select("contig", "position", "strand", "treatment", self.meth_type, self.canonical_base).filter(pl.col(self.meth_type).is_not_nan(), pl.col(self.canonical_base).is_not_nan())
+        
+        if df.collect().height == 0:
+            print(f"No data found for motif {self.motif}")
+            return None
+        
+        if in_every_treatment:
+            og_columns = df.collect_schema().names()
+            triplicate_positions = (df.group_by("contig", "strand", "position")
+                                    .agg(pl.col("treatment").n_unique().alias("treatment_count"))
+                                    .filter(pl.col("treatment_count").eq(len(self.genome.default_treatments))))
+
+            df = (df.join(triplicate_positions, on=["contig", "strand", "position"], how="inner").select(*og_columns))
         
         return df
 
