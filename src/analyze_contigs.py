@@ -32,14 +32,14 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
             if motif_df is None:
                 continue
             
-            motif_df = motif_df.collect()
+            motif_df = motif_df.filter(pl.col(motif.meth_type).is_not_null(), pl.col(motif.meth_type).is_not_nan()).collect()
 
             # Add data with significance information
             i = 0
             treatments = motif_df.get_column("treatment").unique()
             for treatment in treatments:
                 # For us to take a mean, there must be at least 40% of positions
-                methylation_fractions = motif_df.filter(pl.col("treatment") == treatment).select(motif.meth_type).drop_nans().drop_nulls()
+                methylation_fractions = motif_df.filter(pl.col("treatment") == treatment).select(motif.meth_type)
                 if len(methylation_fractions)/motif.positions.collect().height < 0.2:
                     continue
                 
@@ -55,20 +55,72 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
             
             # Calculate the statistical difference
             if i == 2:
-                # Separate Data for Each Group
+                motif_df = motif.genome.nearest_gene_to_positions(motif_df)
                 group1_label, group2_label = treatments
-                group1_data = motif_df.filter(pl.col("treatment").eq(group1_label)).select(motif.meth_type).drop_nans().drop_nulls()
-                group2_data = motif_df.filter(pl.col("treatment").eq(group2_label)).select(motif.meth_type).drop_nans().drop_nulls()
 
-                if len(group1_data) > 0 and len(group2_data) > 0:
-                    # Perform Kolmogorov-Smirnov Test ---
-                    _, ks_pvalue = stats.ks_2samp(group1_data, group2_data)
-                    if ks_pvalue < 0.05:
-                        data[-2]["significant"] = True
-                        data[-1]["significant"] = True
-                    else:
-                        data[-2]["significant"] = False
-                        data[-1]["significant"] = False
+                # Distribution of the means
+                group1_data = motif_df.filter(pl.col("treatment").eq(group1_label)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()
+                group2_data = motif_df.filter(pl.col("treatment").eq(group2_label)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()
+                
+                # Distribution of the means in promoters
+                group1_data_pr = motif_df.filter(pl.col("treatment").eq(group1_label), pl.col("distance_to_start").le(60)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()
+                group2_data_pr = motif_df.filter(pl.col("treatment").eq(group2_label), pl.col("distance_to_start").le(60)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()        
+                
+                # Distribution of the standard error
+                motif_df = motif.data(normalize=False).filter(pl.col(motif.meth_type).is_not_null(), pl.col(motif.meth_type).is_not_nan()).collect()
+                se_df = motif_df.group_by("contig", "strand", "position", "treatment").agg(pl.col(motif.meth_type).std() / pl.col(motif.meth_type).count().sqrt())
+                g1_se = se_df.filter(pl.col("treatment").eq(group1_label)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()
+                g2_se = se_df.filter(pl.col("treatment").eq(group2_label)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()
+                
+                # All
+                g1_all = motif_df.filter(pl.col("treatment").eq(group1_label)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()
+                g2_all = motif_df.filter(pl.col("treatment").eq(group2_label)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()
+                
+                # Add positions
+                motif_df = motif.genome.nearest_gene_to_positions(motif_df).filter(pl.col("distance_to_start").le(60))
+                
+                # Distribution of the standard error promoter
+                motif_df = motif.data(normalize=False).filter(pl.col(motif.meth_type).is_not_null(), pl.col(motif.meth_type).is_not_nan()).collect()
+                se_df = motif_df.group_by("contig", "strand", "position", "treatment").agg(pl.col(motif.meth_type).std() / pl.col(motif.meth_type).count().sqrt())
+                g1_se_pr = se_df.filter(pl.col("treatment").eq(group1_label)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()
+                g2_se_pr = se_df.filter(pl.col("treatment").eq(group2_label)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()
+                
+                # All
+                g1_all_pr = motif_df.filter(pl.col("treatment").eq(group1_label)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()
+                g2_all_pr = motif_df.filter(pl.col("treatment").eq(group2_label)).sort("contig", "position", "strand").get_column(motif.meth_type).to_numpy()
+                
+                # Do kilmogorov-smirnov test
+                _, means_sig = stats.ks_2samp(group1_data, group2_data)
+                _, se_sig = stats.ks_2samp(g1_se, g2_se)
+                _, dist_sig = stats.ks_2samp(g1_all, g2_all)
+                
+                # Promoter regions
+                _, means_sig_pr = stats.ks_2samp(group1_data_pr, group2_data_pr)
+                _, se_sig_pr = stats.ks_2samp(g1_se_pr, g2_se_pr)
+                _, dist_sig_pr = stats.ks_2samp(g1_all_pr, g2_all_pr)
+                
+                # Build significance marker string
+                val = ""
+                if means_sig < 0.05:
+                    val += "*"
+                
+                if dist_sig < 0.05:
+                    val += "#"
+                
+                if se_sig < 0.05:
+                    val += "○"
+                
+                if means_sig_pr < 0.05:
+                    val += "!"
+                
+                if dist_sig_pr < 0.05:
+                    val += "?"
+                
+                if se_sig_pr < 0.05:
+                    val += "O"
+                    
+                data[-2]["significant"] = val
+                data[-1]["significant"] = val
 
     # Convert data list to a Polars DataFrame first
     df_partial = pl.DataFrame(data)
@@ -176,11 +228,14 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
         # Add asterisks to significant cells
         for i, row_idx in enumerate(pivot_df.index):
             for j, col_idx in enumerate(pivot_df.columns):
-                if sig_pivot.loc[row_idx, col_idx] == True:
-                    # Add asterisk to the cell, centered
-                    g.ax_heatmap.text(j + 0.5, i + 0.5, '*',
-                                    ha='center', va='center',
-                                    color='black', fontsize="small", fontweight='bold')
+                text = sig_pivot.loc[row_idx, col_idx]
+                if str(text) == "nan":
+                    continue
+                
+                # Add asterisk to the cell, centered
+                g.ax_heatmap.text(j + 0.5, i + 0.5, text,
+                                ha='center', va='center',
+                                color='black', fontsize="small", fontweight='bold')
 
     # Modify x-axis labels to show only motifs, not treatments
     motifs = [label.get_text().split("-")[0] for label in g.ax_heatmap.get_xticklabels()]
@@ -214,14 +269,10 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     legend1_bbox = legend1.get_window_extent(renderer).transformed(fig.transFigure.inverted())
     legend2_bbox = legend2.get_window_extent(renderer).transformed(fig.transFigure.inverted())
     
-    # Get the plot bbox in figure coordinates
-    plot_bbox = g.ax_heatmap.get_position()
-    
     # Calculate the left position (centered with legends)
+    plot_bbox = g.ax_heatmap.get_position()
     legend_width = legend2_bbox.width
-    cbar_width = legend_width * 0.25  # Colorbar width is 1/4 of legend width
-    
-    # Calculate left position to center all elements
+    cbar_width = legend_width * 0.2  # Colorbar width is 1/5 of legend width
     left_pos = plot_bbox.x0 * 0.5  # Position on the left side of the plot
     
     # Position the first legend at the top
@@ -248,7 +299,7 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
     # Set colorbar position
     # Add color bar
     cbar_ax = g.fig.add_axes([cbar_left, cbar_y, cbar_width, cbar_height])
-    cbar = plt.colorbar(g.ax_heatmap.collections[0], cax=cbar_ax, anchor = (cbar_left, cbar_y), orientation="vertical")
+    cbar = plt.colorbar(g.ax_heatmap.collections[0], cax=cbar_ax, anchor = (cbar_left, cbar_y), orientation="vertical", label="Mean methylation fraction")
     cbar.set_ticks([0, 0.2, 0.4, 0.6, 0.8, 1])
     cbar.ax.set_yticklabels(['0', '0.2', '0.4', '0.6', '0.8', '1'])
     cbar.ax.tick_params(axis='y', which='major')

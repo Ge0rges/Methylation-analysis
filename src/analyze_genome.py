@@ -28,7 +28,11 @@ def plot_whole_methylome(
       - fraction = motif_type / (motif_type + canonical base)
       - x-axis = genome_position, color by sample
     """
-    df = motif.data().collect(streaming=True)
+    df = motif.data()
+    if df is None:
+        return
+    
+    df = df.collect(streaming=True)
 
     # Order the contigs by their mean methylation
     ordered_contigs = None

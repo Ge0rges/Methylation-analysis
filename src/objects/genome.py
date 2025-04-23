@@ -249,7 +249,6 @@ class Genome(object):
             position = row["position"]
             strand = row["strand"]
 
-
             # Compute distances
             genes = g.filter(pl.col("contig") == contig, pl.col("strand") == strand).with_columns(
                 (pl.col("start") - position).abs().alias("distance_to_start"),
@@ -261,12 +260,10 @@ class Genome(object):
             nearest_end = genes.sort("distance_to_end").head(1).rename({"gene_callers_id": "gene_callers_id_end"}).select("gene_callers_id_end", "distance_to_end")
 
             # Combine results and include original query information
-            nearest_combined = pl.concat([nearest_start, nearest_end], how="horizontal")
+            nearest_combined = pl.concat([pl.DataFrame(row), nearest_start, nearest_end], how="horizontal")
 
             results.append(nearest_combined)
 
-        # Concatenate all results into a single DataFrame
-        results = pl.concat(results, how="vertical")
-        
-        return pl.concat([positions_df, results], how="horizontal")
+        # Concatenate all results into a single DataFrame        
+        return pl.concat(results, how="vertical")
 

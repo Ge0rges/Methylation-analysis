@@ -112,7 +112,10 @@ class Motif(object):
             print(f"No data found for motif {self.motif}")
             return None
         
-        # Select the methylation type we need, make sure there is still data for each position
+        if normalize == False:
+            df = df.with_columns(pl.col("sample").replace_strict(self.genome.barcode_treatment_map).replace_strict(self.genome.treatment_name_map).alias("treatment"))
+
+        # Select just the methylation type we need, make sure there is still data for each position
         df = df.select("contig", "position", "strand", "treatment", self.meth_type, self.canonical_base).filter(pl.col(self.meth_type).is_not_nan(), pl.col(self.canonical_base).is_not_nan())
         
         if df.collect().height == 0:

@@ -10,7 +10,7 @@ from src.utilities.data_loading import get_coverage
 from src.utilities.utils import read_counts
 from matplotlib.colors import LogNorm
 
-sns.set_theme(context="paper", style="white")
+sns.set_theme(context="poster", style="white")
 
 
 def plot_coverage(coverm_path, output_dir, treatment_name_map, barcode_treatment_map, treatment_order_map):
@@ -124,13 +124,21 @@ def plot_microbemod(microbemod_tsv, output_dir, name):
     microbemod = microbemod[microbemod['Gene type'].str.contains("MT|RE")]        
     microbemod['Gene type'] = microbemod['Gene type'].str.replace("MT", "Methyltransferase").str.replace("RE", "Restriction enzyme")#.str.replace("IIG", "Type IIG RM system")
     microbemod['System type'] = microbemod['System Type'].str.split("_", expand=True)[2]
-    microbemod['System type'] = pd.Categorical(microbemod['System type'], ['I','II', 'III','IV'])
+    
+    # Define expected categories and ensure columns are categorical *before* grouping
+    system_types = ['I', 'II', 'III', 'IV']
+    gene_types = ["Methyltransferase", "Restriction enzyme"]
+    microbemod['System type'] = pd.Categorical(microbemod['System type'], categories=system_types, ordered=True)
+    microbemod['Gene type'] = pd.Categorical(microbemod['Gene type'], categories=gene_types, ordered=True)
+
+    # Calculate counts for all defined category combinations.
+    plot_data = microbemod.groupby(['System type', 'Gene type'], observed=False).size().reset_index(name='count')
 
     # Make a plot
-    _, axes = plt.subplots(figsize=(5, 9), layout="constrained")
+    _, axes = plt.subplots(figsize=(8, 9), layout="constrained")
 
     # Bar chart with number of genes by RM type, and enzyme type (methyltransferase, restriction enzyme)
-    sns.histplot(data=microbemod, x='System type', hue="Gene type", ax=axes, stat="count", discrete=True, multiple="dodge", shrink=0.8, hue_order=["Methyltransferase", "Restriction enzyme"])
+    sns.barplot(data=plot_data, y="count", x='System type', hue="Gene type", ax=axes, hue_order=["Methyltransferase", "Restriction enzyme"])
     
     # Set the format for the bar labels
     for i in range(0, len(axes.containers)):
