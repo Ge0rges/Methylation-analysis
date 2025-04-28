@@ -238,32 +238,76 @@ class Genome(object):
         return GeneCollection(gene_collection.pribnow_box_position_and_sequence
                               .filter(pl.col("pribnow_box_position").is_not_null())
                               .collect(streaming=True).get_column("gene_callers_id").to_list(), self)
-
-
+    
+    
     def nearest_gene_to_positions(self, positions_df: pl.DataFrame) -> pl.DataFrame:
-        results = []
-        g = self.gene_caller_df.collect(streaming=True)
+        """
+        Finds the nearest gene (by start and end) for each position using vectorized operations.
 
-        for row in positions_df.iter_rows(named=True):  # Iterate over rows
-            contig = row["contig"]
-            position = row["position"]
-            strand = row["strand"]
+        Args:
+            positions_df: DataFrame with columns 'contig', 'position', 'strand'.
 
-            # Compute distances
-            genes = g.filter(pl.col("contig") == contig, pl.col("strand") == strand).with_columns(
-                (pl.col("start") - position).abs().alias("distance_to_start"),
-                (pl.col("stop") - position).abs().alias("distance_to_end"),
+        Returns:
+            DataFrame with original position info plus nearest gene IDs and distances.
+        """
+
+        # 1. Prepare positions_df: Add unique ID and cast join keys
+        #    The unique ID is crucial for grouping correctly later.
+        positions_prep = positions_df.with_row_count("query_id")
+
+        # Keep track of original columns to preserve them
+        original_pos_cols = positions_prep.columns
+
+        # 2. Join positions with genes
+        #    Use an inner join: positions without matching contig/strand in genes will be dropped
+        #    (This matches the behavior of the original filter inside the loop)
+        #    If you need to keep positions with no matches (showing nulls), use how='left'.
+        joined_df = positions_prep.join(
+            self.gene_caller_df.collect(), # Use the lazy frame
+            on=["contig", "strand"],
+            how="inner"
+        )
+
+        # 3. Calculate distances (vectorized)
+        with_distances = joined_df.with_columns(
+            (pl.col("start") - pl.col("position")).abs().alias("distance_to_start"),
+            (pl.col("stop") - pl.col("position")).abs().alias("distance_to_end"),
+        )
+
+        # 4. Group by original position and find nearest genes using arg_min
+        #    Group by all original columns from positions_prep to keep them
+        result = (
+            with_distances
+            .group_by(original_pos_cols, maintain_order=True) # maintain_order=True keeps original positions_df order
+            .agg(
+                # Find the index within each group corresponding to the min distance
+                pl.col("distance_to_start").arg_min().alias("idx_min_start"),
+                pl.col("distance_to_end").arg_min().alias("idx_min_end"),
+                # Also get the actual minimum distances directly
+                pl.min("distance_to_start"),
+                pl.min("distance_to_end"),
+                # Aggregate the gene_callers_id into a list to allow lookup via index
+                pl.col("gene_callers_id")
             )
+            .with_columns(
+                # Use the calculated index to retrieve the correct gene_callers_id from the list
+                pl.col("gene_callers_id").list.get(pl.col("idx_min_start")).alias("gene_callers_id_start"),
+                pl.col("gene_callers_id").list.get(pl.col("idx_min_end")).alias("gene_callers_id_end")
+            )
+             # 5. Final Selection and Casting (matching original output)
+            .select(
+                # Select original columns from positions_df (excluding query_id)
+                *positions_df.columns,
+                # Select the newly computed columns and cast them
+                pl.col("gene_callers_id_start").cast(pl.Int64),
+                pl.col("gene_callers_id_end").cast(pl.Int64),
+                pl.col("distance_to_start").cast(pl.Float64), # Cast to Float64 like original
+                pl.col("distance_to_end").cast(pl.Float64)   # Cast to Float64 like original
+            )
+        )
 
-            # Get nearest gene for start and end
-            nearest_start = genes.sort("distance_to_start").head(1).rename({"gene_callers_id": "gene_callers_id_start"}).select("gene_callers_id_start", "distance_to_start")
-            nearest_end = genes.sort("distance_to_end").head(1).rename({"gene_callers_id": "gene_callers_id_end"}).select("gene_callers_id_end", "distance_to_end")
+        # The final result 'result' is computed lazily if gene_caller_lf was lazy.
+        # Collect it if you need an eager DataFrame immediately.
+        return result # Add .collect() here if the class expects an eager DataFrame
 
-            # Combine results and include original query information
-            nearest_combined = pl.concat([pl.DataFrame(row), nearest_start, nearest_end], how="horizontal")
-
-            results.append(nearest_combined)
-
-        # Concatenate all results into a single DataFrame        
-        return pl.concat(results, how="vertical")
 

@@ -127,10 +127,12 @@ def plot_motif_methylation_distribution(
     - We'll do a single figure with multiple histplot calls, or subplots, showing how
       many sites fall in each fraction bin per sample.
     """
-    df = motif.data().collect(streaming=True).rename({"treatment": "Treatment"})
+    df = motif.data()
     
-    if df.is_empty():
+    if df is None or df.is_empty():
         return
+    
+    df = df.collect(streaming=True).rename({"treatment": "Treatment"})
 
     # One approach: single figure, color by treatment. Another approach: subplots per treatment.
     # Example: single figure, multiple histplot calls with "multiple='dodge'"
