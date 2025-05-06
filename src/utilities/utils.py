@@ -104,34 +104,57 @@ def reshape_pileup_to_matrix_polars(methyl_data) -> pl.LazyFrame | None:
 
 
 def add_gene_caller_id(df: pl.LazyFrame, genes: pl.LazyFrame, keep_cols: list[str] = [],
-                       include_intergenic: bool = False) -> pl.LazyFrame:
+                        include_intergenic: bool = False) -> pl.LazyFrame:
     """
     Add the gene caller id.
     """
-    # Merge merged_df with ranges based on treatments
-    # Filter rows where merged_df start and end values are within sequence_range start and end.
-    # Gene sequence_range is inclusive of end, modkit bed is not.
+    # Define the columns to keep eventually, including the new gene_callers_id
     og_columns = df.collect_schema().names() + keep_cols + ["gene_callers_id"]
 
-    # Add a unique row ID
+    # Add a unique row ID to df to handle potential multiple matches later
+    # and to facilitate joining back intergenic regions if needed.
     df = df.with_row_count(name="row_id")
 
-    # Do a join where
-    result = df.join_where(genes,
-                           pl.col('position').ge(pl.col('start')),
-                           pl.col('position').lt(pl.col('stop')),
-                           pl.col("contig").eq(pl.col("contig_right")),
-                           pl.col('strand').eq(pl.col('strand_right')))
+    # Ensure both dataframes are sorted for join_asof
+    # Sort df by contig, strand, and position
+    df_sorted = df.sort("contig", "strand", "position")
 
-    # Add back on row ID
+    # Prepare and sort genes dataframe
+    genes_sorted = genes.select("contig", "strand", "start", "stop", "gene_callers_id").sort("contig", "strand", "start")
+
+    # Perform the asof join. Find the latest gene 'start' that is less than or equal to 'position'
+    # for matching contig and strand.
+    joined_df = df_sorted.join_asof(
+        genes_sorted,
+        left_on="position",
+        right_on="start",
+        by=["contig", "strand"],
+        strategy="backward" # Find gene start <= position
+    )
+
+    # Filter the results to keep only rows where the position is actually within the gene boundaries
+    # i.e., position >= start (implicit from join_asof) AND position < stop
+    valid_overlaps = joined_df.filter(pl.col("position") < pl.col("stop"))
+
     if include_intergenic:
-        result = df.join(result, how="left", on="row_id")
+        # If including intergenic regions, perform a left join back to the original df (with row_id)
+        # using the valid overlaps. Rows from df that didn't have a valid overlap will have nulls
+        # for the gene columns.
+        result = df.join(
+            valid_overlaps.select("row_id", "gene_callers_id"), # Only need row_id and the gene id
+            on="row_id",
+            how="left"
+        )
+        # Fill null gene_callers_id with -1 for intergenic regions
         result = result.with_columns(pl.col("gene_callers_id").fill_null(-1))
+    else:
+        # If not including intergenic, just keep the valid overlaps
+        result = valid_overlaps
 
-    # If there are still multiple gene_callers_id for the same entry, pick the first one
-    result = result.unique(subset=og_columns + ["row_id"], keep="first")
-
-    # Toss superfluous columns
+    # If a position overlaps multiple genes (e.g., nested genes), join_asof might still produce multiple rows
+    # for the same original row_id if multiple genes start at the same position.
+    result = result.unique(subset=["row_id"], keep="first")
+    
     return result.select(*og_columns)
 
 

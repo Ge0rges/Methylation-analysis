@@ -186,15 +186,15 @@ class Genome(object):
             sequences[key] = str(value.seq)
             com_sequences[key] = str(value.seq.complement())
         sequences = {"contig": sequences.keys(), "sequence": sequences.values(),
-                     "complement_sequence": com_sequences.values()}
+                    "complement_sequence": com_sequences.values()}
         sequences = pl.from_dict(sequences, schema=["contig", "sequence", "complement_sequence"]).lazy()
 
         # Merge the data with the sequences, get the sequence of the 4 nucelotides around
         data = df.join(sequences, on="contig")
         data = data.with_columns(pl.when(pl.col("strand"))
-                                 .then(pl.col("sequence").str.slice(pl.col("position") - before, before+after+1))
-                                 .otherwise(pl.col("complement_sequence").str.slice(pl.col("position") - before, before+after+1))
-                                 .alias("Sequence")).drop("sequence", "complement_sequence")
+                                .then(pl.col("sequence").str.slice(pl.col("position") - before, before+after+1))
+                                .otherwise(pl.col("complement_sequence").str.slice(pl.col("position") - before, before+after+1))
+                                .alias("Sequence")).drop("sequence", "complement_sequence")
 
         return data
 
@@ -220,12 +220,12 @@ class Genome(object):
         # Group by strand, and contig, then sort by start position and foward the operon ID
         df = df.sort("strand", "contig", "start", descending=False)
         df = (df.group_by("strand", "contig", maintain_order=True)
-              .agg(pl.col("operon_id").forward_fill(), pl.col("gene_callers_id"))
-              .explode("gene_callers_id", "operon_id"))
+                .agg(pl.col("operon_id").forward_fill(), pl.col("gene_callers_id"))
+                .explode("gene_callers_id", "operon_id"))
         df = (df.filter(pl.col("operon_id").is_not_null())  # Aggregation happens on null also
-              .group_by("operon_id")
-              .agg(pl.col("gene_callers_id"))
-              .filter(pl.col("gene_callers_id").list.len().gt(1)))
+                .group_by("operon_id")
+                .agg(pl.col("gene_callers_id"))
+                .filter(pl.col("gene_callers_id").list.len().gt(1)))
 
         gcs = [GeneCollection(ids, self) for ids in df.collect(streaming=True).get_column("gene_callers_id").to_list()]
 
@@ -236,78 +236,111 @@ class Genome(object):
     def genes_with_promoter(self) -> GeneCollection:
         gene_collection = GeneCollection(self.gene_ids, self)
         return GeneCollection(gene_collection.pribnow_box_position_and_sequence
-                              .filter(pl.col("pribnow_box_position").is_not_null())
-                              .collect(streaming=True).get_column("gene_callers_id").to_list(), self)
+                                .filter(pl.col("pribnow_box_position").is_not_null())
+                                .collect(streaming=True).get_column("gene_callers_id").to_list(), self)
     
-    
-    def nearest_gene_to_positions(self, positions_df: pl.DataFrame) -> pl.DataFrame:
+
+    def nearest_gene_to_positions(self, positions_df: pl.LazyFrame) -> pl.LazyFrame:
         """
-        Finds the nearest gene (by start and end) for each position using vectorized operations.
+        Finds the nearest gene (by start and end) for each position using join_asof
+        for improved memory efficiency.
 
         Args:
-            positions_df: DataFrame with columns 'contig', 'position', 'strand'.
+            positions_df: LazyFrame with columns 'contig', 'position', 'strand'.
+                          Must contain at least these columns.
 
         Returns:
-            DataFrame with original position info plus nearest gene IDs and distances.
+            LazyFrame with original position info plus nearest gene IDs and distances.
+            Columns added: 'gene_callers_id_start', 'distance_to_start',
+                           'gene_callers_id_end', 'distance_to_end'.
+            Note: If no matching gene is found on the contig/strand, the corresponding
+                  gene ID and distance columns will contain nulls.
         """
+        # --- Input Validation and Preparation ---
+        original_pos_cols = positions_df.collect_schema().names() # Capture original columns
 
-        # 1. Prepare positions_df: Add unique ID and cast join keys
-        #    The unique ID is crucial for grouping correctly later.
-        positions_prep = positions_df.with_row_count("query_id")
+        # Handle potential existing gene_callers_id column in positions_df
+        temp_gene_id_col = "gene_callers_id"
+        if "gene_callers_id" in original_pos_cols:
+            # Use a more unique temporary name to avoid potential clashes later
+            temp_gene_id_col = "_input_gene_callers_id_"
+            positions_df = positions_df.rename({"gene_callers_id": temp_gene_id_col})
+            # Update original_cols list to reflect the rename
+            original_pos_cols = [temp_gene_id_col if c == "gene_callers_id" else c for c in original_pos_cols]
 
-        # Keep track of original columns to preserve them
-        original_pos_cols = positions_prep.columns
 
-        # 2. Join positions with genes
-        #    Use an inner join: positions without matching contig/strand in genes will be dropped
-        #    (This matches the behavior of the original filter inside the loop)
-        #    If you need to keep positions with no matches (showing nulls), use how='left'.
-        joined_df = positions_prep.join(
-            self.gene_caller_df.collect(), # Use the lazy frame
-            on=["contig", "strand"],
-            how="inner"
+        # Add a unique ID to restore original order at the end if needed
+        # Also sort positions for join_asof
+        positions_prep = positions_df.sort("contig", "strand", "position")
+
+        genes_base = self.gene_caller_df.select(
+            "contig", "strand", "gene_callers_id", "start", "stop"
         )
 
-        # 3. Calculate distances (vectorized)
-        with_distances = joined_df.with_columns(
-            (pl.col("start") - pl.col("position")).abs().alias("distance_to_start"),
-            (pl.col("stop") - pl.col("position")).abs().alias("distance_to_end"),
+        # --- Perform join_asof (Nearest Start) ---
+        # Sort genes by 'start' for the first join
+        genes_sorted_by_start = genes_base.sort("contig", "strand", "start").rename({
+                "gene_callers_id": "gene_callers_id_start",
+                "start": "_gene_start_", # Keep gene start/stop for distance calc
+                "stop": "_gene_stop_for_start_" # Not strictly needed unless used later
+        })
+
+        # Join to find the gene with the start position nearest to the query position
+        joined_start = positions_prep.join_asof(
+            # Rename columns from the gene table *before* the join to avoid conflicts
+            genes_sorted_by_start,
+            left_on="position",         # The column to match proximity on
+            right_on="_gene_start_",
+            by=["contig", "strand"], # Exact match required on these columns
+            strategy="nearest",    # Find the single nearest row
         )
 
-        # 4. Group by original position and find nearest genes using arg_min
-        #    Group by all original columns from positions_prep to keep them
-        result = (
-            with_distances
-            .group_by(original_pos_cols, maintain_order=True) # maintain_order=True keeps original positions_df order
-            .agg(
-                # Find the index within each group corresponding to the min distance
-                pl.col("distance_to_start").arg_min().alias("idx_min_start"),
-                pl.col("distance_to_end").arg_min().alias("idx_min_end"),
-                # Also get the actual minimum distances directly
-                pl.min("distance_to_start"),
-                pl.min("distance_to_end"),
-                # Aggregate the gene_callers_id into a list to allow lookup via index
-                pl.col("gene_callers_id")
-            )
-            .with_columns(
-                # Use the calculated index to retrieve the correct gene_callers_id from the list
-                pl.col("gene_callers_id").list.get(pl.col("idx_min_start")).alias("gene_callers_id_start"),
-                pl.col("gene_callers_id").list.get(pl.col("idx_min_end")).alias("gene_callers_id_end")
-            )
-             # 5. Final Selection and Casting (matching original output)
-            .select(
-                # Select original columns from positions_df (excluding query_id)
-                *positions_df.columns,
-                # Select the newly computed columns and cast them
-                pl.col("gene_callers_id_start").cast(pl.Int64),
-                pl.col("gene_callers_id_end").cast(pl.Int64),
-                pl.col("distance_to_start").cast(pl.Float64), # Cast to Float64 like original
-                pl.col("distance_to_end").cast(pl.Float64)   # Cast to Float64 like original
-            )
+        # --- Perform join_asof (Nearest End/Stop) ---
+        # Sort genes by 'stop' for the second join
+        genes_sorted_by_stop = genes_base.sort("contig", "strand", "stop").rename({
+                "gene_callers_id": "gene_callers_id_end",
+                "start": "_gene_start_for_stop_", # Not strictly needed
+                "stop": "_gene_stop_" # Keep gene stop for distance calc
+        })
+
+        # Join the intermediate result to find the gene with the 'stop' position nearest
+        # to the query position.
+        joined_both = joined_start.join_asof(
+            genes_sorted_by_stop,
+            left_on="position",         # The column to match proximity on
+            right_on="_gene_stop_",            
+            by=["contig", "strand"],
+            strategy="nearest",
         )
 
-        # The final result 'result' is computed lazily if gene_caller_lf was lazy.
-        # Collect it if you need an eager DataFrame immediately.
-        return result # Add .collect() here if the class expects an eager DataFrame
+        # --- Calculate Distances and Finalize ---
+        result = joined_both.with_columns(
+            # Calculate distance to the start of the gene found nearest by *start*
+            (pl.col("_gene_start_") - pl.col("position")).abs().alias("distance_to_start"),
+            # Calculate distance to the end of the gene found nearest by *stop*
+            (pl.col("_gene_stop_") - pl.col("position")).abs().alias("distance_to_end"),
+        )
 
+        # Define final columns to select (original + new ones)
+        # Use the potentially renamed original columns list
+        final_output_cols = list(original_pos_cols) + [
+            "gene_callers_id_start",
+            "gene_callers_id_end",
+            "distance_to_start",
+            "distance_to_end"
+        ]
 
+        # Select, cast, and reorder columns
+        result_final = result.select(*final_output_cols).with_columns([
+                # Cast to desired final types. strict=False allows nulls from joins.
+                pl.col("gene_callers_id_start").cast(pl.Int32, strict=False),
+                pl.col("gene_callers_id_end").cast(pl.Int32, strict=False),
+                pl.col("distance_to_start").cast(pl.Int32, strict=False),
+                pl.col("distance_to_end").cast(pl.Int32, strict=False)
+            ])
+
+        # Rename the original gene_callers_id back if it was temporarily renamed
+        if temp_gene_id_col != "gene_callers_id":
+            result_final = result_final.rename({temp_gene_id_col: "gene_callers_id"})
+
+        return result_final

@@ -32,7 +32,7 @@ def plot_whole_methylome(
     if df is None:
         return
     
-    df = df.collect(streaming=True)
+    df = df.collect()
 
     # Order the contigs by their mean methylation
     ordered_contigs = None
@@ -129,11 +129,13 @@ def plot_motif_methylation_distribution(
     """
     df = motif.data()
     
-    if df is None or df.is_empty():
+    if df is None:
         return
     
-    df = df.collect(streaming=True).rename({"treatment": "Treatment"})
-
+    df = df.collect().rename({"treatment": "Treatment"})
+    if df.is_empty():
+        return
+    
     # One approach: single figure, color by treatment. Another approach: subplots per treatment.
     # Example: single figure, multiple histplot calls with "multiple='dodge'"
     _, ax = plt.subplots(figsize=(32, 20), constrained_layout=True)
@@ -232,7 +234,10 @@ def plot_parallel_categories_methylation(
     Create a Plotly parallel categories plot with clearer bin labels ("Low", "Medium", "High") 
     and color. For instance, we color by the first dimension's value.
     """
-    df = motif.data().collect(streaming=True)
+    df = motif.data()
+    if df is None:
+        return 
+    df = df.collect()
     treatments = df.get_column("treatment").unique().to_list()
         
     if df.is_empty():
@@ -295,7 +300,11 @@ def extract_motif_data_all_transitions(
       None. (CSV files are written to genome.output_dir.)
     """
     # 1. Collect the full motif data and map samples to treatments.
-    df = motif.data().collect(streaming=True)
+    df = motif.data()
+    if df is None:
+        return
+    
+    df = df.collect()
     if df.is_empty():
         return
 
@@ -490,7 +499,12 @@ def write_basic_stats(genome: Genome, motifs: list[Motif]):
         text.append(f"Number of sites: {site_count}\n")
 
         # Compute weighted fraction using treatment_weighted_mean
-        df = motif.data().collect(streaming=True)
+        df = motif.data()
+        if df is None:
+            return 
+        
+        df = df.collect()
+        
         if df.is_empty():
             continue
         
