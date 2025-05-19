@@ -143,6 +143,7 @@ def analyze_metagenome(
     contigs = [Contig(genome, contig_name, contig_taxonomy_tsv, taxonomy_generator, is_viral=False) for contig_name in contig_names]
 
     df = plot_contig_motif_heatmap(contigs)
+    plot_contig_motif_heatmap_stats(contigs)
     extract_diff_methylated_genes_contigs(df, contigs)
     write_basic_stats_about_contigs(contigs, df)
 
@@ -191,6 +192,7 @@ def analyze_viruses(
     contigs = [Contig(genome, contig_name, genomad_summary_tsv, taxonomy_generator, is_viral=True) for contig_name in contig_names]
     
     df = plot_contig_motif_heatmap(contigs)
+    plot_contig_motif_heatmap_stats(contigs)
     extract_diff_methylated_genes_contigs(df, contigs)
     write_basic_stats_about_contigs(contigs, df)
     

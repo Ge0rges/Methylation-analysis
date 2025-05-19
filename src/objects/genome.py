@@ -112,14 +112,21 @@ class Genome(object):
         bed_files = [Path(f) for f in glob.glob(str(self.methylation_data_dir / "*.bed")) if '-bedgraph' not in os.path.basename(f)]
 
         all_data = []
-        for bed_file in bed_files:
+        for bed_file in bed_files:                
             # Load the data for the positions that overlap only
             methyl_data = get_pileup(bed_file).select("contig", "inclusive start position", "exclusive end position", "strand")
             methyl_data = methyl_data.rename({"inclusive start position": "position", "exclusive end position": "end"})
 
             all_data.append(methyl_data)
-
-        all_data = pl.concat(all_data).unique()
+        
+        # Workaround because of casting bug in polars
+        try:
+            all_data = pl.concat(all_data).unique().collect().lazy()
+        except:
+            for i, df in enumerate(all_data):
+                all_data[i] = df.collect().with_columns(pl.col("strand").cast(pl.Boolean))
+            all_data = pl.concat(all_data).unique()
+                
 
         all_genes = get_dataset_genes(self)
         gene_ids = add_gene_caller_id(all_data, all_genes, include_intergenic=False).select("gene_callers_id").unique().collect(
@@ -152,7 +159,6 @@ class Genome(object):
         )
 
         if df is None:
-            print(f"No data found for {self.name}")
             return None
         
         return df
@@ -333,10 +339,10 @@ class Genome(object):
         # Select, cast, and reorder columns
         result_final = result.select(*final_output_cols).with_columns([
                 # Cast to desired final types. strict=False allows nulls from joins.
-                pl.col("gene_callers_id_start").cast(pl.Int32, strict=False),
-                pl.col("gene_callers_id_end").cast(pl.Int32, strict=False),
-                pl.col("distance_to_start").cast(pl.Int32, strict=False),
-                pl.col("distance_to_end").cast(pl.Int32, strict=False)
+                pl.col("gene_callers_id_start").cast(pl.Int64, strict=False),
+                pl.col("gene_callers_id_end").cast(pl.Int64, strict=False),
+                pl.col("distance_to_start").cast(pl.Int64, strict=False),
+                pl.col("distance_to_end").cast(pl.Int64, strict=False)
             ])
 
         # Rename the original gene_callers_id back if it was temporarily renamed

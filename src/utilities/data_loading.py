@@ -26,7 +26,6 @@ def get_pileup(path: Path) -> pl.LazyFrame:
                                       "end position2", "color", "Nvalid_cov", "fraction modified", "Nmod", "Ncanonical",
                                       "Nother_mod", "Ndelete", "Nfail", "Ndiff", "Nnocall"])
     except pl.exceptions.NoDataError:
-        print(f"No data found for {path}.")
         # Return an empty dataframe with the same columns
         pileup = pl.DataFrame(schema={
             "contig": pl.Utf8,
@@ -50,7 +49,7 @@ def get_pileup(path: Path) -> pl.LazyFrame:
     pileup = pileup.drop("score", "start position2", "end position2", "color")
 
     # Convert strand to bool
-    pileup = pileup.with_columns(pl.col("strand").replace_strict({"+": True, "-": False}))
+    pileup = pileup.with_columns(pl.col("strand").replace_strict({"+": True, "-": False}).cast(pl.Boolean))
 
     return pileup
 
@@ -275,7 +274,6 @@ def load_methylation_data(
         all_data.append(methyl_data)
 
     if len(all_data) == 0:
-        print(f"No data found for {bed_files[0]}, etc. with coverage {genome.default_coverage}.")
         return None
 
     # Concat and rename

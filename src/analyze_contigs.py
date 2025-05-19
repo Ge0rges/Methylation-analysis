@@ -11,6 +11,7 @@ import numpy as np
 import scipy.stats as stats
 from statsmodels.stats.multitest import multipletests
 from matplotlib.colors import LogNorm
+import math 
 
 sns.set_theme(context="paper", style="whitegrid")
 
@@ -200,17 +201,22 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
 
 def plot_contig_motif_heatmap_stats(contigs: list[Contig]):
     data = get_contigs_data(contigs, statistics=True)
-    # Convert data list to a Polars DataFrame first
-    df = pl.DataFrame(data)
+    if len(data) == 0:
+        return None
+    
+    # Convert data list to a Polars DataFrame first`1`
+    df = pl.DataFrame(data).drop("treatment").unique()
 
     if df.is_empty():
         print(f"No data to plot in {contigs[0].parent_genome.readable_name}")
         return df # Return the empty dataframe early
 
+    df = df.rename({"means": "Means", "se": "Standard error", "means_pr": "Promoter means", "se_pr": "Promoter standard error", "contig_taxonomy": "Taxonomy"})
+    
     # Melt then pivot back
-    statistic_columns = ["means", "se", "means_pr", "se_pr"]    
+    statistic_columns = ["Means", "Standard error", "Promoter means", "Promoter standard error"]    
     df_long = df.melt(
-        id_vars=["motif_string", "contig_name", "contig_taxonomy"],
+        id_vars=["motif_string", "contig_name", "Taxonomy"],
         value_vars=statistic_columns,
         variable_name="statistic_key", # New column for the name of the statistic
         value_name="p_value"           # New column for the p-value itself
@@ -218,17 +224,17 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig]):
     
     pivot_df = df_long.to_pandas().pivot(
         index="contig_name",
-        columns=["motif_string", "statistic_key", "contig_taxonomy"],
+        columns=["motif_string", "statistic_key"],
         values="p_value"
     )
     
     # Row colors (Taxonomy) - Use df_long as it contains all original rows
-    unique_taxonomies = df_long.get_column("contig_taxonomy").unique().sort().to_list()
+    unique_taxonomies = df_long.get_column("Taxonomy").unique().sort().to_list()
     tax_pal = sns.color_palette(palette="tab20", n_colors=len(unique_taxonomies))
     tax_lut = dict(zip(unique_taxonomies, tax_pal))
     # Map contig names to taxonomy colors using info from df_long
-    contig_tax_map = df_long.select("contig_name", "contig_taxonomy").unique().to_pandas().set_index("contig_name")["contig_taxonomy"]
-    contig_colors = contig_tax_map.map(tax_lut).rename({"contig_taxonomy": "Taxonomy"})
+    contig_tax_map = df_long.select("contig_name", "Taxonomy").unique().to_pandas().set_index("contig_name")["Taxonomy"]
+    contig_colors = contig_tax_map.map(tax_lut)
 
     # Column colors (Statistic Key) - Use statistic_columns provided
     unique_statistics = sorted(statistic_columns) # Use the defined list
@@ -297,9 +303,10 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig]):
     g.ax_cbar.remove()
 
     # Ensure correct order and inclusion of all displayed taxonomies/statistics
-    displayed_taxonomies = contig_colors.map(contig_taxonomy_map).unique().tolist() # Get taxa actually in the plot
-    ordered_taxonomies = sorted(displayed_taxonomies, key=lambda x: (str(x) == "Unclassified", str(x)))
-    taxonomy_handles = [Patch(color=tax_lut[t], label=t) for t in ordered_taxonomies if t in tax_lut]
+    # Create legends
+    ordered_taxonomies = [contig_taxonomy_map[i] for i in pivot_df.index]
+    ordered_taxonomies = pd.unique(ordered_taxonomies)  # preserve order of occurrence
+    taxonomy_handles = [Patch(color=tax_lut[t], label=t) for t in ordered_taxonomies]
 
     # Get unique statistic keys from the columns actually present in the pivot table
     ordered_statistics = pivot_df.columns.get_level_values("statistic_key").unique().tolist()
@@ -341,8 +348,16 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig]):
     legend2_left = left_pos
     legend2.set_bbox_to_anchor([legend2_left, legend2_top], transform=fig.transFigure)
     
+    fig.canvas.draw()
+    
+    # Get the bounding box of the x-axis label in figure coordinates
+    xaxis_label_bbox = g.ax_heatmap.xaxis.label.get_window_extent(fig.canvas.get_renderer())
+    
+    # The bottom of the colorbar should align with the bottom of the x-axis label
+    cbar_bottom_y = xaxis_label_bbox.transformed(fig.transFigure.inverted()).y0
+    
     # Calculate colorbar height and position
-    available_height = legend2_top - legend2_height - plot_bbox.y0  - 0.05# Space between bottom of legend2 and bottom of plot
+    available_height = legend2_top - legend2_height - cbar_bottom_y  - 0.05# Space between bottom of legend2 and bottom of plot
     cbar_top = legend2_top - legend2_height
     
     # Adjust the colorbar axes
@@ -356,8 +371,8 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig]):
     # Add color bar
     cbar_ax = g.fig.add_axes([cbar_left, cbar_y, cbar_width, cbar_height])
     cbar = plt.colorbar(g.ax_heatmap.collections[0], cax=cbar_ax, anchor = (cbar_left, cbar_y), orientation="vertical", label="P-value")
-    cbar.set_ticks([0.01, 0.05, 0.1, 1])
-    cbar.ax.set_yticklabels(['0.01', '0.05', '0.1', '1'])
+    cbar.set_ticks([0.01, 0.1, 1])
+    cbar.ax.set_yticklabels(['0.01', '0.1', '1'])
     cbar.ax.tick_params(axis='y', which='major')
     cbar.outline.set_visible(False)
         
@@ -472,18 +487,17 @@ def do_test(motif, treatments, alpha=0.01):
         if p_value is not None:
             valid_p_values.append(p_value)
             valid_indices.append(i)
-
+    
+    adj_pvals = {key: None for key in keys}
+    if len(valid_p_values) == 0:
+        return adj_pvals
+    
     # Apply multipletests only if we have valid p-values
-    reject, valid_adj_pvals, _, _ = multipletests(valid_p_values, alpha=alpha, method='fdr_bh')
-    
-    # Package into a dictionary, handling None values
-    adj_pvals = {}
-    for key in keys:
-        adj_pvals[key] = None  # Default to None
-    
+    reject, test_adj_pvals, _, _ = multipletests(valid_p_values, alpha=alpha, method='fdr_bh')
+        
     # Update with adjusted p-values where available
     for i, orig_idx in enumerate(valid_indices):
-        adj_pvals[keys[orig_idx]] = valid_adj_pvals[i]
+        adj_pvals[keys[orig_idx]] = test_adj_pvals[i]
     
     return adj_pvals
 
@@ -504,7 +518,7 @@ def ks_permutation_test(data1, data2, n_permutations=10000):
 
     Returns:
         float: The empirical p-value based on the permutations.
-            Returns 1.0 if either sample has fewer than 2 data points.
+            Returns None if either sample has fewer than 2 data points.
     """
     # Convert to numpy arrays for easier handling
     data1 = np.asarray(data1)
@@ -512,10 +526,10 @@ def ks_permutation_test(data1, data2, n_permutations=10000):
 
     # KS test requires at least 2 points in each sample for meaningful comparison often,
     # although ks_2samp might handle 1. Let's stick to the original check.
-    if len(data1) < 2 or len(data2) < 2:
-        print("Warning: At least one sample has fewer than 2 data points. Returning p-value = 1.0")
+    if len(data1) < 5 or len(data2) < 5:
         # Cannot perform meaningful KS test
-        return None, None, None
+        print("Unexpected data size for KS test. Returning None.")
+        return None
 
     # Calculate the observed KS statistic (D)
     # ks_2samp returns a result object (or tuple in older scipy)
@@ -525,6 +539,9 @@ def ks_permutation_test(data1, data2, n_permutations=10000):
     # Combine the data for permutation
     combined_data = np.concatenate((data1, data2))
     n1 = len(data1)
+    
+    # Cap permutations
+    n_permutations = min(math.comb(len(combined_data), n1), n_permutations)
 
     count_extreme = 0
     for _ in range(n_permutations):
@@ -541,7 +558,7 @@ def ks_permutation_test(data1, data2, n_permutations=10000):
         if perm_ks_value >= observed_ks_value:
             count_extreme += 1
 
-    return count_extreme / n_permutations
+    return (count_extreme + 1) / (n_permutations + 1)
 
 
 def get_contigs_data(contigs: list[Contig], statistics):
@@ -604,16 +621,16 @@ def extract_diff_methylated_genes_contigs(df, contigs: list[Contig]):
             
             # Add function
             gc = GeneCollection(data.get_column("gene_callers_id").unique().to_list(), contig.parent_genome)
-            data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id", how="left")
+            data = data.lazy().join(gc.get_function(), on="gene_callers_id", how="left")
 
             # Add nearest gene if not in gene
-            data = contig.parent_genome.nearest_gene_to_positions(data)
+            data = contig.parent_genome.nearest_gene_to_positions(data).collect()
 
             # Add function of nearest genes
             gc = GeneCollection(data.get_column("gene_callers_id_start").unique().to_list(), contig.parent_genome)
-            data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
+            data = data.join(gc.get_function().collect(), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
             gc = GeneCollection(data.get_column("gene_callers_id_end").unique().to_list(), contig.parent_genome)
-            data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
+            data = data.join(gc.get_function().collect(), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
             
             # Logic to filter down the table by creating a ranking system
             # Create ranking columns based on priority criteria
