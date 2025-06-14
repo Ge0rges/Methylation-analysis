@@ -125,7 +125,7 @@ class Genome(object):
         except:
             for i, df in enumerate(all_data):
                 all_data[i] = df.collect().with_columns(pl.col("strand").cast(pl.Boolean))
-            all_data = pl.concat(all_data).unique()
+            all_data = pl.concat(all_data).unique().lazy()
                 
 
         all_genes = get_dataset_genes(self)

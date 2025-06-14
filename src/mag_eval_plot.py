@@ -145,7 +145,7 @@ def plot_microbemod(microbemod_tsv, output_dir, name):
         axes.bar_label(axes.containers[i], fmt="%d")
 
     axes.set_xlabel("System type")
-    axes.set_ylabel(f"Count of genes in {name}")
+    axes.set_ylabel(f"Number of genes in {name}")
     axes.get_legend().set_title("")
     axes.yaxis.grid(False)
 

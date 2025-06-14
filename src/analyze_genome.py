@@ -33,25 +33,12 @@ def plot_whole_methylome(
         return
     
     df = df.collect()
-
-    # Order the contigs by their mean methylation
-    ordered_contigs = None
-    if "0_9_3" in genome.genome_path.stem:
-        ordered_contigs = df.group_by("contig").agg(pl.col(motif.meth_type).mean().alias("mean_meth")).sort("mean_meth").get_column("contig").to_list()
-        ordered_contigs = [
-        "c_000000069174", "c_000000073274", "c_000000091796", "c_000000032055",
-        "c_000000070176", "c_000000071756", "c_000000077392", "c_000000091831",
-        "c_000000028731", "c_000000071011", "c_000000070925", "c_000000070918",
-        "c_000000070876", "c_000000070869", "c_000000070843", "c_000000070810",
-        "c_000000070403", "c_000000070398", "c_000000071322", "c_000000077581",
-        "c_000000077510", "c_000000070967", "c_000000091805"]
-
-    df = genome.add_genome_relative_position(df, order=ordered_contigs).rename({"treatment": "Treatment"})
+    df = genome.add_genome_relative_position(df).rename({"treatment": "Treatment"})
     
     if df.is_empty():
         return
     
-    _, ax = plt.subplots(1, 1, figsize=(8, 5), constrained_layout=True)
+    _, ax = plt.subplots(1, 1, figsize=(12, 7), constrained_layout=True)
     hue_order = sorted(df.get_column("Treatment").unique().to_list(), key=genome.treatment_order_map.get)
     
     sns.scatterplot(
@@ -77,7 +64,7 @@ def plot_whole_methylome(
             # Fit polynomial regression
             x = avg_df["genome_position"].values
             y = avg_df[motif.meth_type].values
-            z = np.polyfit(x, y, 3)
+            z = np.polyfit(x, y, 4)
             p = np.poly1d(z)
                             
             # Generate smooth curve with more points
@@ -92,7 +79,7 @@ def plot_whole_methylome(
             r_squared = r2_score(y, y_pred)
 
             # Add R-squared as text to the plot
-            ax.text(0.1, 0.05 - j*0.03, f"R² = {r_squared:.2f}",
+            ax.text(0.15, 0.05 - j*0.035, f"R² = {r_squared:.2f}",
                 transform=ax.transAxes, ha='right',
                 color=genome.treatment_color_map[treatment],
                 bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', boxstyle='round,pad=0.2'))
@@ -102,6 +89,12 @@ def plot_whole_methylome(
 
         ax.set_xlabel("Genome position (bp)")
         ax.set_ylabel(f"Methylation fraction")
+
+    # Add lines showing ori and ter and contigs
+    if "0_9_3" in str(genome.genome_path):
+        # Origin: 520,200 Terminus: 119,890
+        ax.axvline(x=520200, color="blue", linestyle="--", label="Ori")
+        ax.axvline(x=119890, color="red", linestyle="--", label="Ter")
 
     out_file = output_dir / f"{genome.readable_name}_whole_methylome_{motif.readable_motif}.pdf"
     plt.savefig(out_file)
@@ -377,7 +370,7 @@ def extract_motif_data_all_transitions(
             print(f"Saved CSV for transition {transitions}: {out_file}")
             continue
         
-        data = genome.nearest_gene_to_positions(data)
+        data = genome.nearest_gene_to_positions(data.lazy()).collect(streaming=True)
         gc = GeneCollection(data.get_column("gene_callers_id_start").unique().to_list(), genome)
         data = data.join(
             gc.get_function().collect(streaming=True),
@@ -435,7 +428,7 @@ def extract_diff_methylated_genes(
     data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id", how="left")
 
     # Add nearest gene if not in gene
-    data = genome.nearest_gene_to_positions(data)
+    data = genome.nearest_gene_to_positions(data.lazy()).collect(streaming=True)
 
     # Add function of nearest genes
     gc = GeneCollection(data.get_column("gene_callers_id_start").unique().to_list(), genome)

@@ -291,8 +291,7 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig]):
         linewidths=0.5, # Add faint lines between cells
         linecolor='lightgrey',
         vmin=0.01,
-        vmax=1,
-        norm=LogNorm()
+        norm=LogNorm(),
     )
 
     # Modify x-axis labels to show only motifs, not treatments
@@ -370,9 +369,7 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig]):
     
     # Add color bar
     cbar_ax = g.fig.add_axes([cbar_left, cbar_y, cbar_width, cbar_height])
-    cbar = plt.colorbar(g.ax_heatmap.collections[0], cax=cbar_ax, anchor = (cbar_left, cbar_y), orientation="vertical", label="P-value")
-    cbar.set_ticks([0.01, 0.1, 1])
-    cbar.ax.set_yticklabels(['0.01', '0.1', '1'])
+    cbar = plt.colorbar(g.ax_heatmap.collections[0], cax=cbar_ax, orientation="vertical", label="P-value")
     cbar.ax.tick_params(axis='y', which='major')
     cbar.outline.set_visible(False)
         
