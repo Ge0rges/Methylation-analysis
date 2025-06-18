@@ -314,7 +314,6 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig], p_value_threshold: fl
         row_colors=contig_colors,
         col_colors=statistic_colors_df, # Use .values to avoid index mismatch
         # --- NEW: Apply mask and annotations ---
-        #mask=heatmap_mask,
         annot=annot_df,
         fmt='X', # Treat annotations as strings
         annot_kws={"color": "black", "size": 24}, # Style for the marker
@@ -337,15 +336,18 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig], p_value_threshold: fl
 
     ordered_taxonomies = pd.unique([contig_taxonomy_map[i] for i in pivot_df.index])
     taxonomy_handles = [Patch(color=tax_lut[t], label=t) for t in ordered_taxonomies]
-    ordered_statistics = pivot_df.columns.get_level_values("statistic_key").unique().tolist()
+    
+    desired_order = ["Means", "SE", "Promoter means", "Promoter SE"]
+    existing_statistics = pivot_df.columns.get_level_values("statistic_key").unique().tolist()
+    ordered_statistics = [stat for stat in desired_order if stat in existing_statistics]
     statistic_handles = [Patch(color=stat_lut[s], label=s) for s in ordered_statistics if s in stat_lut]
     
     if g.figure.legends:
         for leg in g.figure.legends:
             leg.remove()
     
-    legend1 = g.fig.legend(handles=statistic_handles, title="Statistic", bbox_to_anchor=(1.02, 1), loc='upper left')
-    legend2 = g.fig.legend(handles=taxonomy_handles, title="Taxonomy", bbox_to_anchor=(1.02, 0.5), loc='center left')
+    _ = g.fig.legend(handles=statistic_handles, title="Statistic", bbox_to_anchor=(1.02, 1), loc='upper left')
+    _ = g.fig.legend(handles=taxonomy_handles, title="Taxonomy", bbox_to_anchor=(1.02, 0.5), loc='center left')
     
     cbar_ax = g.fig.add_axes([1.02, 0.05, 0.03, 0.4]) # Adjust position as needed
     
@@ -359,7 +361,6 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig], p_value_threshold: fl
     g.ax_heatmap.set_ylabel(ylabel)
 
     output_dir = contigs[0].parent_genome.output_dir
-    base_filename = "contig_motif_heatmap_dvalue_stats"
     
     g.savefig(f"{output_dir}/contig_motif_heatmap_dvalue_stats_significant.svg", transparent=True, bbox_inches='tight')
     g.savefig(f"{output_dir}/contig_motif_heatmap_dvalue_stats_significant.pdf", bbox_inches='tight')
