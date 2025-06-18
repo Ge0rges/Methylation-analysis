@@ -199,196 +199,171 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
 
     return df
 
-def plot_contig_motif_heatmap_stats(contigs: list[Contig]):
-    data = get_contigs_data(contigs, statistics=True)
+def plot_contig_motif_heatmap_stats(contigs: list[Contig], p_value_threshold: float = 0.01):
+    """
+    Generates a heatmap of motif statistics, plotting only significant d-values 
+    and marking non-significant ones.
+    
+    This function assumes that the input data function `get_contigs_data` returns
+    both value columns (e.g., 'means') and corresponding p-value columns 
+    (e.g., 'means_pval').
+    """
+    # --- 1. Data Retrieval and Initial Setup ---
+    # The data source must provide values and their corresponding p-values.
+    data = get_contigs_data(contigs, statistics=True, alpha=p_value_threshold)
     if len(data) == 0:
         return None
     
-    # Convert data list to a Polars DataFrame first`1`
     df = pl.DataFrame(data).drop("treatment").unique()
 
     if df.is_empty():
         print(f"No data to plot in {contigs[0].parent_genome.readable_name}")
-        return df # Return the empty dataframe early
+        return df
 
-    df = df.rename({"means": "Means", "se": "Standard error", "means_pr": "Promoter means", "se_pr": "Promoter standard error", "contig_taxonomy": "Taxonomy"})
+    # --- 2. Renaming and Column Definition ---
+    # Define mappings for value and p-value columns for clarity.
+    # IMPORTANT: Assumes input columns like 'means', 'means_pval', etc.
+    rename_map = {
+        "means": "Means", "se": "SE", 
+        "means_pr": "Promoter means", "se_pr": "Promoter SE",
+        "contig_taxonomy": "Taxonomy",
+    }
+    df = df.rename(rename_map)
     
-    # Melt then pivot back
-    statistic_columns = ["Means", "Standard error", "Promoter means", "Promoter standard error"]    
-    df_long = df.melt(
+    statistic_columns = ["Means", "SE", "Promoter means", "Promoter SE"]
+    pvalue_columns = ["means_pval", "se_pval", "means_pr_pval", "se_pr_pval"]
+
+    # --- 3. Data Pivoting for Values and P-values ---
+    # Melt and pivot d-values for the heatmap
+    df_long_values = df.melt(
         id_vars=["motif_string", "contig_name", "Taxonomy"],
         value_vars=statistic_columns,
-        variable_name="statistic_key", # New column for the name of the statistic
-        value_name="p_value"           # New column for the p-value itself
+        variable_name="statistic_key",
+        value_name="d_value" 
     ).unique()
     
-    pivot_df = df_long.to_pandas().pivot(
+    pivot_df = df_long_values.to_pandas().pivot(
+        index="contig_name",
+        columns=["motif_string", "statistic_key"],
+        values="d_value"
+    )
+
+    # Melt and pivot p-values to create the significance mask
+    # First, rename p-value columns to match statistic keys for easy pivoting
+    pval_rename_map = {pcol: scol for pcol, scol in zip(pvalue_columns, statistic_columns)}
+    df_pvals_renamed = df.select(["motif_string", "contig_name"] + pvalue_columns).rename(pval_rename_map)
+
+    df_long_pvals = df_pvals_renamed.melt(
+        id_vars=["motif_string", "contig_name"],
+        value_vars=statistic_columns,
+        variable_name="statistic_key",
+        value_name="p_value"
+    ).unique()
+
+    pivot_pvals_df = df_long_pvals.to_pandas().pivot(
         index="contig_name",
         columns=["motif_string", "statistic_key"],
         values="p_value"
-    )
-    
-    # Row colors (Taxonomy) - Use df_long as it contains all original rows
-    unique_taxonomies = df_long.get_column("Taxonomy").unique().sort().to_list()
+    ).reindex_like(pivot_df) # Ensure alignment with the main data pivot table
+
+    # --- 4. Create Mask and Annotations ---
+    # Mask is True for non-significant values, which will be hidden
+    heatmap_mask = pivot_pvals_df >= p_value_threshold
+    # Annotations will place a marker on non-significant cells
+    annot_df = pivot_pvals_df.applymap(lambda p: '•' if p >= p_value_threshold else '')
+
+    # --- 5. Color and Legend Setup ---
+    # Row colors (Taxonomy)
+    unique_taxonomies = df_long_values.get_column("Taxonomy").unique().sort().to_list()
     tax_pal = sns.color_palette(palette="tab20", n_colors=len(unique_taxonomies))
     tax_lut = dict(zip(unique_taxonomies, tax_pal))
-    # Map contig names to taxonomy colors using info from df_long
-    contig_tax_map = df_long.select("contig_name", "Taxonomy").unique().to_pandas().set_index("contig_name")["Taxonomy"]
+    contig_tax_map = df_long_values.select("contig_name", "Taxonomy").unique().to_pandas().set_index("contig_name")["Taxonomy"]
     contig_colors = contig_tax_map.map(tax_lut)
 
-    # Column colors (Statistic Key) - Use statistic_columns provided
-    unique_statistics = sorted(statistic_columns) # Use the defined list
+    # Column colors (Statistic Key)
+    unique_statistics = sorted(statistic_columns)
     stat_pal = sns.color_palette("Paired", n_colors=len(unique_statistics))
     stat_lut = dict(zip(unique_statistics, stat_pal))
-    # Create a DataFrame matching the pivot table's columns multi-index
     col_multi_index = pivot_df.columns
     statistic_colors_df = pd.DataFrame(index=col_multi_index)
     statistic_colors_df["Statistic"] = statistic_colors_df.index.get_level_values("statistic_key").map(stat_lut)
 
     # --- 6. Sorting ---
-    # Sort columns by motif_string first, then statistic_key (using the defined order if needed)
     pivot_df = pivot_df.sort_index(axis=1, level=["motif_string", "statistic_key"])
-
-    # Sort rows by taxonomy classification (Unclassified last)
-    # Refresh the contig_taxonomy_map from the potentially filtered/aggregated df_long or use contig_tax_map
     contig_taxonomy_map = contig_tax_map.to_dict()
-    
     sorted_indices = sorted(
         pivot_df.index,
         key=lambda x: (str(contig_taxonomy_map.get(x, '')) == "Unclassified", str(contig_taxonomy_map.get(x, '')))
     )
     pivot_df = pivot_df.loc[sorted_indices]
 
-    # Reindex row/column colors to match sorted data
+    # Reindex related dataframes to match the sorted pivot table
     contig_colors = contig_colors.reindex(pivot_df.index)
     statistic_colors_df = statistic_colors_df.reindex(pivot_df.columns)
+    heatmap_mask = heatmap_mask.reindex_like(pivot_df)
+    annot_df = annot_df.reindex_like(pivot_df)
     
-    # Create the heatmap without clustering to preserve sort order
-    # Calculate dynamic figure size based on the number of rows and columns
-    # Aim for roughly 0.3 inches per row and 0.3 inches per column for the heatmap itself
-    # Add margins for labels, colorbars, and legends
+    # --- 7. Plotting ---
     num_rows, num_cols = pivot_df.shape
-    
-    # Heuristic sizing: Adjust base factors and margins as needed for aesthetics
-    row_height_factor = 1  # inches per row
-    col_width_factor = 1   # inches per column
-    height_margin = 3        # inches for x-axis labels, title, legends etc.
-    width_margin = 3         # inches for y-axis labels, colorbar, legends etc.
-
-    # Ensure a minimum size for readability, especially with few rows/columns
-    fig_height = max(6, num_rows * row_height_factor + height_margin)
-    fig_width = max(8, num_cols * col_width_factor + width_margin)
+    fig_height = max(6, num_rows * 1 + 3)
+    fig_width = max(8, num_cols * 1 + 3)
 
     g = sns.clustermap(
         pivot_df,
-        figsize=(fig_width, fig_height), # Use dynamically calculated size
+        figsize=(fig_width, fig_height),
         row_colors=contig_colors,
-        col_colors=statistic_colors_df,
-        mask=pivot_df.isna(),
+        col_colors=statistic_colors_df, # Use .values to avoid index mismatch
+        # --- NEW: Apply mask and annotations ---
+        #mask=heatmap_mask,
+        annot=annot_df,
+        fmt='X', # Treat annotations as strings
+        annot_kws={"color": "black", "size": 24}, # Style for the marker
+        # --- End of new arguments ---
         cmap="viridis",
-        row_cluster=False,  # Disable row clustering
-        col_cluster=False,   # Disable column clustering
-        linewidths=0.5, # Add faint lines between cells
+        row_cluster=False,
+        col_cluster=False,
+        linewidths=0.5,
         linecolor='lightgrey',
-        vmin=0.01,
-        norm=LogNorm(),
+        vmin=0,
+        vmax=1,
     )
 
-    # Modify x-axis labels to show only motifs, not treatments
+    # --- 8. Final Touches and Saving ---
     motifs = [label.get_text().split("-")[0] for label in g.ax_heatmap.get_xticklabels()]
     g.ax_heatmap.set_xticklabels(motifs)
     g.ax_row_dendrogram.set_visible(False)
     g.ax_col_dendrogram.set_visible(False)
     g.ax_cbar.remove()
 
-    # Ensure correct order and inclusion of all displayed taxonomies/statistics
-    # Create legends
-    ordered_taxonomies = [contig_taxonomy_map[i] for i in pivot_df.index]
-    ordered_taxonomies = pd.unique(ordered_taxonomies)  # preserve order of occurrence
+    ordered_taxonomies = pd.unique([contig_taxonomy_map[i] for i in pivot_df.index])
     taxonomy_handles = [Patch(color=tax_lut[t], label=t) for t in ordered_taxonomies]
-
-    # Get unique statistic keys from the columns actually present in the pivot table
     ordered_statistics = pivot_df.columns.get_level_values("statistic_key").unique().tolist()
     statistic_handles = [Patch(color=stat_lut[s], label=s) for s in ordered_statistics if s in stat_lut]
     
-    # Remove automatic figure legends to avoid overlap
     if g.figure.legends:
         for leg in g.figure.legends:
             leg.remove()
     
-    # Get legends
-    legend1 = g.fig.legend(handles=statistic_handles, title="Statistic")
-    legend2 = g.fig.legend(handles=taxonomy_handles, title="Taxonomy")
-    fig = g.fig
+    legend1 = g.fig.legend(handles=statistic_handles, title="Statistic", bbox_to_anchor=(1.02, 1), loc='upper left')
+    legend2 = g.fig.legend(handles=taxonomy_handles, title="Taxonomy", bbox_to_anchor=(1.02, 0.5), loc='center left')
     
-    # Get the figure renderer
-    fig.canvas.draw()
-    renderer = fig.canvas.get_renderer()
+    cbar_ax = g.fig.add_axes([1.02, 0.05, 0.03, 0.4]) # Adjust position as needed
     
-    # Get the bounding boxes of the legends in figure coordinates
-    legend1_bbox = legend1.get_window_extent(renderer).transformed(fig.transFigure.inverted())
-    legend2_bbox = legend2.get_window_extent(renderer).transformed(fig.transFigure.inverted())
-    
-    # Calculate the left position (centered with legends)
-    plot_bbox = g.ax_heatmap.get_position()
-    legend_width = legend2_bbox.width
-    cbar_width = legend_width * 0.2  # Colorbar width is 1/5 of legend width
-    left_pos = plot_bbox.x0 * 0.5  # Position on the left side of the plot
-    
-    # Position the first legend at the top
-    legend1_height = legend1_bbox.height
-    legend1_top = plot_bbox.y0 + plot_bbox.height  # Align with top of plot
-    legend1_left = left_pos
-    legend1.set_bbox_to_anchor([legend1_left, legend1_top], transform=fig.transFigure)
-    
-    # Position the second legend below the first
-    legend2_height = legend2_bbox.height
-    legend2_top = legend1_top - legend1_height
-    legend2_left = left_pos
-    legend2.set_bbox_to_anchor([legend2_left, legend2_top], transform=fig.transFigure)
-    
-    fig.canvas.draw()
-    
-    # Get the bounding box of the x-axis label in figure coordinates
-    xaxis_label_bbox = g.ax_heatmap.xaxis.label.get_window_extent(fig.canvas.get_renderer())
-    
-    # The bottom of the colorbar should align with the bottom of the x-axis label
-    cbar_bottom_y = xaxis_label_bbox.transformed(fig.transFigure.inverted()).y0
-    
-    # Calculate colorbar height and position
-    available_height = legend2_top - legend2_height - cbar_bottom_y  - 0.05# Space between bottom of legend2 and bottom of plot
-    cbar_top = legend2_top - legend2_height
-    
-    # Adjust the colorbar axes
-    cbar_left = left_pos - (legend_width - cbar_width)  # Center colorbar relative to legends
-    cbar_height = min(available_height, 0.5 * plot_bbox.height)  # Limit height to not exceed plot bottom
-    cbar_y = cbar_top - cbar_height - 0.05
-    
-    if cbar_height < 0:
-        cbar_height = 0.5
-    
-    # Add color bar
-    cbar_ax = g.fig.add_axes([cbar_left, cbar_y, cbar_width, cbar_height])
-    cbar = plt.colorbar(g.ax_heatmap.collections[0], cax=cbar_ax, orientation="vertical", label="P-value")
-    cbar.ax.tick_params(axis='y', which='major')
+    cbar = plt.colorbar(g.ax_heatmap.collections[0], cax=cbar_ax, orientation="vertical", label="D-value")
     cbar.outline.set_visible(False)
-        
-    # Redraw the figure to apply changes
-    fig.canvas.draw()
+    g.fig.suptitle("Contig Motif Statistics", y=0.98)
+    plt.tight_layout(rect=[0, 0, 0.9, 1]) # Adjust layout to make space for legends
 
-    # Set X axis title
     g.ax_heatmap.set_xlabel("Motif")
-    
-    if contigs[0].is_viral:
-        g.ax_heatmap.set_ylabel("Viral contig")
-    else:
-        g.ax_heatmap.set_ylabel("Bacterial contig")
+    ylabel = "Viral contig" if contigs[0].is_viral else "Bacterial contig"
+    g.ax_heatmap.set_ylabel(ylabel)
 
-    g.savefig(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap_stats.svg", transparent=True)
-    g.savefig(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap_stats.pdf")
+    output_dir = contigs[0].parent_genome.output_dir
+    base_filename = "contig_motif_heatmap_dvalue_stats"
     
-    # Save a CSV of the data
-    pivot_df.to_csv(f"{contigs[0].parent_genome.output_dir}/contig_motif_heatmap_stats.csv")
+    g.savefig(f"{output_dir}/contig_motif_heatmap_dvalue_stats_significant.svg", transparent=True, bbox_inches='tight')
+    g.savefig(f"{output_dir}/contig_motif_heatmap_dvalue_stats_significant.pdf", bbox_inches='tight')
+    pivot_df[~heatmap_mask].to_csv(f"{output_dir}/contig_motif_heatmap_dvalue_stats_significant.csv")
 
     return df
 
@@ -449,6 +424,7 @@ def do_test(motif, treatments, alpha=0.01):
 
     # Calculate SE for all groups
     se_df_all = collected_raw_df.group_by(grouping_cols).agg(se_expr)
+    se_df_all = se_df_all.filter(pl.col("se").is_not_null() & pl.col("se").is_not_nan())
 
     # Extract SE numpy arrays
     g1_se = se_df_all.filter(group1_filter).sort(sort_cols).get_column("se").to_numpy()
@@ -461,23 +437,21 @@ def do_test(motif, treatments, alpha=0.01):
     g1_se_pr = se_df_pr.filter(group1_filter).sort(sort_cols).get_column("se").to_numpy()
     g2_se_pr = se_df_pr.filter(group2_filter).sort(sort_cols).get_column("se").to_numpy()
 
-    del collected_raw_df
-    del se_df_all
-    del se_df_pr
-
-    means_sig = ks_permutation_test(group1_data, group2_data)
-    se_sig = ks_permutation_test(g1_se, g2_se) # Comparing distribution of standard errors
+    means_sig, means_d = ks_permutation_test(group1_data, group2_data)
+    se_sig, se_d = ks_permutation_test(g1_se, g2_se) # Comparing distribution of standard errors
 
     # Promoter regions
-    means_sig_pr = ks_permutation_test(group1_data_pr, group2_data_pr)
-    se_sig_pr = ks_permutation_test(g1_se_pr, g2_se_pr) # Comparing distribution of standard errors in promoters
+    means_sig_pr, means_pr_d = ks_permutation_test(group1_data_pr, group2_data_pr)
+    se_sig_pr, se_pr_d = ks_permutation_test(g1_se_pr, g2_se_pr) # Comparing distribution of standard errors in promoters
     
     p_values = [means_sig, se_sig, means_sig_pr, se_sig_pr]
+    d_values = [means_d, se_d, means_pr_d, se_pr_d]
 
     # Create a mapping to keep track of indices and their corresponding keys
     keys = ["means", "se", "means_pr", "se_pr"]
     valid_indices = []
     valid_p_values = []
+    valid_d_values = []
 
     # Filter out None values and keep track of valid indices
     for i, p_value in enumerate(p_values):
@@ -485,18 +459,24 @@ def do_test(motif, treatments, alpha=0.01):
             valid_p_values.append(p_value)
             valid_indices.append(i)
     
-    adj_pvals = {key: None for key in keys}
+    for i, d_value in enumerate(d_values):
+        if d_value is not None:
+            valid_d_values.append(d_value)
+    
+    adj_pvals = {key+"_pval": None for key in keys}
+    adj_dvals = {key: None for key in keys}
     if len(valid_p_values) == 0:
-        return adj_pvals
+        return adj_pvals, adj_dvals
     
     # Apply multipletests only if we have valid p-values
-    reject, test_adj_pvals, _, _ = multipletests(valid_p_values, alpha=alpha, method='fdr_bh')
-        
+    _, test_adj_pvals, _, _ = multipletests(valid_p_values, alpha=alpha, method='fdr_bh')
+    
     # Update with adjusted p-values where available
     for i, orig_idx in enumerate(valid_indices):
-        adj_pvals[keys[orig_idx]] = test_adj_pvals[i]
+        adj_pvals[keys[orig_idx]+"_pval"] = test_adj_pvals[i]
+        adj_dvals[keys[orig_idx]] = valid_d_values[i]
     
-    return adj_pvals
+    return adj_pvals, adj_dvals
 
 
 def ks_permutation_test(data1, data2, n_permutations=10000):
@@ -526,12 +506,17 @@ def ks_permutation_test(data1, data2, n_permutations=10000):
     if len(data1) < 5 or len(data2) < 5:
         # Cannot perform meaningful KS test
         print("Unexpected data size for KS test. Returning None.")
-        return None
+        return None, None
 
     # Calculate the observed KS statistic (D)
     # ks_2samp returns a result object (or tuple in older scipy)
     # The first element or the .statistic attribute is the D value.
     observed_ks_value = stats.ks_2samp(data1, data2).statistic
+    
+    if np.isnan(observed_ks_value) or np.isinf(observed_ks_value):
+        # If the observed KS value is NaN or infinite, we cannot proceed
+        print("Observed KS value is NaN or infinite. Returning None.")
+        return None, None
 
     # Combine the data for permutation
     combined_data = np.concatenate((data1, data2))
@@ -555,17 +540,16 @@ def ks_permutation_test(data1, data2, n_permutations=10000):
         if perm_ks_value >= observed_ks_value:
             count_extreme += 1
 
-    return (count_extreme + 1) / (n_permutations + 1)
+    return (count_extreme + 1) / (n_permutations + 1), observed_ks_value
 
 
-def get_contigs_data(contigs: list[Contig], statistics):
+def get_contigs_data(contigs: list[Contig], statistics, alpha=0.01):
     # Create a dataframe with columns: contig_name treatment motif_string methylation_fraction contig_taxonomy
     data = []
 
     for contig in contigs:
         for motif in contig.motifs:            
             
-            # For contigs, we don't care about comparing exact positions, but general means across contig so include points not in ever sample and then filter by breadth.
             motif_df = motif.data()
             if motif_df is None:
                 continue
@@ -593,8 +577,10 @@ def get_contigs_data(contigs: list[Contig], statistics):
             
             # Calculate the statistical difference
             if i == 2 and statistics:
-                adj_pvals = do_test(motif, treatments)
+                adj_pvals, adj_dvals = do_test(motif, treatments, alpha)
                 
+                data[-1].update(adj_dvals)
+                data[-2].update(adj_dvals)
                 data[-1].update(adj_pvals)
                 data[-2].update(adj_pvals)
     
