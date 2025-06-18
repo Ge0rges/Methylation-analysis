@@ -252,7 +252,7 @@ def parse_treatment_tsv(treatment_info_path):
             
             treatment_name_map[row[0]] = row[1]
             treatment_color_map[row[1]] = row[2].replace(" ", "")
-            treatment_order_map[row[1]] = row[3]
+            treatment_order_map[row[1]] = int(row[3])
     
     return treatment_name_map, treatment_color_map, treatment_order_map
 

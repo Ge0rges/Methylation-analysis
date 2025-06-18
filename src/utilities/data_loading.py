@@ -184,7 +184,7 @@ def load_methylation_data(
     bed_files: list[Path],
     in_every_treatment: bool,
     triplicates_only: bool,
-    treatments: list[str] | None = None,
+    treatments: set[str] | None = None,
     region_filter: pl.Expr | pl.LazyFrame | None = None,
     normalize: bool = True,
 ) -> pl.LazyFrame | None:

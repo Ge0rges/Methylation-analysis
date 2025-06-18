@@ -9,7 +9,7 @@ from pathlib import Path
 from src.objects.genome import Genome
 from src.objects.gene_collection import GeneCollection
 from src.objects.motif import Motif
-from src.utilities.utils import treatment_weighted_mean, readable_modification_name, create_methylation_bins
+from src.utilities.utils import readable_modification_name, create_methylation_bins
 import numpy as np
 from sklearn.metrics import r2_score
 

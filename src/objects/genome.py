@@ -56,7 +56,7 @@ class Genome(object):
         if coverage < 1:
             raise ValueError(f"Coverage must be at least 1, not {coverage}.")
         
-        self.default_treatments: list[str] = default_treatments
+        self.default_treatments: set[str] = set(default_treatments)
         if default_treatments is None:
             raise ValueError("No default treatments provided.")
         
