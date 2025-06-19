@@ -11,25 +11,6 @@ readable_methylation_name = {"21839": "4mC", "m": "5mC", "a": "6mA"}
 methylation_base_map = {"21839": "C", "m": "C", "a": "A"}
 base_methylation_map = {"C": ["21839", "m"], "A": ["a"]}
 
-
-read_counts = {
-    "barcode01": 1093788,
-    "barcode02": 296042,
-    "barcode03": 5812056,
-    "barcode04": 57626,
-    "barcode05": 344880,
-    "barcode06": 180208,
-    "barcode07": 1056185,
-    "barcode08": 178883,
-    "barcode09": 1776313,
-    "barcode10": 1163651,
-    "barcode11": 41324,
-    "barcode12": 591165,
-    "barcode13": 39685,
-    "barcode14": 96793,
-}
-
-
 def truncate_label(label, max_length, max_lines):
     """Truncate labels to a maximum length and line count, adding an ellipsis if truncated."""
 

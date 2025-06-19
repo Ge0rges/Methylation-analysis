@@ -1,14 +1,14 @@
+import glob
+import os
+from pathlib import Path
+
+import matplotlib.pylab as plt
 import pandas as pd
 import polars as pl
 import seaborn as sns
-import matplotlib.pylab as plt
-import os
-import glob
-from pathlib import Path
+from matplotlib.colors import LogNorm
 
 from src.utilities.data_loading import get_coverage
-from src.utilities.utils import read_counts
-from matplotlib.colors import LogNorm
 
 sns.set_theme(context="poster", style="white")
 
@@ -236,44 +236,64 @@ def read_count_plot():
     """
     Barplot of read counts
     """
-    # Some modifications for cores
-    barcode_replicate_map["barcode11"] = "top"
-    barcode_replicate_map["barcode12"] = "bottom"
-    barcode_replicate_map["barcode13"] = "ocean interface"
-    barcode_replicate_map["barcode14"] = "middle"
-
-    readable_sample_name["barcode11"] = "IC3-1"
-    readable_sample_name["barcode12"] = "IC3-2"
-    readable_sample_name["barcode13"] = "IC3-3"
-    readable_sample_name["barcode14"] = "IC3-4"
-    readable_sample_name["barcode04"] = "Control"
-
-    for key, value in readable_sample_name.items():
-        readable_sample_name[key] = value.split("-")[0]
+    # Read counts
+    read_counts = {
+        "barcode01": 1093788,
+        "barcode02": 296042,
+        "barcode03": 5812056,
+        "barcode04": 57626,
+        "barcode05": 344880,
+        "barcode06": 180208,
+        "barcode07": 1056185,
+        "barcode08": 178883,
+        "barcode09": 1776313,
+        "barcode10": 1163651,
+        # "barcode11": 41324,
+        # "barcode12": 591165,
+        # "barcode13": 39685,
+        # "barcode14": 96793,
+    }
+    
+    readable_sample_name = {
+        "barcode01": "S1",
+        "barcode02": "S1",
+        "barcode03": "S1",
+        "barcode04": "Control",
+        "barcode05": "S2",
+        "barcode06": "S2",
+        "barcode07": "S2",
+        "barcode08": "S3",
+        "barcode09": "S3",
+        "barcode10": "S3"
+    }
+    
+    barcode_replicate_map = {
+        "barcode01": "Top",
+        "barcode02": "Middle",
+        "barcode03": "Bottom",
+        "barcode04": "Control",
+        "barcode05": "Top",
+        "barcode06": "Middle",
+        "barcode07": "Bottom",
+        "barcode08": "Top",
+        "barcode09": "Middle",
+        "barcode10": "Bottom"
+    }
 
     # Replace the key in read_counts with the value in readable_sample_name
-    df = pl.from_dict({"barcode": read_counts.keys(), "Read count": read_counts.values()})
-    df = df.with_columns(pl.col("barcode").replace(readable_sample_name).alias("Sample"))
+    df = pl.from_dict({"barcode": read_counts.keys(), "Read count": read_counts.values(), "Sample": readable_sample_name.values(), "Horizon": barcode_replicate_map.values()}).to_pandas()
 
-    df = df.with_columns(pl.col("barcode").replace(barcode_replicate_map).alias("Sea-ice horizon"))
-    df = df.sort("Sample")
-    df = df.to_pandas()
+    hue_order = ["Top", "Middle", "Bottom", "Control"]
 
-    hue_order = ["top", "middle", "bottom", "ocean interface", "control"]
+    _, axes = plt.subplots(figsize=(15, 10))
 
-    fig, axes = plt.subplots(figsize=(20, 10))
-
-    g = sns.barplot(data=df, x="Sample", y="Read count", hue="Sea-ice horizon", hue_order=hue_order, ax=axes)
+    g = sns.barplot(data=df, x="Sample", y="Read count", hue="Horizon", hue_order=hue_order, ax=axes, order=["Control", "S1", "S2", "S3"])
     plt.title("Read counts per sample")
-
-    new_labels = ['Top', 'Middle', "Bottom", "Ice-Ocean interface", "Control"]
-    for t, l in zip(g.legend().texts, new_labels):
-        t.set_text(l)
 
     # Make y axis log
     plt.yscale("log")
     
-    plt.savefig(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../plots/read_counts.pdf"), format='pdf', bbox_inches="tight")
+    plt.savefig(os.path.join(os.path.dirname(os.path.realpath(__file__)), "/researchdrive/gkanaan/seaice_methylation/plots/read_counts.pdf"), format='pdf', bbox_inches="tight")
 
 
 if __name__ == "__main__":

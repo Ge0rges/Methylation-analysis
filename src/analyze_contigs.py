@@ -199,7 +199,7 @@ def plot_contig_motif_heatmap(contigs: list[Contig]):
 
     return df
 
-def plot_contig_motif_heatmap_stats(contigs: list[Contig], p_value_threshold: float = 0.01):
+def plot_contig_motif_heatmap_stats(contigs: list[Contig], p_value_threshold: float = 0.05):
     """
     Generates a heatmap of motif statistics, plotting only significant d-values 
     and marking non-significant ones.
@@ -270,7 +270,7 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig], p_value_threshold: fl
     # Mask is True for non-significant values, which will be hidden
     heatmap_mask = pivot_pvals_df >= p_value_threshold
     # Annotations will place a marker on non-significant cells
-    annot_df = pivot_pvals_df.applymap(lambda p: '•' if p >= p_value_threshold else '')
+    annot_df = pivot_pvals_df.applymap(lambda p: 'X' if p >= p_value_threshold else '')
 
     # --- 5. Color and Legend Setup ---
     # Row colors (Taxonomy)
@@ -280,10 +280,9 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig], p_value_threshold: fl
     contig_tax_map = df_long_values.select("contig_name", "Taxonomy").unique().to_pandas().set_index("contig_name")["Taxonomy"]
     contig_colors = contig_tax_map.map(tax_lut)
 
-    # Column colors (Statistic Key)
-    unique_statistics = sorted(statistic_columns)
-    stat_pal = sns.color_palette("Paired", n_colors=len(unique_statistics))
-    stat_lut = dict(zip(unique_statistics, stat_pal))
+    # Column colors (Statistic Key)    
+    stat_pal = sns.color_palette("Paired", n_colors=len(statistic_columns))
+    stat_lut = dict(zip(statistic_columns, stat_pal))
     col_multi_index = pivot_df.columns
     statistic_colors_df = pd.DataFrame(index=col_multi_index)
     statistic_colors_df["Statistic"] = statistic_colors_df.index.get_level_values("statistic_key").map(stat_lut)
@@ -312,12 +311,10 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig], p_value_threshold: fl
         pivot_df,
         figsize=(fig_width, fig_height),
         row_colors=contig_colors,
-        col_colors=statistic_colors_df, # Use .values to avoid index mismatch
-        # --- NEW: Apply mask and annotations ---
+        col_colors=statistic_colors_df,
         annot=annot_df,
-        fmt='X', # Treat annotations as strings
-        annot_kws={"color": "black", "size": 24}, # Style for the marker
-        # --- End of new arguments ---
+        fmt='s',
+        annot_kws={"color": "red", "size": 24},
         cmap="viridis",
         row_cluster=False,
         col_cluster=False,
@@ -336,11 +333,7 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig], p_value_threshold: fl
 
     ordered_taxonomies = pd.unique([contig_taxonomy_map[i] for i in pivot_df.index])
     taxonomy_handles = [Patch(color=tax_lut[t], label=t) for t in ordered_taxonomies]
-    
-    desired_order = ["Means", "SE", "Promoter means", "Promoter SE"]
-    existing_statistics = pivot_df.columns.get_level_values("statistic_key").unique().tolist()
-    ordered_statistics = [stat for stat in desired_order if stat in existing_statistics]
-    statistic_handles = [Patch(color=stat_lut[s], label=s) for s in ordered_statistics if s in stat_lut]
+    statistic_handles = [Patch(color=stat_lut[s], label=s) for s in statistic_columns if s in stat_lut]
     
     if g.figure.legends:
         for leg in g.figure.legends:
