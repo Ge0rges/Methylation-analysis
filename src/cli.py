@@ -143,9 +143,8 @@ def analyze_metagenome(
     contig_names = genome.sequence.keys()
     contigs = [Contig(genome, contig_name, contig_taxonomy_tsv, taxonomy_generator, is_viral=False) for contig_name in contig_names]
 
-    df = plot_contig_motif_heatmap(contigs)
-    plot_contig_motif_heatmap_stats(contigs)
-    extract_diff_methylated_genes_contigs(df, contigs)
+    df = plot_contig_motif_heatmap_stats(contigs)
+    extract_diff_methylated_genes_contigs(contigs)
     write_basic_stats_about_contigs(contigs, df)
 
 
@@ -192,9 +191,8 @@ def analyze_viruses(
     contig_names = genome.sequence.keys()
     contigs = [Contig(genome, contig_name, genomad_summary_tsv, taxonomy_generator, is_viral=True) for contig_name in contig_names]
     
-    df = plot_contig_motif_heatmap(contigs)
-    plot_contig_motif_heatmap_stats(contigs)
-    extract_diff_methylated_genes_contigs(df, contigs)
+    df = plot_contig_motif_heatmap_stats(contigs)
+    extract_diff_methylated_genes_contigs(contigs)
     write_basic_stats_about_contigs(contigs, df)
     
     
@@ -294,28 +292,19 @@ def analyze_colwellia(
     for motif in motifs:
         click.echo(f"Analyzing motif: {motif.motif} (meth_type={motif.meth_type})")
 
-        # Whole methylome plot for this motif type
-        plot_whole_methylome_colwellia(genome, motif, output_dir)
-
-        # Motif-level methylation across treatments
-        plot_motif_methylation_distribution_colwellia(genome, motif, output_dir)
-        
-        plot_number_of_positions_by_coverage_colwellia(genome, motif, output_dir)
         plot_motif_distribution_stats_colwellia(genome, motif, output_dir)
 
-        # DMR scores heatmap
+        plot_whole_methylome_colwellia(genome, motif, output_dir)
+
+        plot_motif_methylation_distribution_colwellia(genome, motif, output_dir)        
+
+        plot_number_of_positions_by_coverage_colwellia(genome, motif, output_dir)
+
+        plot_motif_distribution_stats_colwellia(genome, motif, output_dir)
+
         plot_dmr_scores_heatmap_colwellia(genome, motif, output_dir)
-
-        # Parallel categories
-        plot_parallel_categories_methylation_colwellia(genome, motif, output_dir, bins=3)
-
-        # Extract top diff methylated genes
-        trans = extract_motif_data_all_transitions_colwellia(genome, motif)
-        dmrs = extract_diff_methylated_genes_colwellia(genome, motif, top_n=0)
-        if dmrs is not None and trans is not None:
-            extract_consensus_genes_colwellia(genome, trans, dmrs, motif)
         
-    # # Basic stats file
+    # Basic stats file
     write_basic_stats_colwellia(genome, motifs)
 
     click.echo("Analysis complete.")

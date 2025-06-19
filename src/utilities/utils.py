@@ -3,7 +3,11 @@ import textwrap
 import random
 import polars as pl
 import numpy as np
+import math
 import csv
+
+from scipy import stats
+from statsmodels.stats.multitest import multipletests
 
 
 readable_modification_name = {"21839": "4mC", "m": "5mC", "a": "6mA", "Ncanonical_A": "A", "Ncanonical_C": "C"}
@@ -259,3 +263,156 @@ def parse_barcode_tsv(barcode_treatment_sample_file):
             barcode_sample_map[row[0]] = row[2]
     
     return barcode_treatment_map, barcode_sample_map
+
+
+def do_ks_test(motif, treatments, alpha): 
+    # Define variables   
+    group1_label, group2_label = treatments
+    meth_col_name = motif.meth_type
+
+    is_valid_filter = pl.col(meth_col_name).is_not_null() & pl.col(meth_col_name).is_not_nan()
+    group1_filter = pl.col("treatment").eq(group1_label)
+    group2_filter = pl.col("treatment").eq(group2_label)
+    promoter_filter = pl.col("distance_to_start").le(60)
+    se_expr = (pl.col(meth_col_name).std() / pl.col(meth_col_name).len().sqrt()).alias("se")
+    
+    sort_cols = ["contig", "position", "strand"]
+    grouping_cols = ["contig", "strand", "position", "treatment"]
+    cols_for_calcs = [meth_col_name] + grouping_cols
+    cols_for_promoter_calcs = ["distance_to_start"] + cols_for_calcs
+
+    # Common rows
+    def filter_common(df: pl.LazyFrame) -> pl.LazyFrame:
+        common_rows = df.group_by(sort_cols).agg(pl.col("treatment").unique().len()).filter(pl.col("treatment") == 2).with_columns(pl.struct(sort_cols).alias("sort_key")).collect()
+        df = df.filter(pl.struct(sort_cols).is_in(common_rows.get_column("sort_key")))
+        return df
+    
+    # Get data
+    normalized_data = motif.data(normalize=True)
+    raw_data = motif.data(normalize=False)
+    normalized_with_genes = motif.genome.nearest_gene_to_positions(normalized_data)
+    raw_with_genes = motif.genome.nearest_gene_to_positions(raw_data)
+    
+    # Means
+    means_df = filter_common(normalized_data.select(cols_for_calcs).filter(is_valid_filter)).sort(sort_cols).collect()
+    group1_means = means_df.filter(group1_filter).get_column(meth_col_name).to_numpy()
+    group2_means = means_df.filter(group2_filter).get_column(meth_col_name).to_numpy()
+
+    # Promoter means
+    promoter_means_df = filter_common(normalized_with_genes.select(cols_for_promoter_calcs).filter(is_valid_filter, promoter_filter)).sort(sort_cols).collect()
+    group1_promoter_means = promoter_means_df.filter(group1_filter).get_column(meth_col_name).to_numpy()
+    group2_promoter_means = promoter_means_df.filter(group2_filter).get_column(meth_col_name).to_numpy()
+
+    # Standard error
+    standard_error_df = filter_common(raw_data.select(cols_for_calcs).filter(is_valid_filter).group_by(grouping_cols).agg(se_expr)).sort(sort_cols).collect()
+    group1_standard_error = standard_error_df.filter(group1_filter).sort(sort_cols).get_column("se").to_numpy()
+    group2_standard_error = standard_error_df.filter(group2_filter).sort(sort_cols).get_column("se").to_numpy()
+
+    # Standard error of promoter regions
+    promoter_standard_error_df = filter_common(raw_with_genes.select(cols_for_promoter_calcs).filter(is_valid_filter, promoter_filter).group_by(grouping_cols).agg(se_expr)).sort(sort_cols).collect()
+    group1_promoter_standard_error = promoter_standard_error_df.filter(group1_filter).sort(sort_cols).get_column("se").to_numpy()
+    group2_promoter_standard_error = promoter_standard_error_df.filter(group2_filter).sort(sort_cols).get_column("se").to_numpy()
+
+    # Do tests
+    means_pval, means_dval = ks_permutation_test(group1_means, group2_means)
+    promoter_meanspval, promoter_means_dval = ks_permutation_test(group1_promoter_means, group2_promoter_means)
+    standard_error_pval, standard_error_dval = ks_permutation_test(group1_standard_error, group2_standard_error)
+    promoter_standard_error_pval, promoter_standard_error_dval = ks_permutation_test(group1_promoter_standard_error, group2_promoter_standard_error)
+    
+    # Store
+    p_values = [means_pval, standard_error_pval, promoter_meanspval, promoter_standard_error_pval]
+    d_values = [means_dval, standard_error_dval, promoter_means_dval, promoter_standard_error_dval]
+
+    keys = ["means", "se", "means_pr", "se_pr"]
+    valid_indices = []
+    valid_p_values = []
+    valid_d_values = []
+
+    # Filter out None values and keep track of valid indices
+    for i, p_value in enumerate(p_values):
+        if p_value is not None:
+            valid_p_values.append(p_value)
+            valid_indices.append(i)
+    
+    for i, d_value in enumerate(d_values):
+        if d_value is not None:
+            valid_d_values.append(d_value)
+    
+    adj_pvals = {key+"_pval": None for key in keys}
+    adj_dvals = {key: None for key in keys}
+    if len(valid_p_values) == 0:
+        return adj_pvals, adj_dvals
+    
+    # Apply multipletests only if we have valid p-values
+    _, test_adj_pvals, _, _ = multipletests(valid_p_values, alpha=alpha, method='fdr_bh')
+    
+    # Update with adjusted p-values where available
+    for i, orig_idx in enumerate(valid_indices):
+        adj_pvals[keys[orig_idx]+"_pval"] = test_adj_pvals[i]
+        adj_dvals[keys[orig_idx]] = valid_d_values[i]
+    
+    return adj_pvals, adj_dvals
+
+
+def ks_permutation_test(data1, data2, n_permutations=10000):
+    """
+    Performs a two-sample permutation test based on the Kolmogorov-Smirnov statistic.
+
+    This implements Stephen's null hypothesis: that both samples are drawn from the
+    same underlying distribution. It calculates the KS statistic (D) for the observed
+    data and compares it to a distribution of KS statistics generated by repeatedly
+    permuting the combined data and splitting it back into two samples.
+
+    Args:
+        data1 (array-like): First sample data.
+        data2 (array-like): Second sample data.
+        n_permutations (int): The number of permutations to perform.
+
+    Returns:
+        float: The empirical p-value based on the permutations.
+            Returns None if either sample has fewer than 2 data points.
+    """
+    # Convert to numpy arrays for easier handling
+    data1 = np.asarray(data1)
+    data2 = np.asarray(data2)
+
+    # KS test requires at least 2 points in each sample for meaningful comparison often,
+    # although ks_2samp might handle 1. Let's stick to the original check.
+    if len(data1) < 5 or len(data2) < 5:
+        # Cannot perform meaningful KS test
+        print("Unexpected data size for KS test. Returning None.")
+        return None, None
+
+    # Calculate the observed KS statistic (D)
+    # ks_2samp returns a result object (or tuple in older scipy)
+    # The first element or the .statistic attribute is the D value.
+    observed_ks_value = stats.ks_2samp(data1, data2).statistic
+    
+    if np.isnan(observed_ks_value) or np.isinf(observed_ks_value):
+        # If the observed KS value is NaN or infinite, we cannot proceed
+        print("Observed KS value is NaN or infinite. Returning None.")
+        return None, None
+
+    # Combine the data for permutation
+    combined_data = np.concatenate((data1, data2))
+    n1 = len(data1)
+    
+    # Cap permutations
+    n_permutations = min(math.comb(len(combined_data), n1), n_permutations)
+
+    count_extreme = 0
+    for _ in range(n_permutations):
+        # Permute the combined data
+        np.random.shuffle(combined_data)
+        
+        # Split into two samples
+        permuted_sample1 = combined_data[:n1]
+        permuted_sample2 = combined_data[n1:]
+
+        # Calculate KS statistic for the permuted samples
+        perm_ks_value = stats.ks_2samp(permuted_sample1, permuted_sample2).statistic
+
+        if perm_ks_value >= observed_ks_value:
+            count_extreme += 1
+
+    return (count_extreme + 1) / (n_permutations + 1), observed_ks_value

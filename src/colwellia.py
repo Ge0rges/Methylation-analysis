@@ -6,49 +6,23 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import polars as pl
-import scipy.stats as stats
 import seaborn as sns
-from statsmodels.stats.multitest import multipletests
 
+from utilities.utils import do_ks_test
 from src.objects.gene_collection import GeneCollection
 from src.objects.genome import Genome
 from src.objects.motif import Motif
-from src.utilities.utils import readable_modification_name, create_methylation_bins
+from src.utilities.utils import readable_modification_name
 
 sns.set_theme(context="paper", style="whitegrid")
+pl.enable_string_cache()
 
 def plot_number_of_positions_by_coverage_colwellia(genome: Genome, motif: Motif, output_dir: Path) -> None:
     """
     Plot the number of positions by coverage for a given motif across all samples.
     """
     original_cov = genome.default_coverage
-    
-    # Get data for different coverages
-    coverage_counts = []
-    for cov in [1, 5, 10, 20, 30, 50, 100]:
-        genome.default_coverage = cov
-        df = motif.data().collect()
-        df = df.group_by("treatment").agg(pl.struct(["contig", "strand", "position"]).unique().count().alias("count"))
-        df = df.with_columns(pl.lit(cov).alias("coverage"))
-        coverage_counts.append(df)
-    
-    coverage_counts = pl.concat(coverage_counts)
-    
-    # Plot barplot using seaborn
-    _, ax = plt.subplots(figsize=(16, 16))
-    sns.barplot(
-        data=coverage_counts.to_pandas(),
-        x="treatment",
-        y="count",
-        hue="coverage",
-        legend='full',
-        ax=ax
-    )
-    
-    plt.xticks(rotation=90, ha='right')    
-    plt.savefig(output_dir / f"{genome.readable_name}_{motif.readable_motif}_coverage_counts.pdf", format="pdf")
     
     # Get data for different coverages
     coverage_counts = []
@@ -69,13 +43,14 @@ def plot_number_of_positions_by_coverage_colwellia(genome: Genome, motif: Motif,
         y="count",
         hue="coverage",
         legend='full',
-        ax=ax
+        ax=ax,
+        order=sorted(coverage_counts.get_column("treatment").unique().to_list(), key=genome.treatment_order_map.get)
     )
     
     plt.title("Not in every treatment")    
     plt.xticks(rotation=90, ha='right')
     
-    plt.savefig(output_dir / f"{genome.readable_name}_{motif.readable_motif}_coverage_counts_notevery treatment.pdf", format="pdf")
+    plt.savefig(output_dir / f"{genome.readable_name}_{motif.readable_motif}_coverage_counts_noteverytreatment.pdf", format="pdf")
     
     genome.default_coverage = original_cov  # Reset to original coverage
 
@@ -103,7 +78,7 @@ def plot_whole_methylome_colwellia(genome: Genome, motif: Motif, output_dir: Pat
     
     # Calculate subplot grid dimensions
     n_comparisons = len(pairwise_comparisons)
-    n_cols = min(4, n_comparisons)
+    n_cols = min(3, n_comparisons)
     n_rows = math.ceil(n_comparisons / n_cols)
     
     # Create subplots
@@ -132,8 +107,10 @@ def plot_whole_methylome_colwellia(genome: Genome, motif: Motif, output_dir: Pat
             s=16,
             alpha=0.7,
             hue_order=[treat1, treat2],
-            palette=[genome.treatment_color_map[treat1], genome.treatment_color_map[treat2]]
+            palette=[genome.treatment_color_map[treat1], genome.treatment_color_map[treat2]]            
         )
+        
+        sns.move_legend(ax, "lower left")
         
         # Add polynomial regression lines for each treatment in the pair
         for j, treatment in enumerate([treat1, treat2]):
@@ -158,9 +135,7 @@ def plot_whole_methylome_colwellia(genome: Genome, motif: Motif, output_dir: Pat
         
         ax.set_xlabel("Genome position (bp)")
         ax.set_ylabel(f"Methylation fraction")
-        ax.set_title(f"{treat1} vs {treat2}")
 
-        ax.legend(bbox_to_anchor=(1.05, 1), loc='lower left')
         ax.legend_.set_title(None)
 
     # Hide any unused subplots
@@ -169,7 +144,6 @@ def plot_whole_methylome_colwellia(genome: Genome, motif: Motif, output_dir: Pat
 
     out_file = output_dir / f"{genome.readable_name}_whole_methylome_pairwise_{motif.readable_motif}.pdf"
     plt.savefig(out_file, bbox_inches='tight')
-    plt.close()
     print(f"Saved PDF: {out_file}")
 
 
@@ -225,7 +199,7 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
     Plot the distribution statistics (mean, median, std) of motif's methylation fraction
     in each sample.
     """
-    alpha = 0.01
+    alpha = 0.05
 
     unique_treatment_names = set(genome.treatment_name_map.values())
     all_treatment_names = sorted(
@@ -271,7 +245,7 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
 
     # Get Stats
     for pair_treatments in pairs:
-        adj_pvals, dvals = do_test(motif, pair_treatments, alpha=alpha)
+        adj_pvals, dvals = do_ks_test(motif, pair_treatments, alpha=alpha)
         results[pair_treatments] = adj_pvals, dvals
         
     # Create DataFrame for Timeline
@@ -301,12 +275,14 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
     timeline_df = pd.DataFrame(timeline_data)
 
     # Make figure
-    _, axes = plt.subplots(2, 2, figsize=(30, 60), constrained_layout=True)
+    _, axes = plt.subplots(2, 3, figsize=(30, 30), constrained_layout=True, width_ratios=[1, 0.5, 0.5])
+    plt.subplots_adjust(wspace=0.6)
 
     for i, stat_key in enumerate(["means", "means_pr"]):
         # Get axes
         dval_heatmap_ax = axes[i, 0]
-        dval_timeline_ax = axes[i, 1]
+        dval_timeline_ax1 = axes[i, 1]
+        dval_timeline_ax2 = axes[i, 2]
 
         # Get matrices for heatmap
         pval_matrix = pd.DataFrame(np.nan, index=all_treatment_names, columns=all_treatment_names, dtype=float)
@@ -318,8 +294,7 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
             dval_matrix.loc[treat1, treat2] = dval_dict[stat_key]
             dval_matrix.loc[treat2, treat1] = dval_dict[stat_key]
         
-        # Make pariwise heatmap
-        mask = pval_matrix >= alpha
+        # Make pairwise heatmap
         annot = np.where(pval_matrix < alpha, dval_matrix.round(2), "X")
         
         sns.heatmap(
@@ -327,13 +302,24 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
             ax=dval_heatmap_ax,
             annot=annot,
             fmt="s",
-            mask=mask,
-            cmap="coolwarm_r",
+            cmap="viridis",
             cbar_kws={'label': 'D-value', 'shrink': 0.8},
             vmin=0,
             vmax=1,
             linewidths=0.5,
         )
+        
+        # Color tick labels based on treatment
+        for tick in dval_heatmap_ax.get_xticklabels():
+            treatment = tick.get_text()
+            if treatment in genome.treatment_color_map:
+                tick.set_color(genome.treatment_color_map[treatment])
+        
+        for tick in dval_heatmap_ax.get_yticklabels():
+            treatment = tick.get_text()
+            if treatment in genome.treatment_color_map:
+                tick.set_color(genome.treatment_color_map[treatment])
+        
         title_stat_key = stat_key.replace('_', ' ').title()
         if "_pr" in stat_key: # Make "Pr" -> "Promoter"
             title_stat_key = title_stat_key.replace(" Pr", " (Promoter)")
@@ -342,16 +328,67 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
         
         # Make timeline
         sns.scatterplot(
-            data=timeline_df[timeline_df['Stat Key'] == stat_key],
+            data=timeline_df[(timeline_df['Stat Key'] == stat_key) & (timeline_df['Cycling Step'].isin([1, 2]))],
             x='Cycling Step', 
             y='D-value',
             hue='Control', 
+            hue_order=['35ppt control', '55ppt control'],
+            palette=['blue', 'red'],
             style='Significant',
             markers={True: 'o', False: 'X'},
-            s=24, ax=dval_timeline_ax
+            s=250, alpha=0.5, ax=dval_timeline_ax1,
+            legend=False
         )
-        dval_timeline_ax.set_title(f'd-values for Cycling Steps vs Closest Controls ({stat_key})')
-    
+        dval_timeline_ax1.set_xlim(0.5, 2.5) # Set x-axis limits for clarity
+        dval_timeline_ax1.set_xticks([1, 2]) # Define specific x-ticks
+        
+        # Color ticks on the left side: blue for odd, red for even
+        for tick in dval_timeline_ax1.get_xticklabels():
+            val = int(tick.get_text())
+            if val % 2 == 1:
+                tick.set_color('blue')
+            else:
+                tick.set_color('red')
+
+        # Plot data for the right side (Cycling Steps 14, 15)
+        sns.scatterplot(
+            data=timeline_df[(timeline_df['Stat Key'] == stat_key) & (timeline_df['Cycling Step'].isin([14, 15]))],
+            x='Cycling Step', 
+            y='D-value',
+            hue='Control', 
+            hue_order=['35ppt control', '55ppt control'],
+            palette=['blue', 'red'],
+            style='Significant',
+            markers={True: 'o', False: 'X'},
+            s=250, alpha=0.5, ax=dval_timeline_ax2
+        )
+        dval_timeline_ax2.set_xlim(13.5, 15.5) # Set x-axis limits for clarity
+        dval_timeline_ax2.set_xticks([14, 15]) # Define specific x-ticks
+
+        # Color ticks on the right side: blue for odd, red for even
+        for tick in dval_timeline_ax2.get_xticklabels():
+            val = int(tick.get_text())
+            if val % 2 == 1:
+                tick.set_color('blue')
+            else:
+                tick.set_color('red')
+
+        # Hide the spines between the two plots to create a visual break
+        dval_timeline_ax1.spines['right'].set_visible(False)
+        dval_timeline_ax2.spines['left'].set_visible(False)
+        dval_timeline_ax1.spines['top'].set_visible(False)
+        dval_timeline_ax2.spines['top'].set_visible(False)
+        dval_timeline_ax2.set_ylabel('') # Remove y-label for the right subplot to avoid redundancy
+        dval_timeline_ax2.yaxis.set_visible(False)
+        
+        # Add diagonal lines to indicate the break in the axis
+        d = .015  # size of diagonal lines in axes coordinates
+        kwargs = dict(transform=dval_timeline_ax1.transAxes, color='k', clip_on=False)
+        dval_timeline_ax1.plot((1 - d, 1 + d), (-d, +d), **kwargs)
+
+        kwargs.update(transform=dval_timeline_ax2.transAxes)  # Switch to the right axes
+        dval_timeline_ax2.plot((-d, +d), (-d, +d), **kwargs)
+        
     # Save to PDF
     plt.savefig(output_dir / "motif_methylation_pvalue_heatmap.pdf", format="pdf")
     
@@ -367,174 +404,6 @@ def find_closest_step(cycling_step, control_steps):
         if step == closest_step_num:
             return treatment
     return None
-
-
-def do_test(motif, treatments, alpha=0.01):    
-    group1_label, group2_label = treatments
-    meth_col_name = motif.meth_type
-
-    # Start lazy frame, add gene info, filter invalid data
-    normalized_lazy = motif.data(normalize=True)
-    normalized_with_genes_lazy = motif.genome.nearest_gene_to_positions(normalized_lazy)
-
-    # Define common filters
-    is_valid_filter = pl.col(meth_col_name).is_not_null() & pl.col(meth_col_name).is_not_nan()
-    group1_filter = pl.col("treatment").eq(group1_label)
-    group2_filter = pl.col("treatment").eq(group2_label)
-    promoter_filter = pl.col("distance_to_start").le(60)
-    sort_cols = ["contig", "position", "strand"]
-
-    # Apply validity filter and select only necessary columns early
-    # We need: meth_col_name, treatment, distance_to_start, and sort columns
-    cols_for_means = [meth_col_name, "treatment", "distance_to_start"] + sort_cols
-    filtered_means_lazy = normalized_with_genes_lazy.filter(is_valid_filter).select(cols_for_means)
-
-    # Collect the filtered/selected data ONCE for means calculation
-    # Sorting is done *after* collection here for potentially better parallelization
-    # during collection, but could be done lazily before collect too.
-    collected_means_df = filtered_means_lazy.sort(sort_cols).collect()
-
-    # Extract numpy arrays for means from the collected DataFrame
-    group1_data = collected_means_df.filter(group1_filter).get_column(meth_col_name).to_numpy()
-    group2_data = collected_means_df.filter(group2_filter).get_column(meth_col_name).to_numpy()
-
-    # Extract numpy arrays for promoter means
-    promoter_means_df = collected_means_df.filter(promoter_filter) # Filter the already collected DF
-    group1_data_pr = promoter_means_df.filter(group1_filter).get_column(meth_col_name).to_numpy()
-    group2_data_pr = promoter_means_df.filter(group2_filter).get_column(meth_col_name).to_numpy()
-
-    # Start lazy frame for raw data, add gene info ONCE
-    raw_lazy = motif.data(normalize=False)
-    raw_with_genes_lazy = motif.genome.nearest_gene_to_positions(raw_lazy)
-
-    # Apply validity filter and select necessary columns for SE calculation
-    # We need: meth_col_name, treatment, distance_to_start, and grouping/sort columns
-    grouping_cols = ["contig", "strand", "position", "treatment"]
-    cols_for_se = [meth_col_name, "distance_to_start"] + grouping_cols
-    filtered_se_lazy = raw_with_genes_lazy.filter(is_valid_filter).select(cols_for_se)
-
-    # Collect the filtered/selected raw data ONCE for SE calculations
-    collected_raw_df = filtered_se_lazy.collect()
-
-    # Define the SE calculation expression
-    se_expr = (pl.col(meth_col_name).std() / pl.col(meth_col_name).count().sqrt()).alias("se")
-
-    # Calculate SE for all groups that have more than one row
-    se_df_all = collected_raw_df.group_by(grouping_cols, maintain_order=True).agg(se_expr)
-    se_df_all = se_df_all.filter(pl.col("se").is_not_null() & pl.col("se").is_not_nan())
-
-    # Extract SE numpy arrays
-    g1_se = se_df_all.filter(group1_filter).get_column("se").to_numpy()
-    g2_se = se_df_all.filter(group2_filter).get_column("se").to_numpy()
-
-    # Calculate SE for promoter regions by filtering the collected RAW data first
-    se_df_pr = collected_raw_df.filter(promoter_filter).group_by(grouping_cols, maintain_order=True).agg(se_expr)
-
-    # Extract promoter SE numpy arrays
-    g1_se_pr = se_df_pr.filter(group1_filter).get_column("se").to_numpy()
-    g2_se_pr = se_df_pr.filter(group2_filter).get_column("se").to_numpy()
-
-    means_sig, means_d = ks_permutation_test(group1_data, group2_data)
-    se_sig, se_d = ks_permutation_test(g1_se, g2_se) # Comparing distribution of standard errors
-
-    # Promoter regions
-    means_pr_sig, means_pr_d = ks_permutation_test(group1_data_pr, group2_data_pr)
-    se_pr_sig, se_pr_d = ks_permutation_test(g1_se_pr, g2_se_pr) # Comparing distribution of standard errors in promoters
-    
-    p_values = [means_sig, se_sig, means_pr_sig, se_pr_sig]
-    d_values = [means_d, se_d, means_pr_d, se_pr_d]
-    
-    # Create a mapping to keep track of indices and their corresponding keys
-    keys = ["means", "se", "means_pr", "se_pr"]
-    valid_indices = []
-    valid_p_values = []
-    valid_d_values = []
-
-    # Filter out None values and keep track of valid indices
-    for i, p_value in enumerate(p_values):
-        if p_value is not None:
-            valid_p_values.append(p_value)
-            valid_indices.append(i)
-    
-    for i, d_value in enumerate(d_values):
-        if d_value is not None:
-            valid_d_values.append(d_value)
-    
-    adj_pvals = {key: None for key in keys}
-    adj_dvals = {key: None for key in keys}
-    if len(valid_p_values) == 0:
-        return adj_pvals, adj_dvals
-    
-    # Apply multipletests only if we have valid p-values
-    _, test_adj_pvals, _, _ = multipletests(valid_p_values, alpha=alpha, method='fdr_bh')
-    
-    # Update with adjusted p-values where available
-    for i, orig_idx in enumerate(valid_indices):
-        adj_pvals[keys[orig_idx]] = test_adj_pvals[i]
-        adj_dvals[keys[orig_idx]] = valid_d_values[i]
-    
-    return adj_pvals, adj_dvals
-
-
-def ks_permutation_test(data1, data2, n_permutations=10000):
-    """
-    Performs a two-sample permutation test based on the Kolmogorov-Smirnov statistic.
-
-    This implements Stephen's null hypothesis: that both samples are drawn from the
-    same underlying distribution. It calculates the KS statistic (D) for the observed
-    data and compares it to a distribution of KS statistics generated by repeatedly
-    permuting the combined data and splitting it back into two samples.
-
-    Args:
-        data1 (array-like): First sample data.
-        data2 (array-like): Second sample data.
-        n_permutations (int): The number of permutations to perform.
-
-    Returns:
-        float: The empirical p-value based on the permutations.
-            Returns None if either sample has fewer than 2 data points.
-    """
-    # Convert to numpy arrays for easier handling
-    data1 = np.asarray(data1)
-    data2 = np.asarray(data2)
-
-    # KS test requires at least 2 points in each sample for meaningful comparison
-    if len(data1) < 5 or len(data2) < 5:
-        # Cannot perform meaningful KS test
-        print("Unexpected data size for KS test. Returning None.")
-        return None, None
-
-    # Calculate the observed KS statistic (D)
-    # ks_2samp returns a result object (or tuple in older scipy)
-    # The first element or the .statistic attribute is the D value.
-    observed_ks_value = stats.ks_2samp(data1, data2).statistic
-    
-    if np.isnan(observed_ks_value):
-        return None, None
-
-    # Combine the data for permutation
-    combined_data = np.concatenate((data1, data2))
-    n1 = len(data1)
-    
-    # Cap permutations
-    n_permutations = min(math.comb(len(combined_data), n1), n_permutations)
-
-    count_extreme = 0
-    for _ in range(n_permutations):
-        # Permute the combined data
-        np.random.shuffle(combined_data)
-        
-        # Split into two samples
-        permuted_sample1 = combined_data[:n1]
-        permuted_sample2 = combined_data[n1:]
-
-        # Calculate KS statistic for the permuted samples
-        perm_ks_value = stats.ks_2samp(permuted_sample1, permuted_sample2).statistic
-
-        if perm_ks_value >= observed_ks_value:
-            count_extreme += 1
-
-    return (count_extreme + 1) / (n_permutations + 1), observed_ks_value
 
 
 ##############################################################################
@@ -562,9 +431,11 @@ def plot_dmr_scores_heatmap_colwellia(genome: Genome, motif: Motif, output_dir: 
     pdf["treatment_a"] = pdf["treatment_a"].replace(genome.barcode_treatment_map).replace(genome.treatment_name_map)
     pdf["treatment_b"] = pdf["treatment_b"].replace(genome.barcode_treatment_map).replace(genome.treatment_name_map)
     
-    # Fill in values for inverse pairs
-    
-    
+    # Fill in values for missing pairs
+    # This ensures that if (A, B) exists, (B, A) will also be present with the same score
+    pdf_swapped = pdf.rename(columns={'treatment_a': 'treatment_b', 'treatment_b': 'treatment_a'})
+    pdf = pd.concat([pdf, pdf_swapped], ignore_index=True).drop_duplicates(subset=['treatment_a', 'treatment_b'])
+
     # Get all unique treatments from both columns
     all_treatments_set = set(pdf["treatment_a"].unique()) | set(pdf["treatment_b"].unique())
     
@@ -593,194 +464,7 @@ def plot_dmr_scores_heatmap_colwellia(genome: Genome, motif: Motif, output_dir: 
     plt.savefig(out_file, format="pdf")
     plt.close()
     print(f"Saved PDF: {out_file}")
-
-
-##############################################################################
-# 4) PARALLEL CATEGORIES WITH CLEARER BIN LABELS & COLOR
-##############################################################################
-
-def plot_parallel_categories_methylation_colwellia(
-    genome: Genome,
-    motif: Motif,
-    output_dir: Path,
-    bins: int = 3
-) -> None:
-    """
-    Create a Plotly parallel categories plot with clearer bin labels ("Low", "Medium", "High") 
-    and color. For instance, we color by the first dimension's value.
-    """
-    df = motif.data()
-    if df is None:
-        return 
-    df = df.collect()
-    treatments = df.get_column("treatment").unique().to_list()
-        
-    if df.is_empty():
-        return
     
-    # Pivot by (contig, position, strand), columns = treatment, values = fraction_meth
-    pivoted = df.pivot(
-        index=["contig", "position", "strand"],
-        on="treatment",
-        values=motif.meth_type,
-    )
-
-    # Bin data
-    cut_points, bin_labels = create_methylation_bins(bins)
-    pivoted = pivoted.with_columns(pl.col(treatment).cut(cut_points, labels=bin_labels) for treatment in treatments).to_pandas()
-
-    cat_to_num = {key: i for i, key in enumerate(bin_labels)}
-    pivoted["meth_numeric"] = pivoted[treatments[0]].map(cat_to_num)
-
-    sorted_treatments = sorted(treatments, key=genome.treatment_order_map.get)
-    fig = px.parallel_categories(
-        pivoted,
-        dimensions=sorted_treatments,
-        color="meth_numeric",
-        color_continuous_scale=[
-            (0.0, "blue"),
-            (0.5, "orange"),
-            (1.0, "red"),
-        ],
-        range_color=[0, 2]
-    )
-    
-    fig.update_layout(title=f"Methylation state transitions in {genome.readable_name} across conditions", coloraxis_showscale=False)
-    
-    out_file = output_dir / f"{genome.readable_name}_{motif.readable_motif}_parallel_categories.html"
-    fig.write_html(str(out_file))
-    print(f"Saved HTML: {out_file}")
-
-     
-
-def extract_motif_data_all_transitions_colwellia(
-    genome: Genome,
-    motif: Motif,
-    bins: int = 3,
-) -> None:
-    """
-    Extract all motif data for each unique methylation
-    transition across treatments. For each unique transition found in the data, this function
-    outputs a separate CSV file (with gene annotations).
-
-    The binning of methylation values is performed using a shared helper function to ensure
-    consistency with the parallel categories plot.
-
-    Parameters:
-      genome: Genome object containing barcode/treatment maps and output info.
-      motif: Motif object that provides the full motif data.
-      bins: The number of bins used for methylation values (default: 3).
-
-    Returns:
-      None. (CSV files are written to genome.output_dir.)
-    """
-    # 1. Collect the full motif data and map samples to treatments.
-    df = motif.data()
-    if df is None:
-        return
-    
-    df = df.collect()
-    if df.is_empty():
-        return
-
-    # Add a composite key for later filtering.
-    df = df.with_columns(
-        pl.concat_str(
-            [pl.col("contig").cast(str),
-             pl.col("position").cast(str),
-             pl.col("strand").cast(str)],
-            separator="_"
-        ).alias("composite_key")
-    )
-
-    # 2. Pivot the data so that each row (identified by contig, position, strand)
-    #    has one column per treatment with methylation values given by motif.meth_type.
-    pivoted = df.pivot(
-        index=["contig", "position", "strand"],
-        on="treatment",
-        values=motif.meth_type,
-    )
-
-    # 3. Determine the unique treatments and sort them using genome.treatment_order_map.
-    treatments = df["treatment"].unique().to_list()
-    sorted_treatments = sorted(treatments, key=genome.treatment_order_map.get)
-
-    # 4. Create bins for the methylation values using the helper function.
-    cut_points, bin_labels = create_methylation_bins(bins)
-
-    # 5. Bin the methylation values in each treatment column.
-    pivoted = pivoted.with_columns(
-        [pl.col(treatment).cut(cut_points, labels=bin_labels) for treatment in treatments]
-    )
-
-    # 6. Identify every unique transition present in the data.
-    unique_transitions_df = pivoted.select(sorted_treatments).unique()
-
-    # 7. For each unique transition, filter the data and output a CSV.
-    result = []
-    for transition_row in unique_transitions_df.iter_rows(named=True):
-        # Build the transition tuple in the sorted treatment order.
-        transitions = tuple(transition_row[col] for col in sorted_treatments)
-        
-        # Skip this for loop if the transitions has a None element
-        if None in transitions:
-            continue
-        
-        # Build the filter condition.
-        condition = pl.lit(True)
-        for col, val in zip(sorted_treatments, transitions):
-            if val is None:
-                condition &= pl.col(col).is_null()
-            else:
-                condition &= (pl.col(col) == val)
-        
-        filtered = pivoted.filter(condition)
-        if filtered.is_empty():
-            continue
-
-        # 10. Annotate with gene information.
-        data = genome.add_gene_caller_id(filtered.lazy(), include_intergenic=True).collect(streaming=True)
-        gc = GeneCollection(data.get_column("gene_callers_id").unique().to_list(), genome)
-        data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id", how="left")
-        
-        # Check if we can continue
-        out_file = genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_motif_transition_{'_'.join(transitions)}.csv"
-        if data.is_empty():
-            # Print "No data for this transition" to output file
-            with open(out_file, "w") as f:
-                f.write(f"No data for transition {transitions}")
-            print(f"Saved CSV for transition {transitions}: {out_file}")
-            continue
-        
-        data = genome.nearest_gene_to_positions(data.lazy()).collect(streaming=True)
-        gc = GeneCollection(data.get_column("gene_callers_id_start").unique().to_list(), genome)
-        data = data.join(
-            gc.get_function().collect(streaming=True),
-            left_on="gene_callers_id_start",
-            right_on="gene_callers_id",
-            how="left",
-            suffix="_start"
-        )
-        gc = GeneCollection(data.get_column("gene_callers_id_end").unique().to_list(), genome)
-        data = data.join(
-            gc.get_function().collect(streaming=True),
-            left_on="gene_callers_id_end",
-            right_on="gene_callers_id",
-            how="left",
-            suffix="_end"
-        )
-
-        # 11. Write the annotated data to CSV. The filename encodes the transition pattern.
-        data.write_csv(out_file)
-        print(f"Saved CSV for transition {transitions}: {out_file}")
-        result.append(data)
-    
-    return pl.concat(result)
-
-
-##############################################################################
-# 5) EXTRACT DIFF METHYLATED GENES (WITH GENE FUNCTION)
-##############################################################################
 
 def extract_diff_methylated_genes_colwellia(
     genome: Genome,
@@ -867,6 +551,42 @@ def extract_diff_methylated_genes_colwellia(
     return data
 
 
+def parse_genbank(file_path="/researchdrive/gkanaan/colwellia_methylation/exp/colwellia_34h.gb"):
+    """
+    Parses a GenBank file and extracts features into a list of dictionaries.
+
+    Args:
+        file_path (str): The path to the GenBank file.
+
+    Returns:
+        list: A list of dictionaries, where each dictionary represents a feature
+            and contains 'contig', 'position', 'strand', 'feature_name',
+            and 'feature_function'.
+    """
+    from Bio import SeqIO
+
+    records = list(SeqIO.parse(file_path, "genbank"))
+    features_list = []
+    for record in records:
+        contig = record.id
+        for feature in record.features:
+            if feature.type != "source":  # Ignore the 'source' feature type
+                start = feature.location.start.position
+                end = feature.location.end.position
+                strand = feature.location.strand
+                feature_name = feature.qualifiers.get('gene', [''])  # Get gene name, default to empty string if not found
+                feature_function = feature.qualifiers.get('product', [''])  # Get product function, default to empty string if not found
+                features_list.append({
+                    'contig': contig,
+                    'start': start,
+                    'end': end,  # INCLUSIVE
+                    'strand': strand,
+                    'feature_name': feature_name[0] if feature_name else '', # Access first element or empty
+                    'feature_function': feature_function[0] if feature_function else '' # Access first element or empty
+                })
+    return features_list
+
+
 def write_basic_stats_colwellia(genome: Genome, motifs: list[Motif]):
     text = []
     for motif in motifs:
@@ -898,10 +618,3 @@ def write_basic_stats_colwellia(genome: Genome, motifs: list[Motif]):
         f.writelines(text)
         
     print(f"Saved file: {out_file}")
-
-
-def extract_consensus_genes_colwellia(genome: Genome, trans: pl.DataFrame, dmrs: pl.DataFrame, motif: Motif):
-    # Get the intersection
-    dmrs = dmrs.select("contig", "position", "strand", "score", "balanced_map_pvalue", "balanced_effect_size", "treatment_a", "treatment_b")
-    consensus = trans.join(dmrs, how="inner", on=["contig", "position", "strand"])
-    consensus.write_csv(genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_innerjoin_dmr_trans_genes.csv")
