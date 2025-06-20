@@ -245,7 +245,7 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
 
     # Get Stats
     for pair_treatments in pairs:
-        adj_pvals, dvals = do_ks_test(motif, pair_treatments, alpha=alpha)
+        adj_pvals, dvals = do_ks_test(motif, pair_treatments, alpha)
         results[pair_treatments] = adj_pvals, dvals
         
     # Create DataFrame for Timeline
@@ -262,13 +262,13 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
                 if pair in results:
                     pvals, dvals = results[pair]
                     for stat_key in ['means', 'means_pr']:
-                        dval = dvals.get(stat_key, np.nan)
-                        pval = pvals.get(stat_key, 1.0)
+                        dval = dvals.get(stat_key)
+                        pval = pvals.get(stat_key+"_pval")
                         timeline_data.append({
                             'Cycling Step': step_num,
                             'D-value': dval,
                             'Control': control_name,
-                            'Significant': pval <= alpha,
+                            'Significant': pval < alpha,
                             'Stat Key': stat_key
                         })
 
@@ -276,7 +276,6 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
 
     # Make figure
     _, axes = plt.subplots(2, 3, figsize=(30, 30), constrained_layout=True, width_ratios=[1, 0.5, 0.5])
-    plt.subplots_adjust(wspace=0.6)
 
     for i, stat_key in enumerate(["means", "means_pr"]):
         # Get axes
@@ -289,8 +288,8 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
         dval_matrix = pd.DataFrame(np.nan, index=all_treatment_names, columns=all_treatment_names, dtype=float)
 
         for (treat1, treat2), (pval_dict, dval_dict) in results.items():            
-            pval_matrix.loc[treat1, treat2] = pval_dict[stat_key]
-            pval_matrix.loc[treat2, treat1] = pval_dict[stat_key]
+            pval_matrix.loc[treat1, treat2] = pval_dict[stat_key+"_pval"]
+            pval_matrix.loc[treat2, treat1] = pval_dict[stat_key+"_pval"]
             dval_matrix.loc[treat1, treat2] = dval_dict[stat_key]
             dval_matrix.loc[treat2, treat1] = dval_dict[stat_key]
         

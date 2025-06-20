@@ -98,7 +98,11 @@ def plot_contig_motif_heatmap_stats(contigs: list[Contig], p_value_threshold: fl
     statistic_colors_df["Statistic"] = statistic_colors_df.index.get_level_values("statistic_key").map(stat_lut)
 
     # --- 6. Sorting ---
-    pivot_df = pivot_df.sort_index(axis=1, level=["motif_string"])
+    statistic_key_map = {stat: i for i, stat in enumerate(statistic_columns)}
+    pivot_df = pivot_df.sort_index(axis=1, 
+                                    level=["motif_string", "statistic_key"],
+                                    key=lambda x: x.map(statistic_key_map) if x.name == 'statistic_key' else x
+                                    )
     contig_taxonomy_map = contig_tax_map.to_dict()
     sorted_indices = sorted(
         pivot_df.index,

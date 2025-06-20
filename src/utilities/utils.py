@@ -270,7 +270,7 @@ def do_ks_test(motif, treatments, alpha):
     group1_label, group2_label = treatments
     meth_col_name = motif.meth_type
 
-    is_valid_filter = pl.col(meth_col_name).is_not_null() & pl.col(meth_col_name).is_not_nan()
+    is_valid_filter = lambda x : pl.col(x).is_not_null() & pl.col(x).is_not_nan()
     group1_filter = pl.col("treatment").eq(group1_label)
     group2_filter = pl.col("treatment").eq(group2_label)
     promoter_filter = pl.col("distance_to_start").le(60)
@@ -288,28 +288,28 @@ def do_ks_test(motif, treatments, alpha):
         return df
     
     # Get data
-    normalized_data = motif.data(normalize=True)
-    raw_data = motif.data(normalize=False)
-    normalized_with_genes = motif.genome.nearest_gene_to_positions(normalized_data)
-    raw_with_genes = motif.genome.nearest_gene_to_positions(raw_data)
+    normalized_data = motif.data(normalize=True).filter(group1_filter | group2_filter)
+    raw_data = motif.data(normalize=False).filter(group1_filter | group2_filter)
+    normalized_with_genes = motif.genome.nearest_gene_to_positions(normalized_data).filter(group1_filter | group2_filter)
+    raw_with_genes = motif.genome.nearest_gene_to_positions(raw_data).filter(group1_filter | group2_filter)
     
     # Means
-    means_df = filter_common(normalized_data.select(cols_for_calcs).filter(is_valid_filter)).sort(sort_cols).collect()
+    means_df = filter_common(normalized_data.select(cols_for_calcs).filter(is_valid_filter(meth_col_name))).sort(sort_cols).collect()
     group1_means = means_df.filter(group1_filter).get_column(meth_col_name).to_numpy()
     group2_means = means_df.filter(group2_filter).get_column(meth_col_name).to_numpy()
 
     # Promoter means
-    promoter_means_df = filter_common(normalized_with_genes.select(cols_for_promoter_calcs).filter(is_valid_filter, promoter_filter)).sort(sort_cols).collect()
+    promoter_means_df = filter_common(normalized_with_genes.select(cols_for_promoter_calcs).filter(is_valid_filter(meth_col_name), promoter_filter)).sort(sort_cols).collect()
     group1_promoter_means = promoter_means_df.filter(group1_filter).get_column(meth_col_name).to_numpy()
     group2_promoter_means = promoter_means_df.filter(group2_filter).get_column(meth_col_name).to_numpy()
 
     # Standard error
-    standard_error_df = filter_common(raw_data.select(cols_for_calcs).filter(is_valid_filter).group_by(grouping_cols).agg(se_expr)).sort(sort_cols).collect()
+    standard_error_df = filter_common(raw_data.select(cols_for_calcs).filter(is_valid_filter(meth_col_name)).group_by(grouping_cols).agg(se_expr).filter(is_valid_filter("se"))).sort(sort_cols).collect()
     group1_standard_error = standard_error_df.filter(group1_filter).sort(sort_cols).get_column("se").to_numpy()
     group2_standard_error = standard_error_df.filter(group2_filter).sort(sort_cols).get_column("se").to_numpy()
 
     # Standard error of promoter regions
-    promoter_standard_error_df = filter_common(raw_with_genes.select(cols_for_promoter_calcs).filter(is_valid_filter, promoter_filter).group_by(grouping_cols).agg(se_expr)).sort(sort_cols).collect()
+    promoter_standard_error_df = filter_common(raw_with_genes.select(cols_for_promoter_calcs).filter(is_valid_filter(meth_col_name), promoter_filter).group_by(grouping_cols).agg(se_expr).filter(is_valid_filter("se"))).sort(sort_cols).collect()
     group1_promoter_standard_error = promoter_standard_error_df.filter(group1_filter).sort(sort_cols).get_column("se").to_numpy()
     group2_promoter_standard_error = promoter_standard_error_df.filter(group2_filter).sort(sort_cols).get_column("se").to_numpy()
 
