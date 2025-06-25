@@ -78,6 +78,9 @@ class Genome(object):
 
         # Create a "readable_name" for display
         self.readable_name: str = ". ".join([s.capitalize() for s in genome_path.stem.split("__")[0:2]])
+        
+        # Should we use balanced p-value in dmr
+        self.use_balanced = True
 
     @cached_property
     def sequence(self) -> dict[str, SeqRecord.SeqRecord]:

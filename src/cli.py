@@ -292,17 +292,19 @@ def analyze_colwellia(
     for motif in motifs:
         click.echo(f"Analyzing motif: {motif.motif} (meth_type={motif.meth_type})")
 
-        plot_motif_distribution_stats_colwellia(genome, motif, output_dir)
+        # plot_motif_distribution_stats_colwellia(genome, motif, output_dir)
 
-        plot_whole_methylome_colwellia(genome, motif, output_dir)
+        # plot_whole_methylome_colwellia(genome, motif, output_dir)
 
-        plot_motif_methylation_distribution_colwellia(genome, motif, output_dir)        
+        # plot_motif_methylation_distribution_colwellia(genome, motif, output_dir)        
 
-        plot_number_of_positions_by_coverage_colwellia(genome, motif, output_dir)
+        # plot_number_of_positions_by_coverage_colwellia(genome, motif, output_dir)
 
-        plot_motif_distribution_stats_colwellia(genome, motif, output_dir)
+        # plot_motif_distribution_stats_colwellia(genome, motif, output_dir)
 
-        plot_dmr_scores_heatmap_colwellia(genome, motif, output_dir)
+        # plot_dmr_scores_heatmap_colwellia(genome, motif, output_dir)
+        
+        extract_diff_methylated_genes_colwellia(genome, motif, None)
         
     # Basic stats file
     write_basic_stats_colwellia(genome, motifs)

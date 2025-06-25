@@ -168,7 +168,7 @@ class Motif(object):
                 # Filter such that both treatments are in the requested ones
                 dmr_data = dmr_data.filter(pl.col("treatment_a").is_in(self.genome.default_treatments), 
                                             pl.col("treatment_b").is_in(self.genome.default_treatments),
-                                            pl.col("balanced_map_pvalue") < 0.05)  # Filter by p-value
+                                            pl.col("balanced_map_pvalue" if self.genome.use_balanced else "map_pvalue") < 0.05)  # Filter by p-value
                 all_data.append(dmr_data)
 
             except Exception as e:

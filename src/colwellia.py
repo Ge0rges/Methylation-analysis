@@ -476,16 +476,13 @@ def extract_diff_methylated_genes_colwellia(
 
     Returns a Polars DataFrame.
     """
+    motif.genome.use_balanced = False
     top_rows = motif.dmr_data.collect(streaming=True).sort("score", descending=True)
     if top_rows.is_empty():
         print(f"No DMR data for motif {motif.motif}")
         return
 
-    # Now, we want to add the gene function from some table. Typically:
-    # 1) Add gene_caller_id for direct hits
-    # 2) For start/end, do the same and join gene function columns
-
-    # Let's do 1) add gene_caller_id if needed
+    # Add gene_caller_id if needed
     data = genome.add_gene_caller_id(top_rows.lazy(), include_intergenic=True).collect(streaming=True)
 
     # Add function
@@ -540,7 +537,7 @@ def extract_diff_methylated_genes_colwellia(
     )
         
     # Take top_n rows by score if requested
-    if top_n > 0 and data.height > top_n:
+    if top_n is not None and top_n > 0 and data.height > top_n:
         data = data.sort("score", descending=True).head(top_n)
     
     # Write to CSV
