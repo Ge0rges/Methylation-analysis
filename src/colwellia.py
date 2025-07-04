@@ -26,17 +26,17 @@ def plot_number_of_positions_by_coverage_colwellia(genome: Genome, motif: Motif,
     
     # Get data for different coverages
     coverage_counts = []
-    for cov in [1, 5, 10, 20, 30, 50, 100]:
-        genome.default_coverage = cov
+    for cov in [10, 30, 100, 150, 300, 500, 1000]:
+        genome.default_coverage = cov  # This requires the data method to not be LRU cached
         df = motif.data(in_every_treatment=False).collect()
-        df = df.group_by("treatment").agg(pl.struct(["contig", "strand", "position"]).unique().count().alias("count"))
+        df = df.group_by("treatment").agg(pl.struct(["contig", "strand", "position"]).n_unique().alias("count"))
         df = df.with_columns(pl.lit(cov).alias("coverage"))
         coverage_counts.append(df)
     
     coverage_counts = pl.concat(coverage_counts)
     
     # Plot barplot using seaborn
-    _, ax = plt.subplots(figsize=(16, 16))
+    _, ax = plt.subplots(figsize=(16, 16), constrained_layout=True)
     sns.barplot(
         data=coverage_counts.to_pandas(),
         x="treatment",
@@ -44,6 +44,7 @@ def plot_number_of_positions_by_coverage_colwellia(genome: Genome, motif: Motif,
         hue="coverage",
         legend='full',
         ax=ax,
+        palette="Set1",
         order=sorted(coverage_counts.get_column("treatment").unique().to_list(), key=genome.treatment_order_map.get)
     )
     
@@ -201,7 +202,7 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
     """
     alpha = 0.05
 
-    unique_treatment_names = set(genome.treatment_name_map.values())
+    unique_treatment_names = set(genome.treatment_name_map[t] for t in genome.default_treatments) 
     all_treatment_names = sorted(
         list(unique_treatment_names),
         key=lambda t: genome.treatment_order_map.get(t, str(t))
@@ -264,6 +265,9 @@ def plot_motif_distribution_stats_colwellia(genome: Genome, motif: Motif, output
                     for stat_key in ['means', 'means_pr']:
                         dval = dvals.get(stat_key)
                         pval = pvals.get(stat_key+"_pval")
+                        if pval is None:
+                            continue
+                        
                         timeline_data.append({
                             'Cycling Step': step_num,
                             'D-value': dval,
@@ -586,7 +590,7 @@ def parse_genbank(file_path="/researchdrive/gkanaan/colwellia_methylation/exp/co
 def write_basic_stats_colwellia(genome: Genome, motifs: list[Motif]):
     text = []
     for motif in motifs:
-        site_count = motif.positions.unique(subset=["contig", "position", "strand"]).collect().height
+        site_count = motif.positions.collect().height
         text.append(f"Number of sites: {site_count}\n")
 
         # Compute weighted fraction using treatment_weighted_mean
@@ -599,12 +603,15 @@ def write_basic_stats_colwellia(genome: Genome, motifs: list[Motif]):
         if df.is_empty():
             continue
         
-        avg_fraction = df.select(pl.col(motif.meth_type).mean()).item()
+        # Compute number of sites with data for each treatment
         treatments = df.get_column("treatment").unique().to_list()
         for t in treatments:
             slice_df = df.filter(pl.col("treatment") == t)
             site_count_treatment = slice_df.unique(subset=["contig", "position", "strand"]).height
             text.append(f"Number of sites with data for {t}: {site_count_treatment}\n")
+        
+        # Compute average fraction for the motif's methylation type
+        avg_fraction = df.select(pl.col(motif.meth_type).mean()).item()
         text.append(f"Average {motif.meth_type} fraction: {avg_fraction}\n")
 
     text.append(f"Found motifs: {','.join([m.motif for m in motifs])}")

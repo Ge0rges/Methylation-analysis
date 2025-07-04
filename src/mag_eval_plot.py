@@ -48,7 +48,7 @@ def plot_coverage(coverm_path, output_dir, treatment_name_map, barcode_treatment
         annot=True,
         ax=ax,
         square=True,
-        cbar_kws={"shrink": 0.5},
+        cbar_kws={"shrink": 0.5, "label": "Mean coverage"},
         fmt=".2f",
         norm=LogNorm()
     )
@@ -287,9 +287,12 @@ def read_count_plot():
 
     _, axes = plt.subplots(figsize=(15, 10))
 
-    g = sns.barplot(data=df, x="Sample", y="Read count", hue="Horizon", hue_order=hue_order, ax=axes, order=["Control", "S1", "S2", "S3"])
+    sns.barplot(data=df, x="Sample", y="Read count", hue="Horizon", hue_order=hue_order, ax=axes, order=["Control", "S1", "S2", "S3"])
     plt.title("Read counts per sample")
 
+    # Show ticks on Y axis
+    axes.yaxis.set_ticks_position('left')
+    
     # Make y axis log
     plt.yscale("log")
     

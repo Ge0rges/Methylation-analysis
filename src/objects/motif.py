@@ -90,7 +90,6 @@ class Motif(object):
         positions = pl.scan_csv(str(positions_bed), separator="\t", has_header=False, new_columns=["contig", "start", "end", "name", "score", "strand"]).with_columns((pl.col("strand") == "+").alias("strand"), pl.col("start").alias("position"))
         return positions
 
-    @lru_cache
     def data(self, normalize=True, in_every_treatment=True) -> pl.LazyFrame:
         # Get all the data for the motif by loading all bed files except "location.bed" in the data directory
         
