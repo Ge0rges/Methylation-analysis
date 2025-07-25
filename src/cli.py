@@ -283,9 +283,6 @@ def analyze_colwellia(
     
     # Remove 55S13 from treatments if it exists
     treatments = list(treatments)
-    if "55S13" in treatments:
-        treatments.remove("55S13")
-    
     genome = Genome(fna_file, methylation_data_dir, gene_calls, function_calls, barcode_map_file, output_dir, treatments, coverage, treatment_info)
     
     # If this genome has Motif objects, proceed:
@@ -297,17 +294,23 @@ def analyze_colwellia(
     for motif in motifs:
         click.echo(f"Analyzing motif: {motif.motif} (meth_type={motif.meth_type})")
 
-        plot_number_of_positions_by_coverage_colwellia(genome, motif, output_dir)
+        plot_number_of_positions_by_coverage_colwellia(motif, output_dir)
 
-        plot_whole_methylome_colwellia(genome, motif, output_dir)
+        plot_whole_methylome_colwellia(motif, output_dir)
 
-        plot_motif_methylation_distribution_colwellia(genome, motif, output_dir)        
-
-        plot_motif_distribution_stats_colwellia(genome, motif, output_dir)
-
-        plot_dmr_scores_heatmap_colwellia(genome, motif, output_dir)
+        plot_whole_methylome_kde_colwellia(motif, output_dir)
         
-        extract_diff_methylated_genes_colwellia(genome, motif, None)
+        plot_motif_methylation_distribution_colwellia(motif, output_dir)        
+
+        plot_ks_heatmap_colwellia(motif, output_dir)
+
+        plot_dmr_scores_heatmap_colwellia(motif, output_dir)
+        
+        write_features_with_genbank(motif)
+        
+        extract_diff_methylated_genes_colwellia(motif)
+        
+        motif_distribution(motif)
         
     # Basic stats file
     write_basic_stats_colwellia(genome, motifs)

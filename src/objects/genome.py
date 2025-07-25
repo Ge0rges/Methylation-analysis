@@ -249,7 +249,7 @@ class Genome(object):
                                 .collect(streaming=True).get_column("gene_callers_id").to_list(), self)
     
 
-    def nearest_gene_to_positions(self, positions_df: pl.LazyFrame) -> pl.LazyFrame:
+    def nearest_gene_to_positions(self, positions_df: pl.LazyFrame, genes_base: pl.LazyFrame = None) -> pl.LazyFrame:
         """
         Finds the nearest gene (by start and end) for each position using join_asof
         for improved memory efficiency.
@@ -282,9 +282,8 @@ class Genome(object):
         # Also sort positions for join_asof
         positions_prep = positions_df.sort("contig", "strand", "position")
 
-        genes_base = self.gene_caller_df.select(
-            "contig", "strand", "gene_callers_id", "start", "stop"
-        )
+        genes_base = self.gene_caller_df if genes_base is None else genes_base
+        genes_base = genes_base.select("contig", "strand", "gene_callers_id", "start", "stop")
 
         # --- Perform join_asof (Nearest Start) ---
         # Sort genes by 'start' for the first join

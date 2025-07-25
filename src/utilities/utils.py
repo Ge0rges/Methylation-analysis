@@ -265,7 +265,7 @@ def parse_barcode_tsv(barcode_treatment_sample_file):
     return barcode_treatment_map, barcode_sample_map
 
 
-def do_ks_test(motif, treatments, alpha): 
+def do_ks_test(motif, treatments, alpha):     
     # Define variables   
     group1_label, group2_label = treatments
     meth_col_name = motif.meth_type
@@ -273,13 +273,13 @@ def do_ks_test(motif, treatments, alpha):
     is_valid_filter = lambda x : pl.col(x).is_not_null() & pl.col(x).is_not_nan()
     group1_filter = pl.col("treatment").eq(group1_label)
     group2_filter = pl.col("treatment").eq(group2_label)
-    promoter_filter = pl.col("distance_to_start").le(60)
+    promoter_filter = pl.col("distance_to_start").le(60) & pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()
     se_expr = (pl.col(meth_col_name).std() / pl.col(meth_col_name).len().sqrt()).alias("se")
     
     sort_cols = ["contig", "position", "strand"]
     grouping_cols = ["contig", "strand", "position", "treatment"]
     cols_for_calcs = [meth_col_name] + grouping_cols
-    cols_for_promoter_calcs = ["distance_to_start"] + cols_for_calcs
+    cols_for_promoter_calcs = ["distance_to_start", "gene_callers_id_start", "gene_callers_id_end"] + cols_for_calcs
 
     # Common rows
     def filter_common(df: pl.LazyFrame) -> pl.LazyFrame:
@@ -351,10 +351,6 @@ def do_ks_test(motif, treatments, alpha):
         adj_pvals[keys[orig_idx]+"_pval"] = test_adj_pvals[i]
         adj_dvals[keys[orig_idx]] = valid_d_values[i]
     
-    # Save Q-Q plots
-    qq_plot_for_ks_data(group1_means, group2_means, motif.genome.output_dir, title=f"Q-Q Plot for {motif.meth_type} Means", group1_label=group1_label, group2_label=group2_label)
-    qq_plot_for_ks_data(group1_promoter_means, group2_promoter_means, motif.genome.output_dir, title=f"Q-Q Plot for {motif.meth_type} Promoter Means", group1_label=group1_label, group2_label=group2_label)
-    
     return adj_pvals, adj_dvals
 
 
@@ -420,42 +416,3 @@ def ks_permutation_test(data1, data2, n_permutations=10000):
             count_extreme += 1
 
     return (count_extreme + 1) / (n_permutations + 1), observed_ks_value
-
-
-def qq_plot_for_ks_data(group1_data, group2_data, out_dir, title='Q-Q Plot', group1_label='Group 1', group2_label='Group 2'):
-    """
-    Create a Q-Q plot comparing two datasets (same data used for Kolmogorov-Smirnov test).
-    
-    Args:
-        group1_data (np.array): First group data (e.g., group1_means)
-        group2_data (np.array): Second group data (e.g., group2_means)
-        title (str): Title of the plot
-        group1_label (str): Label for first group
-        group2_label (str): Label for second group
-    """
-    # # Sort the data
-    data1_sorted = group1_data #np.sort(group1_data)
-    data2_sorted = group2_data #np.sort(group2_data)
-
-    # Calculate quantiles
-    quantiles = np.linspace(0, 1, min(len(data1_sorted), len(data2_sorted)))
-    quantile_data1 = np.quantile(data1_sorted, quantiles)
-    quantile_data2 = np.quantile(data2_sorted, quantiles)
-
-    # Create the plot
-    import matplotlib.pyplot as plt
-    import os 
-    
-    plt.figure(figsize=(8, 6))
-    plt.plot(quantile_data1, quantile_data2, 'o', alpha=0.7, label='Q-Q points')
-    plt.plot([quantile_data1.min(), quantile_data1.max()], 
-             [quantile_data1.min(), quantile_data1.max()], 
-             'r--', label='y=x line (perfect match)')
-    
-    plt.xlabel(f'Quantiles of {group1_label}')
-    plt.ylabel(f'Quantiles of {group2_label}')
-    plt.title(title)
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    os.makedirs(out_dir / "qq_plots", exist_ok=True)
-    plt.savefig(out_dir / "qq_plots" / f"{title.replace(' ', '_')}_{group1_label}_{group2_label}.pdf", dpi=300, bbox_inches='tight')
