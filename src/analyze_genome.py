@@ -48,7 +48,7 @@ def plot_whole_methylome(
         hue="Treatment",
         ax=ax,
         s=16,
-        alpha=1,
+        alpha=0.7,
         hue_order=hue_order,
         palette=[genome.treatment_color_map[treatment] for treatment in hue_order]
     )
@@ -79,10 +79,9 @@ def plot_whole_methylome(
             r_squared = r2_score(y, y_pred)
 
             # Add R-squared as text to the plot
-            ax.text(0.15, 0.05 - j*0.035, f"R² = {r_squared:.2f}",
+            ax.text(0.15, 0.05 - j*0.035, "${R}$²" + f" = {r_squared:.2f}",
                 transform=ax.transAxes, ha='right',
-                color=genome.treatment_color_map[treatment],
-                bbox=dict(facecolor='white', alpha=0.6, edgecolor='none', boxstyle='round,pad=0.2'))
+                color=genome.treatment_color_map[treatment])
 
             # Plot the polynomial regression line using the treatment's color
             ax.plot(x_smooth, y_smooth, color=genome.treatment_color_map[treatment], linewidth=2) 
@@ -93,8 +92,8 @@ def plot_whole_methylome(
     # Add lines showing ori and ter and contigs
     if "0_9_3" in str(genome.genome_path):
         # Origin: 520,200 Terminus: 119,890
-        ax.axvline(x=520200, color="blue", linestyle="--", label="Ori")
-        ax.axvline(x=119890, color="red", linestyle="--", label="Ter")
+        ax.axvline(x=520200, color="orange", linestyle="--", label="Ori") # c_000000071011': 519501 - 520200 = 699 -- 93 (barcode03)
+        ax.axvline(x=119890, color="red", linestyle="--", label="Ter")  # 'c_000000070176': 57920 - 119890 = 61970 -- 73 (barcode03)
 
     out_file = output_dir / f"{genome.readable_name}_whole_methylome_{motif.readable_motif}.pdf"
     plt.savefig(out_file)

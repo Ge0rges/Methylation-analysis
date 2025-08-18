@@ -60,9 +60,6 @@ class Genome(object):
         if default_treatments is None:
             raise ValueError("No default treatments provided.")
         
-        elif len(default_treatments) < 2:
-            raise ValueError("At least two treatments must be provided.")
-        
         # Load treatment information mappings
         treatment_name_map, treatment_color_map, treatment_order_map = parse_treatment_tsv(treatment_info)
         
@@ -178,7 +175,7 @@ class Genome(object):
             for key in order:
                 offsets[key] = cum_sum
                 cum_sum += len(self.sequence[key])
-        else:   
+        else:
             for key in contigs:
                 offsets[key] = cum_sum
                 cum_sum += len(self.sequence[key])

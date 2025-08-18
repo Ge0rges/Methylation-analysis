@@ -52,9 +52,7 @@ class Motif(object):
             motifs_path = genome.methylation_data_dir / "motifs" / f"{contig.default_coverage}_{contig.contig_name}_motifs.tsv"
         
         if not motifs_path.exists():
-            print("Motif list file not found, returning empty list; THIS SHOULD BE AN ERROR.")
-            return []
-            #raise FileNotFoundError(f"Motif list file not found at {motifs_path}, check coverage parameter")
+            raise FileNotFoundError(f"Motif list file not found at {motifs_path}, check coverage parameter")
         
         try:
             motifs = pl.read_csv(str(motifs_path), separator="\t", has_header=True)

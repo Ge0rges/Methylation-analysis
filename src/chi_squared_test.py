@@ -17,14 +17,36 @@ from scipy.stats import chi2_contingency
 # a, L1 = 1302, 1403101   # MAG
 # b, L2 = 97, 36496       # Prophage
 
-observed = np.array([
-    [a,       b      ],   # motif counts
-    [L1 - a,  L2 - b ]    # lengths
-])
+def chi_squared_test(a, L1, b, L2):
+    """
+    Perform a Chi-squared test for independence on the given counts and lengths.
+    
+    Parameters:
+    a (int): Count of motif in first group.
+    L1 (int): Length of first group.
+    b (int): Count of motif in second group.
+    L2 (int): Length of second group.
+    
+    Returns:
+    None: Prints the Chi-squared statistic, degrees of freedom, p-value, and expected frequencies.
+    """
+    
+    # Create observed frequency table
+    # Rows: [motif counts, lengths]
+    observed = np.array([
+        [a,       b      ],   # motif counts
+        [L1 - a,  L2 - b ]    # lengths
+    ])
 
-chi2, p_value, dof, expected = chi2_contingency(observed)
+    chi2, p_value, dof, expected = chi2_contingency(observed)
 
-print(f"Chi² statistic:           {chi2:.4f}")
-print(f"Degrees of freedom:      {dof}")
-print(f"p‑value:                 {p_value}")
-print("Expected frequencies:\n", expected)
+    # print(f"Chi² statistic:           {chi2:.4f}")
+    # print(f"Degrees of freedom:      {dof}")
+    # print(f"p‑value:                 {p_value}")
+    # print("Expected frequencies:\n", expected)
+    
+    return p_value
+
+
+if __name__ == "__main__":
+    chi_squared_test(a, L1, b, L2)

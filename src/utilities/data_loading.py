@@ -212,6 +212,8 @@ def load_methylation_data(
         if genome.barcode_treatment_map and treatments:
             treatment = genome.barcode_treatment_map.get(sample_name)
             if treatment not in treatments:
+                if treatment.lower() in treatments:
+                    print(f"Skipping {sample_name} as it is not in the specified treatments: {treatments}. Treatments are case sensitive.")
                 continue
         
         # Load pileup
@@ -320,3 +322,51 @@ def load_methylation_data(
         result = utils.treatment_weighted_mean(result)
 
     return result
+
+
+def parse_genbank(file_path):
+    """
+    Parses a GenBank file and extracts features into a list of dictionaries.
+
+    Args:
+        file_path (str): The path to the GenBank file.
+
+    Returns:
+        list: A list of dictionaries, where each dictionary represents a feature
+            and contains 'contig', 'position', 'strand', 'feature_name',
+            and 'feature_function'.
+    """
+    from Bio import SeqIO
+
+    records = list(SeqIO.parse(file_path, "genbank"))
+    features_dict = {
+        'contig': [],
+        'start': [],
+        'stop': [],
+        'strand': [],
+        'gene_callers_id': [],
+        'feature_name': [],
+        'feature_function': []
+    }
+    
+    i = 0
+    for record in records:
+        contig = record.id
+        for feature in record.features:
+            if feature.type != "source":  # Ignore the 'source' feature type
+                start = feature.location.start.real
+                end = feature.location.end.real
+                strand = feature.location.strand
+                feature_name = feature.qualifiers.get('gene', [''])  # Get gene name, default to empty string if not found
+                feature_function = feature.qualifiers.get('product', [''])  # Get product function, default to empty string if not found
+
+                features_dict['contig'].append(contig)
+                features_dict['start'].append(start)  # INCLUSIVE
+                features_dict['stop'].append(end + 1)  # INCLUSIVE + 1 = EXCLUSIVE
+                features_dict['strand'].append((strand == 1))
+                features_dict['gene_callers_id'].append(i)
+                features_dict['feature_name'].append(feature_name[0] if feature_name else '')
+                features_dict['feature_function'].append(feature_function[0] if feature_function else '')
+
+                i += 1
+    return features_dict
