@@ -295,35 +295,37 @@ def analyze_colwellia(
     for motif in motifs:
         click.echo(f"Analyzing motif: {motif.motif} (meth_type={motif.meth_type})")
 
-        # plot_number_of_positions_by_coverage_colwellia(motif, output_dir)
+        plot_number_of_positions_by_coverage_colwellia(motif, output_dir)
 
-        # plot_whole_methylome_colwellia(motif, output_dir)
+        plot_whole_methylome_colwellia(motif, output_dir)
+        plot_whole_methylome_colwellia(motif, output_dir, True)
         
-        # plot_motif_methylation_distribution_colwellia(motif, output_dir)        
+        plot_motif_methylation_distribution_colwellia(motif, output_dir)        
 
-        # plot_dmr_scores_heatmap_colwellia(motif, output_dir)
+        plot_dmr_scores_heatmap_colwellia(motif, output_dir)
         
-        # write_genbank_features_near_motifs(motif)
+        write_genbank_features_near_motifs(motif)
         
-        # extract_diff_methylated_genes_colwellia(motif)
+        extract_diff_methylated_genes_colwellia(motif)
         
-        # motif_distribution(motif)
+        motif_distribution(motif)
                 
         motif_functional_enrichment(motif)
         
         find_important_features(motif, True)
-        find_important_features(motif, False)
 
-        # fraction_investigation(motif)
+        fraction_investigation(motif)
 
-        # do_stats(motif)
+        do_stats(motif)
         
         frac_investigation_with_stats(motif)
         
-        # write_promoter_functions(motif)
+        write_promoter_functions(motif)
+        
+        find_hypomethylated_sites(motif)
                 
     # Basic stats file
-    write_basic_stats_colwellia(genome, motifs)
+    # write_basic_stats_colwellia(genome, motifs)
 
     click.echo("Analysis complete.")
 

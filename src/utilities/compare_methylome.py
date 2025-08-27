@@ -118,226 +118,76 @@ def _ks_bootstrap(data1, data2, n_permutations: int, seed: int) -> tuple[float, 
     return (count_extreme + 1) / (n_permutations + 1), observed_ks_value
 
 
-def _parse_counts_to_replicates(counts_flat):
-    """
-    Parse flat count array into replicate structure.
-    
-    Parameters
-    ----------
-    counts_flat : array-like, shape (n_replicates * 2,)
-        Flat array [meth1, unmeth1, meth2, unmeth2, ...]
-    
-    Returns
-    -------
-    array-like, shape (n_replicates, 2)
-        Structured as [[meth1, unmeth1], [meth2, unmeth2], ...]
-    """
-    counts_flat = np.asarray(counts_flat)
-    n_values = len(counts_flat)
-    
-    if n_values % 2 != 0:
-        raise ValueError(f"Count array length must be even, got {n_values}")
-    
-    n_replicates = n_values // 2
-    return counts_flat.reshape(n_replicates, 2)
-
-
-def _beta_binomial_ll(params, meth_counts, total_counts):
-    """
-    Compute negative log-likelihood for beta-binomial model[7][10].
-    
-    Parameters
-    ----------
-    params : array-like
-        [alpha, beta] parameters for beta-binomial
-    meth_counts : array-like
-        Number of methylated reads per replicate
-    total_counts : array-like  
-        Total reads per replicate
-    
-    Returns
-    -------
-    float
-        Negative log-likelihood
-    """
-    alpha, beta = params
-    if alpha <= 0 or beta <= 0:
-        return np.inf
-    
-    # Use scipy's betabinom logpmf for numerical stability[10]
-    ll = stats.betabinom.logpmf(meth_counts, total_counts, alpha, beta).sum()
-    return -ll
-
-
-def _binomial_ll(p, meth_counts, total_counts):
-    """
-    Compute negative log-likelihood for binomial model.
-    
-    Parameters
-    ----------
-    p : float
-        Probability of success (methylation probability)
-    meth_counts : array-like
-        Number of methylated reads per replicate
-    total_counts : array-like
-        Total reads per replicate
-    
-    Returns
-    -------
-    float
-        Negative log-likelihood
-    """
-    if p <= 0 or p >= 1:
-        return np.inf
-    
-    ll = stats.binom.logpmf(meth_counts, total_counts, p).sum()
-    return -ll
-
-
-def _beta_binomial_lrt(site_counts_a, site_counts_b):
-    """
-    Perform likelihood ratio test between beta-binomial and binomial models[2][5].
-    
-    Tests H0: data follows binomial (no overdispersion)
-    vs H1: data follows beta-binomial (overdispersion present)
-    
-    Parameters
-    ----------
-    site_counts_a, site_counts_b : array-like
-        Flat arrays that will be parsed into replicate structure
-    
-    Returns
-    -------
-    tuple
-        (p_value, test_method)
-    """
-    try:
-        # Parse into replicate structure
-        counts_a = _parse_counts_to_replicates(site_counts_a)
-        counts_b = _parse_counts_to_replicates(site_counts_b)
-        
-        # Extract methylated and total counts
-        meth_a, total_a = counts_a[:, 0], counts_a.sum(axis=1)
-        meth_b, total_b = counts_b[:, 0], counts_b.sum(axis=1)
-        
-        # Filter zero coverage
-        valid_a = total_a > 0
-        valid_b = total_b > 0
-        
-        if not (np.any(valid_a) and np.any(valid_b)):
-            return 1.0, "no_coverage"
-        
-        meth_a, total_a = meth_a[valid_a], total_a[valid_a]
-        meth_b, total_b = meth_b[valid_b], total_b[valid_b]
-        
-        # Combine both groups for model fitting
-        meth_all = np.concatenate([meth_a, meth_b])
-        total_all = np.concatenate([total_a, total_b])
-        
-        # Need at least 3 observations for meaningful overdispersion test
-        if len(meth_all) < 3:
-            return 1.0, "insufficient_data"
-        
-        # Fit binomial model (H0: no group difference, no overdispersion)
-        p_pooled = meth_all.sum() / total_all.sum()
-        ll_binomial = -_binomial_ll(p_pooled, meth_all, total_all)
-        
-        # Fit beta-binomial model (H1: allows overdispersion, group differences)
-        # Use method of moments for initial estimates
-        p_hat = meth_all.sum() / total_all.sum()
-        alpha_init = p_hat * 10
-        beta_init = (1 - p_hat) * 10
-        
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            result = minimize(
-                _beta_binomial_ll,
-                [alpha_init, beta_init],
-                args=(meth_all, total_all),
-                method='L-BFGS-B',
-                bounds=[(0.01, 1000), (0.01, 1000)]
-            )
-        
-        if not result.success:
-            # Fallback to pooled Fisher exact test
-            return _pooled_fisher_test(site_counts_a, site_counts_b)
-        
-        ll_betabinom = -result.fun
-        
-        # Likelihood ratio test statistic[2][5]
-        # df = 1 (beta-binomial has 1 extra parameter vs binomial)
-        lrt_stat = 2 * (ll_betabinom - ll_binomial)
-        
-        # Handle boundary case where chi2 test is conservative[5]
-        # Use 50:50 mixture of point mass at 0 and chi2(1)
-        if lrt_stat <= 0:
-            pval = 1.0
-        else:
-            pval = 0.5 * (1 + stats.chi2.sf(lrt_stat, df=1))
-        
-        return pval, "beta_binomial_lrt"
-        
-    except Exception:
-        # Final fallback to pooled Fisher exact
-        return _pooled_fisher_test(site_counts_a, site_counts_b)
-
-
-def _pooled_fisher_test(counts_a_flat, counts_b_flat):
-    """Fallback pooled Fisher exact test."""
-    try:
-        counts_a = _parse_counts_to_replicates(counts_a_flat)
-        counts_b = _parse_counts_to_replicates(counts_b_flat)
-        
-        meth_a_total = counts_a[:, 0].sum()
-        unmeth_a_total = counts_a[:, 1].sum()
-        meth_b_total = counts_b[:, 0].sum()  
-        unmeth_b_total = counts_b[:, 1].sum()
-        
-        table = np.array([[meth_a_total, unmeth_a_total],
-                         [meth_b_total, unmeth_b_total]])
-        _, pval = stats.fisher_exact(table, alternative="two-sided")
-        return pval, "fisher_pooled"
-    except Exception:
-        return 1.0, "failed"
-
-
 def _per_site_test(site_counts_a_flat, site_counts_b_flat):
     """
     Dispatch appropriate test based on replicate structure.
-    
+
+
     Parameters
     ----------
     site_counts_a_flat, site_counts_b_flat : array-like
         Flat arrays of length 2*n_replicates
-    
+
+
     Returns
     -------
     tuple
         (p_value, test_method, n_replicates_a, n_replicates_b)
     """
     try:
-        # Determine number of replicates from array length
         n_replicates_a = len(site_counts_a_flat) // 2
         n_replicates_b = len(site_counts_b_flat) // 2
-        
+
+
         # Single replicate case
         if n_replicates_a == 1 and n_replicates_b == 1:
-            ma, ua = site_counts_a_flat[0], site_counts_a_flat[1]
-            mb, ub = site_counts_b_flat[0], site_counts_b_flat[1]
+            ma, ua = site_counts_a_flat[0], site_counts_a_flat
+            mb, ub = site_counts_b_flat, site_counts_b_flat
             table = np.array([[ma, ua], [mb, ub]])
             try:
-                _, pval = stats.fisher_exact(table, alternative="two-sided")
-                return pval, "fisher_single", n_replicates_a, n_replicates_b
+                res = stats.chi2_contingency(table)
+                return res.pvalue, "chi2_single", n_replicates_a, n_replicates_b
             except Exception:
-                return 1.0, "fisher_failed", n_replicates_a, n_replicates_b
-        
-        # Multiple replicates - use beta-binomial LRT
-        pval, method = _beta_binomial_lrt(site_counts_a_flat, site_counts_b_flat)
-        return pval, method, n_replicates_a, n_replicates_b
-        
+                return 1.0, "chi2_failed", n_replicates_a, n_replicates_b
+
+
+        # Multiple replicate case
+        else:
+            # Build within-group tables
+            a_table = np.array(site_counts_a_flat).reshape(n_replicates_a, 2)
+            b_table = np.array(site_counts_b_flat).reshape(n_replicates_b, 2)
+
+
+            # Test for consistency within replicates: 2xN table for each group
+            try:
+                a_pval = stats.chi2_contingency(a_table).pvalue if n_replicates_a > 1 else 1.0
+                b_pval = stats.chi2_contingency(b_table).pvalue if n_replicates_b > 1 else 1.0
+            except Exception:
+                return 1.0, "replicates_test_failed", n_replicates_a, n_replicates_b
+
+
+            # If replicates differ within A or B, reject test, no pooling
+            if a_pval < 0.05 or b_pval < 0.05:
+                return 1.0, "replicates_inconsistent", n_replicates_a, n_replicates_b
+
+
+            # Pool replicates for A and B
+            pooled_a = np.sum(a_table, axis=0)
+            pooled_b = np.sum(b_table, axis=0)
+            table = np.array([pooled_a, pooled_b])
+
+
+            try:
+                pval = stats.chi2_contingency(table).pvalue
+                return pval, "chi2_pooled", n_replicates_a, n_replicates_b
+            except Exception:
+                return 1.0, "chi2_failed", n_replicates_a, n_replicates_b
+
+
     except Exception:
         return 1.0, "failed", 0, 0
 
+    
 # ------------------------------------------------------------------
 # Public API
 # ------------------------------------------------------------------
@@ -490,3 +340,16 @@ def compare_methylomes(
         per_site_df = None  # empty frame when no counts provided
 
     return {"global_table": global_table, "global_table_str": global_table_str, "per_site_df": per_site_df}
+
+from scipy.stats import binomtest
+
+def is_site_hypomethylated(methylated_reads, unmethylated_reads, background_rate=0.85, alpha=0.05):
+    """
+    Performs a one-sided binomial test for hypomethylation.
+    Null hypothesis: observed methylation rate >= background_rate (default 85%)
+    Alternative hypothesis: observed methylation rate < background
+    Returns p-value and boolean for hypomethylation (True if significant hypomethylation).
+    """
+    result = binomtest(methylated_reads, unmethylated_reads+methylated_reads, background_rate, alternative='less')
+    pval = result.pvalue
+    return pval, pval < alpha

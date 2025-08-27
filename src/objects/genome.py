@@ -60,18 +60,25 @@ class Genome(object):
         if default_treatments is None:
             raise ValueError("No default treatments provided.")
         
-        # Load treatment information mappings
-        treatment_name_map, treatment_color_map, treatment_order_map = parse_treatment_tsv(treatment_info)
-        
-        self.treatment_name_map: dict[str, str] = treatment_name_map
-        self.treatment_color_map: dict[str, str] = treatment_color_map
-        self.treatment_order_map: dict[str, str] = treatment_order_map
-        
-        # Load barcode mappings
+         # Load barcode mappings
         barcode_treatment_map, barcode_sample_map = parse_barcode_tsv(barcode_treatment_sample_file)
 
         self.barcode_treatment_map: dict[str, str] = barcode_treatment_map                
         self.barcode_sample_map: dict[str, str] = barcode_sample_map
+        
+        # Load treatment information mappings
+        treatment_name_map, treatment_color_map, treatment_order_map = parse_treatment_tsv(treatment_info)
+        
+        # Remove keys not in default treatments
+        for treatment in list(treatment_name_map.keys()):
+            if treatment not in self.default_treatments:
+                treatment = treatment_name_map[treatment]
+                del treatment_color_map[treatment]
+                del treatment_order_map[treatment]
+
+        self.treatment_name_map: dict[str, str] = treatment_name_map
+        self.treatment_color_map: dict[str, str] = treatment_color_map
+        self.treatment_order_map: dict[str, str] = treatment_order_map
 
         # Create a "readable_name" for display
         self.readable_name: str = ". ".join([s.capitalize() for s in genome_path.stem.split("__")[0:2]])
@@ -246,7 +253,7 @@ class Genome(object):
                                 .collect(streaming=True).get_column("gene_callers_id").to_list(), self)
     
 
-    def nearest_gene_to_positions(self, positions_df: pl.LazyFrame, genes_base: pl.LazyFrame = None) -> pl.LazyFrame:
+    def nearest_gene_to_positions(self, positions_df: pl.LazyFrame | pl.DataFrame, genes_base: pl.LazyFrame | pl.DataFrame = None) -> pl.LazyFrame | pl.DataFrame:
         """
         Finds the nearest gene (by start and end) for each position using join_asof
         for improved memory efficiency.
@@ -264,6 +271,15 @@ class Genome(object):
         """
         # --- Input Validation and Preparation ---
         original_pos_cols = positions_df.collect_schema().names() # Capture original columns
+        
+        genes_base = self.gene_caller_df if genes_base is None else genes_base
+        genes_base = genes_base.select("contig", "strand", "gene_callers_id", "start", "stop")
+
+        if type(positions_df) == pl.DataFrame and type(genes_base) == pl.LazyFrame:
+            genes_base = genes_base.collect()
+        
+        elif type(positions_df) == pl.LazyFrame and type(genes_base) == pl.DataFrame:
+            genes_base = genes_base.lazy()
 
         # Handle potential existing gene_callers_id column in positions_df
         temp_gene_id_col = "gene_callers_id"
@@ -274,13 +290,9 @@ class Genome(object):
             # Update original_cols list to reflect the rename
             original_pos_cols = [temp_gene_id_col if c == "gene_callers_id" else c for c in original_pos_cols]
 
-
         # Add a unique ID to restore original order at the end if needed
         # Also sort positions for join_asof
         positions_prep = positions_df.sort("contig", "strand", "position")
-
-        genes_base = self.gene_caller_df if genes_base is None else genes_base
-        genes_base = genes_base.select("contig", "strand", "gene_callers_id", "start", "stop")
 
         # --- Perform join_asof (Nearest Start) ---
         # Sort genes by 'start' for the first join

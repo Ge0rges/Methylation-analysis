@@ -21,7 +21,7 @@ from utilities.compare_methylome import compare_methylomes
 from src.utilities.kegg_enrichment import KEGGEnrichmentAnalyzer
 
 
-sns.set_theme(context="paper", style="whitegrid")
+sns.set_theme(context="poster", style="whitegrid")
 pl.enable_string_cache()
 
 def plot_number_of_positions_by_coverage_colwellia(motif: Motif, output_dir: Path) -> None:
@@ -67,7 +67,7 @@ def plot_number_of_positions_by_coverage_colwellia(motif: Motif, output_dir: Pat
     genome.default_coverage = original_cov  # Reset to original coverage
 
 
-def plot_whole_methylome_colwellia(motif: Motif, output_dir: Path) -> None:
+def plot_whole_methylome_colwellia(motif: Motif, output_dir: Path, promoter_only: bool =False) -> None:
     """
     Plot the whole methylome (only for the motif's methylation type) across samples:
     - fraction = motif_type / (motif_type + canonical base)
@@ -79,6 +79,9 @@ def plot_whole_methylome_colwellia(motif: Motif, output_dir: Path) -> None:
     if df is None:
         return
     
+    if promoter_only:
+        df =  motif.genome.nearest_gene_to_positions(df).filter(pl.col("distance_to_start") < 60)
+
     # Get all unique treatments and create pairwise combinations
     treatments = sorted(df.get_column("Treatment").unique().to_list(), key=genome.treatment_order_map.get)
     pairwise_comparisons = list(combinations(treatments, 2))
@@ -107,9 +110,20 @@ def plot_whole_methylome_colwellia(motif: Motif, output_dir: Path) -> None:
         palette = [genome.treatment_color_map[treat1], genome.treatment_color_map[treat2]]
         if palette[0] == palette[1]:
             if palette[0] == "red":
-                palette[1] = "purple"
+                palette[1] = "violet"
             elif palette[0] == "blue":
                 palette[1] = "green"
+        
+        dark_palette = []
+        for color in palette:
+            if color == "red":
+                dark_palette.append("darkred")
+            elif color == "blue":
+                dark_palette.append("darkblue")
+            elif color == "green":
+                dark_palette.append("darkgreen")
+            elif color == "violet":
+                dark_palette.append("darkviolet")
                 
         # Regplots
         sns.regplot(
@@ -120,7 +134,7 @@ def plot_whole_methylome_colwellia(motif: Motif, output_dir: Path) -> None:
             order=4,
             label=treat1,
             scatter_kws={"s": 16, "alpha": 0.7, "color": palette[0]},
-            line_kws={"color": f"dark {palette[0]}"}
+            line_kws={"color": dark_palette[0]}
         )
         
         sns.regplot(
@@ -131,7 +145,7 @@ def plot_whole_methylome_colwellia(motif: Motif, output_dir: Path) -> None:
             order=4,
             label=treat2,
             scatter_kws={"s": 16, "alpha": 0.7, "color": palette[1]},
-            line_kws={"color": f"dark {palette[1]}"}
+            line_kws={"color": dark_palette[1]}
         )
         
         # Make a legend with two
@@ -156,7 +170,7 @@ def plot_whole_methylome_colwellia(motif: Motif, output_dir: Path) -> None:
     for idx in range(n_comparisons, len(axes)):
         axes[idx].set_visible(False)
 
-    out_file = output_dir / f"{genome.readable_name}_whole_methylome_pairwise_{motif.readable_motif}.pdf"
+    out_file = output_dir / f"{genome.readable_name}_whole_methylome_pairwise_{motif.readable_motif}_promoter.pdf" if promoter_only else output_dir / f"{genome.readable_name}_whole_methylome_pairwise_{motif.readable_motif}.pdf"
     plt.savefig(out_file, bbox_inches='tight')
     print(f"Saved PDF: {out_file}")
 
@@ -292,7 +306,6 @@ def plot_statistics_heatmap_with_timeline(
         timeline_ax2.spines['left'].set_visible(False)
         timeline_ax2.set_ylabel("")
         plt.setp(timeline_ax2.get_yticklabels(), visible=False)
-
         
         d = .015
         kwargs = dict(transform=timeline_ax1.transAxes, color='k', clip_on=False)
@@ -877,7 +890,6 @@ def do_stats(motif: Motif, alpha: float = 0.05) -> None:
             
         plot_statistics_heatmap_with_timeline(motif.genome.output_dir, stat_groups, significance_matrices, value_matrices, timeline_df[timeline_df["Test"] == test], motif, alpha, test)
     
-    
     # Print how well each test's result correlates with each other
     p_values_wide = all_result_stats.pivot(
         index=["Treatment A", "Treatment B", "group"],
@@ -917,7 +929,7 @@ def fraction_investigation(motif: Motif):
     
     # Data - Restrict to promoters
     data = motif.data()
-    data = motif.genome.nearest_gene_to_positions(data).filter(pl.col("distance_to_start") < 100, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+    data = motif.genome.nearest_gene_to_positions(data).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
     
     # Add functions
     gene_ids = data.get_column("gene_callers_id_start").to_list() + data.get_column("gene_callers_id_end").to_list()
@@ -982,7 +994,6 @@ def frac_investigation_with_stats(motif: Motif):
     if not npy_file_path.exists():
         assert False, f"Expected stats data file {npy_file_path} to exist. Run do_stats() first."
     
-
     unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
     all_treatment_names = sorted(
         list(unique_treatment_names),
@@ -1009,7 +1020,7 @@ def frac_investigation_with_stats(motif: Motif):
                                                                     "q_BH": pl.Float64,
                                                                     "significant": pl.Boolean,
                                                                     "treatment_1": pl.Utf8,
-                                                                    "treatment_2": pl.Utf8
+                                                                    "treatment_2": pl.Utf8,
                                                                 })
         df = df.with_columns(pl.lit(pair_treatments[0]).alias("treatment_1"), pl.lit(pair_treatments[1]).alias("treatment_2"))
         all_result_stats.append(df)
@@ -1017,7 +1028,7 @@ def frac_investigation_with_stats(motif: Motif):
     all_result_stats = pl.concat(all_result_stats)
     
     # Data - Restrict to promoters
-    all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats.lazy()).filter(pl.col("distance_to_start") < 100, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+    all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats.lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
     
     # Add functions
     gene_ids = all_result_stats.get_column("gene_callers_id_start").to_list() + all_result_stats.get_column("gene_callers_id_end").to_list()
@@ -1027,56 +1038,21 @@ def frac_investigation_with_stats(motif: Motif):
     all_result_stats = all_result_stats.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
     all_result_stats = all_result_stats.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
     
-    # Find the sites that are statistically different between Cycling S14 and Cycling S1, but NOT different than Cycling S15
-    diff_s14_s1 = all_result_stats.filter(
-        ((pl.col("treatment_1") == "Cycling S14") & (pl.col("treatment_2") == "Cycling S1")) |
-        ((pl.col("treatment_1") == "Cycling S1") & (pl.col("treatment_2") == "Cycling S14"))
-    )
-
-    diff_s14_s15 = all_result_stats.filter(
-        ((pl.col("treatment_1") == "Cycling S14") & (pl.col("treatment_2") == "Cycling S15")) |
-        ((pl.col("treatment_1") == "Cycling S15") & (pl.col("treatment_2") == "Cycling S14"))
-    )
-
-    # And also Cycling S15 is  different to 55ppt control S12
-    diff_s15_s12 = all_result_stats.filter(
-        ((pl.col("treatment_1") == "Cycling S15") & (pl.col("treatment_2") == "55ppt control S12")) |
-        ((pl.col("treatment_1") == "55ppt control S12") & (pl.col("treatment_2") == "Cycling S15"))
-    )
-
-    # Keep sites in S14_vs_S1 but NOT in S14_vs_S15
-    result = diff_s14_s1.join(
-        diff_s14_s15,
-        on=["contig", "position", "strand"],
-        how="anti"  # anti join => Returns rows from the left table that have no match in the right table.
-    )
+    # Make a treatments dataframe
+    treatment_df = (pl.from_dict({"treatment": list(set(all_result_stats.get_column("treatment_1").to_list() + all_result_stats.get_column("treatment_2").to_list()))})
+                    .with_columns(pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity"), 
+                                    (pl.col("group").str.contains("control")).alias("control"))
+                    )
     
-    result = result.join(
-        diff_s15_s12,
-        on=["contig", "position", "strand"],
-        how="anti"
-    )
+    from temp import analyze_differential_expression_patterns,comprehensive_advanced_analysis
+    analyze_differential_expression_patterns(all_result_stats.to_pandas(), treatment_df.to_pandas(), output_file=f"{motif.genome.output_dir}/{motif.genome.readable_name}_{motif.readable_motif}_differential_meth_patterns.xlsx")
+    comprehensive_advanced_analysis(all_result_stats.to_pandas(), treatment_df.to_pandas(), output_file=f"{motif.genome.output_dir}/{motif.genome.readable_name}_{motif.readable_motif}_comprehensive_advanced_analysis.xlsx")
 
-    # List all the other comparisons where these positions are significant
-    significant_comparisons = (all_result_stats.filter(pl.struct(["contig", "position", "strand"]).is_in(result.with_columns(pl.struct(["contig", "position", "strand"]).alias("site")).get_column("site")))
-    .with_columns((pl.col("treatment_1") + "_vs_" + pl.col("treatment_2")).alias("comparison"))
-    .group_by(["contig", "position", "strand"])
-    .agg(pl.col("comparison").unique()))
-    
-    # Merge the result and significant_comparisons, make a column for each result with a list of other significant comparisons
-    result_with_others = result.join(
-        significant_comparisons,
-        on=["contig", "position", "strand"],
-        how="left"
-    )
-        
-    # Write to excel
-    result_with_others.write_excel(motif.genome.output_dir / f"cycling_stats{motif.readable_motif}.xlsx")
-    
 
 def write_promoter_functions(motif:Motif):
     # Data - Restrict to promoters
-    all_positions = motif.genome.nearest_gene_to_positions(motif.positions.lazy()).filter(pl.col("distance_to_start") < 100, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+    all_positions = motif.genome.nearest_gene_to_positions(motif.positions.lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
     
     # Add functions
     gene_ids = all_positions.get_column("gene_callers_id_start").to_list() + all_positions.get_column("gene_callers_id_end").to_list()
@@ -1103,7 +1079,7 @@ def motif_functional_enrichment(motif: Motif):
     all_positions = all_positions.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
     
     # Promoters
-    promoters = all_positions.filter(pl.col("distance_to_start") < 100, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).get_column("gene_callers_id_start").unique()
+    promoters = all_positions.filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).get_column("gene_callers_id_start").unique()
     
     # Get the function DF
     promoter_functions = gc.functional_df.filter(pl.col("gene_callers_id").is_in(promoters), pl.col("source").eq("KOfam")).collect().get_column("accession").to_list()
@@ -1125,7 +1101,7 @@ def find_important_features(motif: Motif, promoter_only: bool):
     df = motif.data().collect()
     
     if promoter_only:
-        df = motif.genome.nearest_gene_to_positions(motif.data().lazy()).filter(pl.col("distance_to_start") < 100, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+        df = motif.genome.nearest_gene_to_positions(motif.data().lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
 
     X = df.pivot(on=["contig", "position", "strand"], values=motif.meth_type, index="treatment")
     
@@ -1143,7 +1119,7 @@ def find_important_features(motif: Motif, promoter_only: bool):
     ).alias("salinity")).get_column("salinity").to_pandas()
     X = X.drop("treatment").to_pandas()
     
-    from validation import identify_predictive_features
+    from src.utilities.utils import identify_predictive_features
     
     result = identify_predictive_features(X, y, n_top_features=100)
 
@@ -1175,3 +1151,37 @@ def find_important_features(motif: Motif, promoter_only: bool):
         df.write_csv(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_important_features_prom_only.csv")
     else:
         df.write_csv(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_important_features.csv")
+
+
+def find_hypomethylated_sites(motif: Motif):
+    from src.utilities.compare_methylome import is_site_hypomethylated
+    
+    df = motif.data(normalize=False).collect()
+    mean_meth = motif.data().select(pl.col(motif.meth_type).mean()).collect().item()
+    result_df = pl.DataFrame([], schema=df.schema)
+        
+    for site in df.iter_rows(named=True):
+        if is_site_hypomethylated(site[motif.meth_type], site[motif.canonical_base], background_rate=mean_meth, alpha=0.05):
+            result_df = pl.concat([result_df, pl.DataFrame([site])])
+            
+    # Add a column with the percent
+    result_df = result_df.with_columns(
+        (pl.col(motif.meth_type) / (pl.col(motif.meth_type) + pl.col(motif.canonical_base)) * 100).alias("percent_hypomethylation")
+    )
+    
+    # Aggregate by percentage range for every 10$
+    result_df = result_df.with_columns(
+        (pl.col("percent_hypomethylation") // 10 * 10).cast(pl.Int32).alias("percent_range")
+    )
+    
+    # Make a frequency plot of the values and save it
+    sns.histplot(result_df.get_column("percent_hypomethylation").to_list(), bins=50)
+    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_hypomethylated_sites.png")
+    
+    # Number of times each site is hypoemethylated
+    result_df_sheet_two = result_df.group_by("contig", "strand", "position").agg(pl.count("percent_hypomethylation").alias("num_times_hypomethylated"))
+
+    # Write to excel result_df and result_df_sheet_two on different sheets
+    with pd.ExcelWriter(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_hypomethylated_sites.xlsx") as writer:
+        result_df.to_excel(writer, sheet_name="Sheet1", index=False)
+        result_df_sheet_two.to_excel(writer, sheet_name="Sheet2", index=False)

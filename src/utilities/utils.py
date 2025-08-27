@@ -5,6 +5,7 @@ import polars as pl
 import numpy as np
 import math
 import csv
+import pandas as pd 
 
 from scipy import stats
 from statsmodels.stats.multitest import multipletests
@@ -364,7 +365,7 @@ def get_stats_data(motif, treatments):
     group1_promoter_standard_error = promoter_standard_error_df.filter(group1_filter).sort(sort_cols).get_column("se").to_numpy()
     group2_promoter_standard_error = promoter_standard_error_df.filter(group2_filter).sort(sort_cols).get_column("se").to_numpy()
     
-    # Counts for means in format [(methylated, unmethylated), (methylated, unmethylated), (methylated, unmethylated)], with 2 replicates: [[(methylated, unmethylated), (methylated, unmethylated)], [(methylated, unmethylated), (methylated, unmethylated)]]
+    # Counts for means in format:  list of list, one list per row, methylated, unmethylated * number of replicates
     counts_df = filter_common(raw_data.select(cols_for_calcs + [canonical_col_name]).filter(is_valid_filter(meth_col_name), is_valid_filter(canonical_col_name))).sort(sort_cols).collect()
     group1_counts = (counts_df.filter(group1_filter)
                                 .with_columns(pl.struct(sort_cols).cum_count().over(pl.struct(sort_cols)).alias("replicate"))
