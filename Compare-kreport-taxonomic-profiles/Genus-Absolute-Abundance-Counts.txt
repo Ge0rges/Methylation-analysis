@@ -1,309 +1,220 @@
-Taxa	Control	IC3-1 (30 cm)	IC3-2 (160 cm)	IC3-3 (205 cm)	IC3-4 (70 cm)	S2-1	S2-2	S3-1	S3-2	S3-3	S4-1	S4-2	S4-3
-Abscondita	0	0	0	0	12	0	0	0	0	0	0	0	0
-Achromatium	0	0	102	0	0	0	0	0	0	0	0	0	0
-Achromobacter	9	98	335	0	670	0	0	0	0	0	0	0	0
-Acinetobacter	37	286	616	7	1661	113	30	0	19	0	0	0	0
-Actinomadura	9	0	0	0	0	0	0	0	0	0	0	0	0
-Actinomyces	179	7	0	0	0	0	33	36	0	0	210	0	0
-Aculeata	0	0	0	0	0	0	0	0	0	0	0	0	130
-Aequorivita	0	0	0	3	20	0	0	0	0	0	0	0	0
-Afipia	5	0	0	0	0	0	0	0	0	0	0	0	0
-Aggregatibacter	0	0	0	0	0	0	0	0	0	0	22	0	0
-Agrobacterium	0	0	0	0	13	0	0	0	0	0	0	0	0
-Alcanivorax	0	0	0	0	23	0	0	0	0	0	0	0	0
-Algibacter	0	0	86	13	0	0	0	0	0	129	0	0	159
-Alkanindiges	41	0	0	0	0	0	0	0	0	0	0	0	0
-Allomuricauda	0	0	0	4	0	0	0	0	0	0	0	0	0
-Alloprevotella	20	6	0	0	0	0	0	45	0	0	247	0	0
-Alteromonas	0	0	0	6	0	117	0	0	0	0	22	179	0
-Amoebophrya	0	4	0	0	0	0	43	36	0	0	23	0	0
-Aphanizomenon	0	0	86	0	0	0	0	0	0	0	0	0	0
-Aphanomyces	0	0	264	9	0	0	57	38	0	213	19	214	183
-Aquabacterium	5	0	0	0	0	0	0	0	0	0	0	0	0
-Aquiluna	0	0	0	0	0	170	0	52	31	213	17	266	188
-Aquimarina	0	5	165	25	15	0	0	0	0	177	0	0	236
-Arachnia	11	0	0	0	0	0	0	0	0	0	0	0	0
-Arenicella	0	0	0	5	0	0	0	0	0	0	0	0	0
-Aristolochia	0	0	79	3	0	0	0	0	0	0	0	0	0
-Arthrospira	5	0	0	0	0	0	0	0	0	0	0	0	0
-Aspergillus	0	0	0	3	0	0	0	0	0	0	0	0	0
-Asterionellopsis	0	0	66	0	0	0	0	0	0	0	0	0	0
-Astrephomene	0	0	0	0	0	0	0	0	0	125	0	0	148
-Attheya	0	0	415	13	0	0	0	0	0	0	0	0	0
-Aureispira	0	4	0	0	10	0	0	0	0	0	0	0	0
-Aureobasidium	9	0	0	0	0	0	0	0	0	0	0	0	0
-Aureococcus	0	0	174	9	0	124	43	51	0	540	22	282	478
-Bacillus	32	6	0	0	12	0	0	0	0	0	19	0	0
-Bathycoccus	0	0	0	0	0	0	0	0	0	111	0	0	156
-Bizionia	0	0	0	3	0	0	0	0	0	0	0	0	0
-Bordetella	11	5	0	0	29	0	0	0	0	0	0	0	0
-Bos	5	0	0	0	0	0	0	0	0	0	0	0	0
-Bosea	8	0	0	0	0	0	0	0	0	0	0	0	0
-Brachybacterium	0	0	0	0	16	0	0	0	0	0	0	0	0
-Bradyrhizobium	74	22	0	0	53	0	0	0	0	0	19	0	0
-Brevibacterium	0	0	0	0	12	0	0	0	0	0	0	0	0
-Brevundimonas	51	459	2007	3	4868	0	45	216	0	0	154	0	0
-Brumimicrobium	0	0	0	3	0	0	0	0	0	0	0	0	0
-Burkholderia	3103	7	0	0	14	723	545	1515	0	0	0	0	0
-Callithrix	19	0	0	0	0	0	0	0	0	0	0	0	0
-Campylobacter	7	4	0	0	0	0	0	0	0	0	39	0	0
-Candidatus Endolissoclinum	0	16	0	0	31	442	113	171	74	181	81	1014	168
-Candidatus Kentron	0	0	0	3	0	0	0	0	0	0	0	0	0
-Candidatus Pelagibacter	763	1324	1483	105	1851	80024	12920	23163	13565	27347	5987	143931	25555
-Candidatus Pseudothioglobus	5	5	0	0	0	358	134	118	64	0	44	534	0
-Candidatus Puniceispirillum	0	4	0	0	0	111	41	41	0	0	30	219	0
-Candidatus Thioglobus	7	10	0	6	18	671	266	228	105	193	97	1051	167
-Capnocytophaga	0	0	0	3	0	0	0	0	0	0	47	0	0
-Caulobacter	45	0	0	0	15	0	0	0	0	0	0	0	0
-Cellulophaga	0	0	77	11	0	0	0	0	0	113	0	0	0
-Cellvibrio	32	0	0	0	0	0	0	0	0	0	0	0	0
-Cercocebus	5	0	0	0	0	0	0	0	0	0	0	0	0
-Chaetoceros	16	21	4122	88	51	167	80	69	19	1346	69	643	918
-Chara	0	0	0	0	0	0	0	0	0	116	0	0	0
-Chelativorans	0	0	0	0	14	0	0	0	0	0	0	0	0
-Chlamydia	18	0	0	0	0	0	0	0	0	0	0	0	0
-Chlamydomonas	0	0	198	24	15	0	0	0	0	356	0	0	509
-Chlorella	0	0	0	0	0	0	0	0	0	110	0	0	123
-Chlorocebus	12	0	0	0	0	0	0	0	0	0	0	0	0
-Christiangramia	0	0	0	5	0	0	0	0	0	0	0	0	0
-Chryseobacterium	30	0	0	6	11	0	0	36	0	0	18	0	0
-Chrysochromulina	14	0	215	8	0	0	94	47	19	2733	33	308	3088
-Citricoccus	0	0	0	0	13	0	0	0	0	0	0	0	0
-Clostridioides	11	0	0	0	0	0	0	0	0	0	0	0	0
-Clostridium	13	0	0	0	0	0	0	0	0	0	0	0	0
-Colobus	5	0	0	0	0	0	0	0	0	0	0	0	0
-Colwellia	108	30	2824	375	141	3743	139	291	211	1412	106	2467	1666
-Comamonas	0	13	0	0	93	0	0	0	0	0	0	0	0
-Corynebacterium	37	4	0	0	12	0	0	0	0	0	25	0	0
-Crassostrea	0	0	106	0	0	0	0	0	0	0	0	0	0
-Crocinitomix	0	0	0	5	0	0	0	0	0	0	0	0	0
-Crocuta	5	0	0	0	0	0	0	0	0	0	0	0	0
-Cronobacter	12	0	0	0	0	0	0	0	0	0	0	0	0
-Cutibacterium	236	9	0	0	24	0	47	84	0	0	58	0	0
-Cylindrotheca	0	0	194	4	0	0	0	0	0	0	0	0	0
-Daphnia	0	0	279	0	0	0	0	0	0	132	0	0	0
-Delftia	14	0	0	0	23	0	0	0	0	0	0	0	0
-Dermacoccus	38	0	0	0	0	0	0	0	0	0	0	0	0
-Diacronema	0	0	0	7	0	0	0	0	0	124	0	0	122
-Dietzia	0	0	0	0	26	0	0	0	0	0	0	0	0
-Dokdonia	0	0	0	6	0	0	0	0	0	0	0	0	0
-Durinskia	0	0	0	0	0	0	0	0	0	148	0	0	167
-Dyadobacter	8	0	0	0	0	0	0	0	0	0	0	0	0
-Ectocarpus	0	4	203	7	0	0	37	0	0	230	0	0	197
-Emiliania	5	4	138	13	0	0	66	54	22	861	26	269	1001
-Ensete	0	0	0	0	23	0	0	0	0	0	0	0	0
-Enterobacter	11	0	0	0	0	0	0	0	0	0	0	0	0
-Enterococcus	45	7	0	0	22	0	0	0	0	0	17	0	0
-Entomoneis	0	0	76	16	0	0	0	0	0	0	0	0	0
-Escherichia	52	9	0	4	31	203	60	78	23	0	47	337	0
-Eunotia	0	0	92	5	0	0	0	0	0	0	0	0	0
-Fistulifera	15	12	6663	166	40	0	0	0	0	1778	0	0	1175
-Flavobacterium	14	11	278	31	30	551	118	150	72	538	59	761	530
-Fluviicola	0	0	0	3	0	0	0	0	0	0	0	0	0
-Formosa	5	4	77	13	0	134	0	46	24	107	0	0	0
-Fragilariopsis	18	42	15712	1697	204	0	0	0	0	2019	26	0	1294
-Frigidibacter	0	0	0	0	14	0	0	0	0	0	0	0	0
-Fusobacterium	15	8	0	0	0	0	0	45	0	0	78	0	0
-Gemella	24	5	0	0	0	0	0	0	0	0	0	0	0
-Gemmata	6	0	0	0	0	0	0	0	0	0	0	0	0
-Geosiphon	0	0	326	3	0	0	0	0	0	154	0	0	0
-Gillisia	0	0	0	4	0	0	0	0	0	0	0	0	0
-Glaciecola	12	10	0	49	15	242	0	51	18	139	38	283	253
-Gonium	0	0	0	0	0	0	0	0	0	118	0	0	169
-Gordonia	8	0	0	0	0	0	0	0	0	0	0	0	0
-Gorilla	6	0	0	0	0	0	0	0	0	0	0	0	0
-Granulicatella	9	0	0	0	0	0	0	0	0	0	22	0	0
-Guillardia	17	5	0	7	16	274	81	88	63	1893	46	1319	2079
-Haemophilus	47	27	0	0	13	0	0	140	0	0	546	0	0
-Halioglobus	0	8	0	6	17	209	48	122	43	153	78	330	139
-Halomonas	0	47	110	0	242	0	0	36	0	0	17	0	0
-Halopseudomonas	5	247	681	6	2349	0	0	0	0	0	0	0	0
-Halteria	25	0	65	4	9	436	331	106	46	528	68	851	522
-Hanseniaspora	7	0	0	0	0	0	0	0	0	0	0	0	0
-Haslea	0	0	69	5	0	0	0	0	0	0	0	0	0
-Heliosvirus	0	0	0	0	0	0	0	0	0	136	0	0	163
-Heterocapsa	0	0	0	0	0	127	0	0	54	162	0	210	211
-Homo	571	43	158	4	142	176	87	124	28	0	166	0	0
-Hyphomicrobium	9	0	0	0	0	0	0	0	0	0	0	0	0
-Hyphomonas	6	21	80	0	163	0	0	0	0	0	0	0	0
-Ichthyophthirius	0	0	0	0	0	0	29	0	0	0	0	0	0
-Kingella	0	0	0	0	0	0	0	0	0	0	28	0	0
-Klebsiella	14	4	0	0	15	0	0	0	0	0	20	0	0
-Klebsormidium	0	0	0	0	0	0	0	0	0	109	0	0	160
-Kordia	8	5	264	37	11	0	0	0	0	352	0	0	347
-Lacinutrix	0	0	68	7	0	0	0	0	0	0	0	0	0
-Lactobacillus	25	0	0	0	0	0	0	0	0	0	0	0	0
-Lawsonella	6	0	0	0	0	0	0	0	0	0	0	0	0
-Legionella	14	0	0	0	10	0	0	0	0	0	0	0	0
-Leptocylindrus	0	0	72	0	0	0	0	0	0	0	0	0	0
-Leptotrichia	16	5	0	0	0	0	0	46	0	0	69	0	0
-Lewinella	0	0	0	8	0	0	0	0	0	0	0	0	0
-Lingulodinium	0	0	0	0	0	0	0	0	24	0	0	0	0
-Listeria	6	0	0	0	0	0	0	0	0	0	0	0	0
-Lupinus	8	0	94	7	27	178	32	62	28	155	22	330	184
-Lutibacter	5	5	100	19	11	125	0	0	0	189	0	0	181
-Macaca	267	12	69	0	62	0	37	51	0	0	80	0	0
-Malassezia	82	0	0	0	0	0	0	0	0	0	0	0	0
-Mandrillus	12	0	0	0	0	0	0	0	0	0	0	0	0
-Maribacter	0	5	65	12	11	112	0	0	0	0	0	0	0
-Marinobacter	16	5	0	3	32	0	0	0	0	0	0	0	0
-Marinobacterium	0	0	0	4	0	0	0	0	0	0	0	0	0
-Marinomonas	0	0	0	5	0	0	0	0	0	0	0	0	0
-Marinoscillum	0	0	0	0	0	0	0	0	0	0	22	0	0
-Massilia	9	0	0	0	0	0	0	0	0	0	0	0	0
-Meiothermus	8	7	0	0	0	0	0	0	0	0	0	0	0
-Mesorhizobium	19	13	0	0	25	163	0	72	34	0	23	405	0
-Methanothrix	0	0	0	0	0	0	0	0	0	0	0	0	130
-Methylobacterium	22	4	0	0	15	0	0	0	0	0	0	0	0
-Methylophaga	0	7	0	0	41	120	0	56	33	0	28	215	0
-Methylorubrum	8	0	0	0	0	0	0	0	0	0	0	0	0
-Microbacterium	34	5	0	0	10	0	0	0	0	0	0	0	0
-Micrococcus	7	0	0	0	0	0	0	0	0	0	0	0	0
-Micromonas	23	6	0	8	21	480	95	89	90	1906	60	1106	3086
-Molossus	11	0	0	0	0	0	0	0	0	0	0	0	0
-Muntiacus	12	0	0	0	0	0	0	0	0	0	0	0	0
-Mycobacterium	69	11	0	0	15	0	0	0	0	0	0	0	0
-Mycobacteroides	23	0	0	0	0	0	0	0	0	0	0	0	0
-Mycolicibacterium	6	0	0	0	0	0	0	0	0	0	0	0	0
-Myotis	8	0	0	0	0	0	0	0	0	0	0	0	0
-Mytilus	0	0	64	7	0	0	0	0	0	162	0	0	154
-Navicula	0	0	68	6	0	0	0	0	0	0	0	0	0
-Neisseria	39	26	0	0	11	0	0	134	20	0	535	0	0
-Neolewinella	0	0	0	3	0	0	0	0	0	0	0	0	0
-Neopusillimonas	0	0	0	0	15	0	0	0	0	0	0	0	0
-Neptunomonas	0	0	0	3	0	0	0	0	0	0	0	0	0
-Nevskia	8	8	0	0	0	0	0	0	0	0	0	0	0
-Nitriliruptor	6	0	0	0	0	0	0	0	0	0	0	0	0
-Nitrosomonas	0	0	0	5	0	0	0	0	0	0	0	0	0
-Nitrosopumilus	0	0	0	0	0	366	0	0	0	0	0	0	0
-Nitzschia	55	34	24125	434	103	0	34	0	0	7233	42	0	4715
-Nomascus	16	0	0	0	0	0	0	0	0	0	0	0	0
-Nonlabens	5	0	80	10	0	115	0	0	0	0	0	0	0
-Novosphingobium	16	8	0	0	11	0	0	0	0	0	0	0	0
-Nymphon	0	0	0	8	0	118	0	40	21	0	21	272	0
-Oceanibaculum	0	29	76	0	264	0	0	0	0	0	0	0	0
-Oceanicoccus	0	0	0	5	0	0	0	0	0	0	0	0	0
-Oceaniferula	0	0	0	3	0	0	0	0	0	0	0	0	0
-Octadecabacter	22	19	236	39	53	442	0	111	42	532	67	421	659
-Oleispira	16	4	0	5	54	1398	132	335	168	484	164	2479	989
-Olleya	0	0	0	4	0	0	0	0	0	0	0	0	0
-Ostreococcus	0	0	0	0	0	0	0	0	0	154	0	0	225
-Paenibacillus	15	0	0	0	0	0	0	0	0	0	19	0	0
-Pan	63	6	0	0	18	0	0	0	0	0	0	0	0
-Papio	22	0	0	0	0	0	0	0	0	0	0	0	0
-Paraburkholderia	37	0	0	0	0	0	0	0	0	0	0	0	0
-Paracoccus	0	5	0	0	0	0	0	0	0	0	0	0	0
-Paraglaciecola	139	36	1048	535	151	2831	307	437	276	1852	255	3120	3235
-Paramecium	0	4	0	3	0	145	74	42	20	122	0	285	121
-Patiriisocius	0	0	0	8	0	0	0	0	0	0	0	0	0
-Pedobacter	0	0	0	4	0	0	0	0	0	0	0	0	0
-Pelagibacterium	0	6	0	0	54	0	0	0	0	0	0	0	0
-Pelagivirus	0	7	0	0	0	142	42	46	31	0	29	204	0
-Pelagomonas	0	0	81	4	0	0	0	0	0	264	0	0	206
-Penaeus	0	0	0	4	0	0	0	0	0	0	0	0	0
-Perkinsus	0	0	98	0	0	0	0	0	0	0	0	0	0
-Persicirhabdus	0	0	0	3	0	0	0	0	0	0	0	0	0
-Phaeobacter	0	0	0	0	0	0	0	0	0	0	18	0	0
-Phaeodactylum	22	15	8431	139	33	0	0	0	0	2458	17	0	1641
-Phyllostomus	5	0	0	0	0	0	0	0	0	0	0	0	0
-Phytophthora	0	0	625	11	9	0	46	41	21	353	18	278	331
-Piliocolobus	7	0	0	0	0	0	0	0	0	0	0	0	0
-Planktomarina	6	8	0	0	9	303	73	200	61	0	81	696	0
-Plasmodium	81	5	0	0	15	0	0	0	0	0	0	0	0
-Polarella	3100	1017	20979	797	851	75083	6022	16554	27925	227189	1645	117562	272099
-Polaribacter	422	126	12335	1457	695	7870	503	927	584	22480	301	5779	23115
-Polaromonas	0	0	0	0	0	0	0	0	0	0	21	0	0
-Pongo	14	0	0	0	0	0	0	0	0	0	0	0	0
-Porphyromonas	12	6	0	0	0	0	0	35	0	0	172	0	0
-Prasinovirus	718	2841	1463	148	5319	62848	21156	15606	8959	17063	13216	190134	23060
-Prevotella	25	6	0	0	13	0	0	133	0	0	674	0	0
-Propionibacterium	6	0	0	0	0	0	0	0	0	0	0	0	0
-Pseudo-nitzschia	7	17	4752	357	38	0	0	0	0	1032	0	0	755
-Pseudoalteromonas	7	5	87	14	14	218	48	69	33	126	40	305	139
-Pseudocohnilembus	0	0	0	5	0	0	40	0	0	141	0	0	146
-Pseudohongiella	0	0	0	0	0	201	0	97	34	0	57	401	0
-Pseudomonas	134	822	2590	17	6668	328	75	144	44	238	75	595	210
-Pseudonocardia	5	0	0	0	0	0	0	0	0	0	0	0	0
-Pseudopedinella	0	0	0	6	0	0	0	0	0	0	0	0	0
-Pseudorhizobium	0	0	0	0	10	0	0	0	0	0	0	0	0
-Psychrobacter	0	7	0	0	0	0	0	0	0	194	0	0	0
-Psychroflexus	35	7	130	7	13	1187	69	190	67	375	59	791	660
-Psychromonas	6	12	0	5	0	0	0	0	0	381	0	0	1253
-Psychroserpens	0	0	0	9	0	0	0	0	0	0	0	0	0
-Pusillimonas	0	6	0	0	49	0	0	0	0	0	0	0	0
-Putridiphycobacter	0	0	0	3	0	0	0	0	0	0	0	0	0
-Pycnococcus	0	0	0	3	0	0	0	0	0	150	0	0	192
-Pyramimonas	0	4	0	0	0	0	0	0	0	293	0	0	407
-Reyranella	24	13	0	0	20	0	0	0	0	0	0	0	0
-Rhinopithecus	9	0	0	0	0	0	0	0	0	0	0	0	0
-Rhizobium	13	4	0	0	11	0	0	0	19	0	0	0	0
-Rhizopus	0	9	0	0	59	0	0	0	0	0	0	0	0
-Rhodobacter	0	0	0	0	0	113	0	63	27	0	33	222	0
-Rhodococcus	7	4	0	0	0	0	0	0	0	0	0	0	0
-Rhodopirellula	0	0	0	0	0	0	0	0	0	370	0	208	446
-Rhodopseudomonas	5	0	0	0	0	0	0	0	0	0	0	0	0
-Roseibacillus	0	0	0	6	0	0	0	0	0	0	0	0	0
-Roseobacter	0	0	0	5	0	0	0	35	0	0	0	0	0
-Roseomonas	6	0	0	0	0	0	0	0	0	0	0	0	0
-Roseovarius	0	0	0	0	0	0	0	40	20	0	19	0	0
-Rotaria	0	0	0	3	0	0	0	0	0	106	0	0	139
-Rothia	111	6	0	0	0	0	36	94	0	0	257	0	0
-Rousettus	6	0	0	0	0	0	0	0	0	0	0	0	0
-Rubritalea	25	9	1102	125	41	0	0	0	0	393	19	0	671
-Ruegeria	0	4	0	0	0	0	0	40	0	0	18	0	0
-Saccharomyces	20	0	0	0	0	0	0	0	0	0	0	0	0
-Salegentibacter	0	23	60	0	121	0	0	0	0	0	0	0	0
-Salmonella	12	5	0	0	0	0	0	0	0	0	0	0	0
-Sarumanvirus	52	0	0	0	0	0	0	0	0	0	0	0	0
-Scenedesmus	0	0	0	0	0	0	0	0	0	120	0	0	158
-Schizostauron	0	0	130	9	0	0	0	0	0	0	0	0	0
-Sediminibacterium	7	0	0	0	0	0	0	0	0	0	0	0	0
-Seminavis	0	0	0	4	0	0	0	0	0	0	0	0	0
-Seonamhaeicola	0	0	0	3	0	0	0	0	0	0	0	0	0
-Shewanella	5	6	0	11	12	113	0	38	0	0	0	0	0
-Shigella	6	0	0	0	0	0	0	0	0	0	0	0	0
-Shimia	0	0	0	4	0	0	0	0	0	0	0	0	0
-Siovirus	0	4	0	0	9	118	44	48	18	0	43	202	0
-Sphingobacterium	15	0	0	0	0	0	0	0	0	0	0	0	0
-Sphingobium	15	5	0	0	62	0	0	0	0	0	18	0	0
-Sphingomonas	57	11	0	0	32	0	0	0	0	0	0	0	0
-Sphingopyxis	0	0	0	0	9	0	0	0	0	0	0	0	0
-Spongiibacter	0	0	0	3	0	0	0	0	0	0	0	0	0
-Staphylococcus	88	4	0	0	26	0	0	0	0	0	18	0	0
-Stenotrophomonas	31	227	612	0	1448	0	0	0	0	0	0	0	0
-Stentor	0	0	0	0	0	0	39	0	0	0	0	0	0
-Streptococcus	327	35	72	0	34	168	70	105	0	0	441	0	0
-Streptomyces	5	0	0	0	16	0	0	0	0	0	0	0	0
-Stutzerimonas	0	0	0	0	4	0	0	0	0	0	0	0	0
-Stylonychia	64	11	366	11	56	1698	1346	392	247	2394	317	3750	2276
-Sulfitobacter	6	4	0	6	11	150	0	74	31	0	29	290	0
-Symbiodinium	62	40	1427	119	84	2227	417	687	675	4230	150	4075	5373
-Synechococcus	0	0	0	0	20	0	0	0	0	120	0	0	128
-Tamlana	0	0	0	6	0	0	0	0	0	0	0	0	0
-Tenacibaculum	19	10	399	70	31	290	45	73	34	618	17	261	629
-Teredinibacter	0	0	0	4	0	0	0	0	0	0	0	0	0
-Tetrabaena	0	0	0	0	0	0	0	0	0	105	0	0	0
-Tetrahymena	5	0	60	6	0	148	75	40	28	132	0	274	140
-Thalassiosira	11	5	6868	138	44	0	39	40	0	2053	29	0	1329
-Thalassospira	0	15	0	0	95	0	0	0	0	0	0	0	0
-Thalassotalea	0	0	0	8	0	0	0	0	0	0	0	0	0
-Theropithecus	5	0	0	0	0	0	0	0	0	0	0	0	0
-Toxarium	0	0	0	4	0	0	0	0	0	0	0	0	0
-Trachypithecus	8	0	0	0	0	0	0	0	0	0	0	0	0
-Trichinella	11	0	0	0	0	0	0	0	0	0	0	0	0
-Trinickia	5	0	0	0	0	0	0	0	0	0	0	0	0
-Tryblionella	5	0	1337	32	13	0	0	0	0	372	0	0	316
-Ulnaria	0	0	378	19	0	0	0	0	0	0	0	0	0
-Urbifossiella	5	0	0	0	0	0	0	0	0	0	0	0	0
-Variovorax	8	0	0	0	0	0	0	0	0	0	0	0	0
-Veillonella	39	11	0	0	0	0	0	151	0	0	603	0	0
-Vertebrata	0	0	0	0	0	3	3	3	2	13	1	8	10
-Vibrio	14	7	0	11	31	248	44	81	46	117	35	412	164
-Vicingus	0	0	0	6	0	0	0	0	0	0	0	0	0
-Volvox	0	0	0	0	0	0	0	0	0	205	0	0	310
-Vreelandella	0	0	0	0	12	0	0	0	0	0	0	0	0
-Waddlia	5	0	0	0	0	0	0	0	0	0	0	0	0
-Winogradskyella	5	0	133	26	18	155	35	48	27	222	20	253	201
-Xanthomonas	0	0	0	0	27	0	0	0	0	0	0	0	0
-Yoonia	0	0	0	3	0	0	0	0	0	0	0	0	0
-Zostera	0	0	73	4	0	0	0	0	0	0	0	0	0
+Taxa	Control	S2-1	S2-2	S2-3	S3-1	S3-2	S3-3	S4-1	S4-2	S4-3
+Abscondita	0	0	0	0	0	0	0	0	203	0
+Acinetobacter	21	0	0	0	36	0	0	0	0	0
+Actinomadura	5	0	0	0	0	0	0	0	0	0
+Actinomyces	195	0	32	0	42	0	0	200	0	0
+Afipia	6	0	0	0	0	0	0	0	0	0
+Aggregatibacter	0	0	0	0	0	0	0	20	0	0
+Algibacter	0	0	0	674	0	0	110	0	0	0
+Alkanindiges	27	0	0	0	0	0	0	0	0	0
+Alloprevotella	20	0	0	0	49	0	0	278	0	0
+Alteromonas	0	115	0	0	0	0	0	0	0	0
+Amoebophrya	0	0	45	0	36	0	0	23	0	0
+Aphanomyces	0	0	52	656	0	0	206	23	214	175
+Aquiluna	6	210	0	0	56	36	236	28	270	216
+Aquimarina	0	0	0	1189	0	19	127	0	0	217
+Arachnia	12	0	0	0	0	0	0	0	0	0
+Arthrospira	5	0	0	0	0	0	0	0	0	0
+Astrephomene	0	0	0	0	0	0	137	0	0	158
+Aureispira	0	0	33	0	0	0	0	0	0	0
+Aureobasidium	10	0	0	0	0	20	0	0	224	150
+Aureococcus	0	0	54	1070	43	0	461	22	252	430
+Bacillus	22	0	0	0	0	0	0	20	0	0
+Bathycoccus	0	0	32	0	0	0	131	0	0	146
+Bordetella	7	0	0	0	0	0	0	0	0	0
+Bosea	3	0	0	0	0	0	0	0	0	0
+Bradyrhizobium	107	0	0	0	0	0	0	0	0	0
+Brevundimonas	65	0	62	0	264	0	0	199	0	0
+Burkholderia	3681	830	653	856	1766	0	0	0	0	0
+Callithrix	5	0	0	0	0	0	0	0	0	0
+Campylobacter	6	0	0	0	0	0	0	43	0	0
+Candidatus Endolissoclinum	0	587	161	0	220	109	210	120	1293	207
+Candidatus Pelagibacter	652	66212	10681	60416	19164	11064	22370	5035	119678	21144
+Candidatus Pseudothioglobus	10	457	196	0	169	82	117	72	698	126
+Candidatus Puniceispirillum	0	135	56	0	68	18	0	29	271	0
+Candidatus Thioglobus	12	962	371	863	333	149	228	129	1424	229
+Capnocytophaga	0	0	0	0	0	0	0	49	0	0
+Caulobacter	51	0	0	0	0	0	0	0	0	0
+Cellulophaga	0	0	0	753	0	0	144	0	0	0
+Cellvibrio	36	0	0	0	0	0	0	0	0	0
+Chaetoceros	22	190	94	6033	74	22	1303	71	652	1062
+Chara	0	0	0	0	0	0	121	0	0	143
+Chlamydia	11	0	0	0	0	0	0	0	0	0
+Chlamydomonas	0	0	0	906	0	0	339	0	0	454
+Chlorella	0	0	0	0	0	0	0	0	0	123
+Chlorocebus	11	0	0	0	0	0	0	0	0	0
+Chryseobacterium	37	0	0	0	38	0	0	0	0	0
+Chrysochromulina	9	112	92	5689	39	18	2267	28	289	2688
+Citrobacter	5	0	0	0	0	0	0	0	0	0
+Clostridioides	7	0	0	0	0	0	0	0	0	0
+Clostridium	8	0	0	0	0	0	0	0	0	0
+Colobus	5	0	0	0	0	0	0	0	0	0
+Colwellia	86	3351	128	10363	254	193	1361	87	2273	1731
+Corynebacterium	43	0	0	0	0	0	0	22	0	0
+Crocuta	8	0	0	0	0	0	0	0	0	0
+Cronobacter	7	0	0	0	0	0	0	0	0	0
+Cutibacterium	272	0	57	0	105	0	0	68	0	0
+Daphnia	0	0	0	0	0	0	107	0	0	0
+Delftia	14	0	0	0	0	0	0	0	0	0
+Dermacoccus	40	0	0	0	0	0	0	0	0	0
+Diacronema	0	0	0	0	0	0	121	0	0	126
+Durinskia	0	0	0	0	0	0	148	0	0	119
+Dyadobacter	7	0	0	0	0	0	0	0	0	0
+Ectocarpus	0	0	45	716	0	0	224	0	195	209
+Emiliania	0	0	74	1969	47	21	685	23	240	806
+Enterobacter	8	0	0	0	0	0	0	0	0	0
+Enterococcus	26	0	0	0	0	0	0	0	0	0
+Equus	5	0	0	0	0	0	0	0	0	0
+Escherichia	41	163	48	0	71	0	0	35	211	0
+Fistulifera	23	0	0	11005	0	0	2588	0	0	1643
+Flavobacterium	16	656	117	2868	188	78	484	74	819	521
+Formosa	0	204	42	709	70	38	147	17	256	0
+Fragilariopsis	26	0	29	8638	0	0	1811	30	0	1256
+Fusobacterium	13	0	0	0	43	0	0	80	0	0
+Gemella	23	0	0	0	0	0	0	0	0	0
+Gemmata	8	0	0	0	0	0	0	0	0	0
+Glaciecola	11	253	0	1581	50	0	145	42	287	259
+Gonium	0	0	0	0	0	0	0	0	0	127
+Gordonia	8	0	0	0	0	0	0	0	0	0
+Granulicatella	8	0	0	0	0	0	0	23	0	0
+Guillardia	12	331	126	4453	114	71	2046	64	1612	2324
+Haemophilus	61	0	0	0	165	0	0	740	0	0
+Halioglobus	11	412	91	1156	233	67	295	134	614	272
+Halopseudomonas	6	0	0	0	0	0	0	0	0	0
+Halteria	26	394	311	4568	98	48	477	73	775	503
+Heliosvirus	0	0	0	0	0	0	111	0	0	164
+Heterocapsa	0	112	0	1549	0	39	116	0	0	168
+Homo	551	132	81	0	108	23	0	144	0	0
+Hyphomicrobium	13	0	0	0	0	0	0	0	0	0
+Hyphomonas	6	0	0	0	0	0	0	0	0	0
+Ichthyophthirius	0	0	45	0	0	0	0	0	0	0
+Kingella	0	0	0	0	0	0	0	30	0	0
+Klebsiella	10	0	0	0	0	0	0	0	0	0
+Kordia	8	0	0	2287	0	0	330	0	0	322
+Lacinutrix	0	0	0	603	0	0	0	0	0	0
+Lactobacillus	25	0	0	0	0	0	0	0	0	0
+Lawsonella	9	0	0	0	0	0	0	0	0	0
+Legionella	7	0	0	0	0	0	0	0	0	0
+Leptotrichia	16	0	0	0	46	0	0	76	0	0
+Lewinella	5	0	0	0	0	0	121	0	0	0
+Lingulodinium	0	0	0	819	0	35	0	0	0	0
+Listeria	8	0	0	0	0	0	0	0	0	0
+Loktanella	0	0	0	0	0	0	0	18	0	0
+Lupinus	15	269	36	1328	87	41	320	30	521	357
+Lutibacter	0	124	0	1013	0	0	157	0	0	133
+Macaca	219	0	0	0	0	0	0	47	0	0
+Malassezia	79	0	0	0	0	0	0	0	0	0
+Mandrillus	6	0	0	0	0	0	0	0	0	0
+Marinobacter	21	0	0	0	0	0	0	21	0	0
+Marinoscillum	0	0	0	0	0	0	0	22	0	0
+Massilia	8	0	0	0	0	0	0	0	0	0
+Mesorhizobium	19	125	0	0	0	21	0	0	220	0
+Methanothrix	0	0	0	0	0	0	0	0	0	120
+Methylobacterium	22	0	0	0	0	0	0	0	0	0
+Methylophaga	0	151	0	0	68	43	0	34	234	0
+Methylorubrum	6	0	0	0	0	0	0	0	0	0
+Microbacterium	36	0	0	0	0	0	0	0	0	0
+Micrococcus	7	0	0	0	0	0	0	0	0	0
+Microlunatus	5	0	0	0	0	0	0	0	0	0
+Micromonas	21	383	79	5432	80	77	1484	44	831	2497
+Molossus	11	0	0	0	0	0	0	0	0	0
+Moritella	0	0	0	814	0	0	0	0	0	0
+Muntiacus	12	0	0	0	0	0	0	0	0	0
+Mycobacterium	80	0	0	0	0	0	0	0	0	0
+Mycobacteroides	20	0	0	0	0	0	0	0	0	0
+Mycolicibacterium	7	0	0	0	0	0	0	0	0	0
+Myotis	6	0	0	0	0	0	0	0	0	0
+Mytilus	0	0	0	721	0	18	173	0	0	192
+Neisseria	48	0	0	0	158	0	0	598	0	0
+Nevskia	6	0	0	0	0	0	0	0	0	0
+Nitriliruptor	5	0	0	0	0	0	0	0	0	0
+Nitrosopumilus	0	355	0	828	0	0	0	0	0	0
+Nitzschia	71	0	45	29812	37	0	7095	42	0	4858
+Nonlabens	5	120	0	664	0	0	0	0	0	0
+Novosphingobium	16	0	0	0	0	0	0	0	0	0
+Nymphon	0	166	39	0	75	42	140	28	481	131
+Octadecabacter	22	424	0	3141	106	37	508	75	410	611
+Oleispira	20	1452	140	2485	340	179	493	174	2548	974
+Ostreococcus	0	0	0	0	0	0	117	0	195	173
+Paenibacillus	7	0	0	0	0	0	0	0	0	0
+Pan	36	0	0	0	0	0	0	0	0	0
+Papio	9	0	0	0	0	0	0	0	0	0
+Paraburkholderia	11	0	0	0	0	0	0	0	0	0
+Paraglaciecola	204	3650	375	13869	546	334	2355	320	4068	4036
+Paramecium	0	158	83	0	41	23	112	0	323	0
+Pelagivirus	0	132	36	0	47	29	0	36	192	0
+Pelagomonas	0	0	0	0	0	0	212	0	0	204
+Penaeus	0	0	0	0	0	0	129	0	0	0
+Phaeodactylum	21	0	0	11088	0	0	2538	0	0	1721
+Phenylobacterium	5	0	0	0	0	0	0	0	0	0
+Phyllostomus	5	0	0	0	0	0	0	0	0	0
+Phytophthora	5	123	73	1185	46	21	324	24	300	357
+Planktomarina	9	360	75	0	229	82	119	91	908	133
+Plasmodium	67	0	0	0	0	0	0	20	0	0
+Polarella	3291	79802	6378	1450958	17159	28291	226100	1826	120963	278099
+Polaribacter	563	9267	630	178194	1120	698	33082	417	7070	32820
+Polaromonas	0	0	0	0	0	0	0	26	0	0
+Pongo	7	0	0	0	0	0	0	0	0	0
+Porphyromonas	13	0	0	0	39	0	0	196	0	0
+Prasinovirus	766	67656	22845	51365	16995	9571	18014	14273	201916	24259
+Prevotella	28	0	0	0	139	0	0	713	0	0
+Pseudo-nitzschia	6	0	0	5184	0	0	1128	0	0	870
+Pseudoalteromonas	5	216	53	0	64	38	108	36	303	0
+Pseudocohnilembus	0	0	42	617	0	0	136	0	0	136
+Pseudohongiella	0	226	34	0	154	37	0	74	557	120
+Pseudomonas	122	285	91	0	132	45	197	54	464	191
+Pseudonocardia	5	0	0	0	0	0	0	0	0	0
+Psychrobacter	5	0	0	0	0	0	207	0	0	0
+Psychroflexus	39	1199	80	4158	180	78	407	58	839	708
+Psychromonas	0	0	0	1902	0	0	411	0	0	1403
+Psychroserpens	5	0	0	0	0	0	0	0	0	0
+Pycnococcus	0	0	0	0	0	0	118	0	0	160
+Pyramimonas	0	0	0	1000	0	0	228	0	0	348
+Reyranella	23	0	0	0	0	0	0	0	0	0
+Rhinolophus	5	0	0	0	0	0	0	0	0	0
+Rhinopithecus	5	0	0	0	0	0	0	0	0	0
+Rhizobium	15	0	0	0	0	0	0	0	0	0
+Rhizopus	9	0	0	0	0	0	0	0	0	0
+Rhodobacter	0	123	0	0	62	29	0	24	251	0
+Rhodococcus	7	0	0	0	0	0	0	0	0	0
+Rhodopirellula	0	0	31	1124	0	0	459	0	223	521
+Roseobacter	0	0	0	0	40	18	0	0	0	0
+Roseomonas	5	0	0	0	0	0	0	0	0	0
+Roseovarius	0	0	0	0	0	22	0	17	0	0
+Rotaria	0	0	0	1054	0	26	183	0	178	233
+Rothia	127	0	42	0	111	0	0	302	0	0
+Rousettus	5	0	0	0	0	0	0	0	0	0
+Rubritalea	25	0	0	4933	0	0	326	19	0	601
+Ruegeria	5	113	0	0	58	18	0	24	210	0
+Saccharomyces	22	0	0	0	0	0	0	0	0	0
+Salmonella	5	0	0	0	0	0	0	0	0	0
+Sarumanvirus	122	0	0	0	55	0	0	0	0	0
+Scenedesmus	0	0	0	0	0	0	0	0	0	119
+Sediminibacterium	5	0	0	0	0	0	0	0	0	0
+Shewanella	6	111	0	0	36	19	0	22	0	0
+Shigella	5	0	0	0	0	0	0	0	0	0
+Siovirus	0	113	46	0	41	0	0	45	196	0
+Sphingobacterium	18	0	0	0	0	0	0	0	0	0
+Sphingobium	13	0	0	0	0	0	0	0	0	0
+Sphingomonas	60	0	0	0	0	0	0	0	0	0
+Staphylococcus	94	0	0	0	0	0	0	0	0	0
+Stenotrophomonas	31	0	0	0	0	0	0	0	0	0
+Stentor	0	0	38	0	0	0	0	0	0	0
+Streptococcus	360	160	76	0	115	0	0	448	0	0
+Streptomyces	8	0	0	0	0	0	0	19	0	121
+Stylonychia	65	1787	1359	22605	416	251	2514	352	3980	2428
+Sulfitobacter	6	205	31	0	90	37	0	39	328	0
+Symbiodinium	102	3250	630	39596	992	939	5562	270	6740	7054
+Synechococcus	0	0	0	0	0	0	148	0	0	158
+Tenacibaculum	15	276	41	3281	86	27	392	27	250	418
+Tetrahymena	0	127	80	636	40	29	139	0	273	134
+Thalassiosira	15	0	46	8758	41	0	2103	31	0	1401
+Trichinella	7	0	0	0	0	0	0	0	0	0
+Tryblionella	0	0	0	941	0	0	154	0	0	129
+Variovorax	10	0	0	0	0	0	0	0	0	0
+Veillonella	40	0	0	0	151	0	0	630	0	0
+Vertebrata	0	2	2	8	7	2	5	0	14	10
+Vibrio	7	189	34	0	58	29	115	32	258	141
+Volvox	0	0	0	0	0	0	201	0	0	285
+Winogradskyella	6	166	34	1560	42	0	216	25	232	215
+Xanthomonas	5	0	0	0	0	0	0	0	0	0
