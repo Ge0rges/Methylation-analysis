@@ -5,20 +5,21 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from xlsxwriter import Workbook
 import pandas as pd
 import polars as pl
 import seaborn as sns
-import openpyxl
 
-from chi_squared_test import chi_squared_test
-from utilities.utils import do_ks_test, find_closest_step
+from src.utilities.chi_squared_test import chi_squared_test
 from src.objects.gene_collection import GeneCollection
 from src.objects.genome import Genome
 from src.objects.motif import Motif
-from src.utilities.utils import readable_modification_name, get_stats_data, identify_predictive_features
+from src.utilities.utils import readable_modification_name, get_stats_data, find_closest_step
 from src.utilities.data_loading import parse_genbank
-from utilities.compare_methylome import compare_methylomes
+from src.utilities.compare_methylome import compare_methylomes
 from src.utilities.kegg_enrichment import KEGGEnrichmentAnalyzer
+from src.utilities.feature_statistics import *
+from src.diff_pattern import analyze_differential_expression_patterns
 
 
 sns.set_theme(context="poster", style="whitegrid")
@@ -232,8 +233,10 @@ def plot_statistics_heatmap_with_timeline(
         genome (Any): The genome object with metadata like treatment colors.
         alpha (float, optional): Significance threshold. Defaults to 0.05.
     """
+    sns.set_theme(context="poster", style="whitegrid")
+
     n_stats = len(statistic_keys)
-    _, axes = plt.subplots(n_stats, 3, figsize=(30, 10 * n_stats), constrained_layout=True, width_ratios=[1, 0.5, 0.5])
+    _, axes = plt.subplots(n_stats, 3, figsize=(24, 15 * n_stats), constrained_layout=True, width_ratios=[1, 0.3, 0.3])
 
     if n_stats == 1:
         axes = [axes]
@@ -254,7 +257,7 @@ def plot_statistics_heatmap_with_timeline(
         annot = np.where(pval_matrix < alpha, val_matrix.round(2), "X")
         sns.heatmap(
             val_matrix, ax=heatmap_ax, annot=annot, fmt="s", cmap="viridis",
-            cbar_kws={'label': stat_name, 'shrink': 0.8}, vmin=0, linewidths=0.5
+            cbar_kws={'label': "D-value" if stat_name == "Kilmogorov-Smirnov" else stat_name, 'shrink': 0.8}, linewidths=0.5
         )
         heatmap_ax.set_xticklabels(heatmap_ax.get_xticklabels(), rotation=90)
 
@@ -278,11 +281,12 @@ def plot_statistics_heatmap_with_timeline(
         # Make timeline plots
         start_steps, end_steps = [1, 2], [14, 15]
         for ax, steps in [(timeline_ax1, start_steps), (timeline_ax2, end_steps)]:
+            sns.set_theme(context="poster", style="whitegrid")
             sns.scatterplot(
                 data=timeline_df[(timeline_df['Stat Key'] == stat_key) & (timeline_df['Cycling Step'].isin(steps))],
                 x='Cycling Step', y="Statistic", hue='Control', hue_order=['35ppt control', '55ppt control'],
                 palette=['blue', 'red'], style='Significant', markers={True: 'o', False: 'X'},
-                s=150, alpha=0.7, ax=ax, legend="full", style_order=[True, False]
+                s=180, alpha=0.7, ax=ax, legend="full", style_order=[True, False]
             )
             
             ax.set_ylabel("D-value" if stat_name == "Kilmogorov-Smirnov" else stat_name)
@@ -299,7 +303,7 @@ def plot_statistics_heatmap_with_timeline(
         timeline_ax1.get_legend().remove()
         timeline_ax2.get_legend().remove()
         
-        timeline_ax2.legend(list(combined.values()), list(combined.keys()), title='Legend')
+        timeline_ax2.legend(list(combined.values()), list(combined.keys()), loc='lower right')
 
         # Visual cleanup for broken axis
         timeline_ax1.spines['right'].set_visible(False)
@@ -314,230 +318,6 @@ def plot_statistics_heatmap_with_timeline(
         timeline_ax2.plot((-d, +d), (-d, +d), **kwargs)
 
     plt.savefig(output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_{stat_name}_heatmap.pdf", format="pdf")
-
-
-def plot_dmr_scores_heatmap_colwellia(motif: Motif, output_dir: Path) -> None:
-    """
-    Plot a heatmap of DMR scores for the specified motif across sample comparisons:
-      - rows = sample_a
-      - columns = sample_b
-      - values = mean_dmr_score
-    Each motif -> separate PDF.
-    """
-    genome: Genome = motif.genome
-    dmr = motif.dmr_data.collect(streaming=True)
-    if dmr.is_empty():
-        print(f"No DMR data for motif {motif.motif}")
-        return
-    
-    # Compute mean score per (sample_a, sample_b)
-    pdf = (dmr.group_by(["treatment_a", "treatment_b"]).agg(pl.col("score").mean().alias("mean_dmr_score"))).to_pandas()
-
-    # Make sure to unify sample names if needed, e.g. barcode -> treatment
-    # If you want to rename sample_a, sample_b via genome.barcode_treatment_map:
-    pdf["treatment_a"] = pdf["treatment_a"].replace(genome.barcode_treatment_map).replace(genome.treatment_name_map)
-    pdf["treatment_b"] = pdf["treatment_b"].replace(genome.barcode_treatment_map).replace(genome.treatment_name_map)
-    
-    # Fill in values for missing pairs
-    # This ensures that if (A, B) exists, (B, A) will also be present with the same score
-    pdf_swapped = pdf.rename(columns={'treatment_a': 'treatment_b', 'treatment_b': 'treatment_a'})
-    pdf = pd.concat([pdf, pdf_swapped], ignore_index=True).drop_duplicates(subset=['treatment_a', 'treatment_b'])
-
-    # Get all unique treatments from both columns
-    all_treatments_set = set(pdf["treatment_a"].unique()) | set(pdf["treatment_b"].unique())
-    
-    # Sort treatments based on genome.treatment_order_map
-    # Fallback for sorting: if treatment not in map, use treatment name itself (converted to str for safety)
-    sorted_treatments = sorted(
-        list(all_treatments_set),
-        key=lambda t: genome.treatment_order_map.get(t, str(t)) 
-    )
-
-    # Create pivot with sample_a as rows, sample_b as columns
-    pivot_df = pdf.pivot(index="treatment_a", columns="treatment_b", values="mean_dmr_score")
-
-    # Reindex to ensure the desired order and include all treatments, filling missing with NaN
-    pivot_df = pivot_df.reindex(index=sorted_treatments, columns=sorted_treatments)
-
-    _, ax = plt.subplots(figsize=(len(genome.default_treatments)*2, len(genome.default_treatments)*2), constrained_layout=True)
-    sns.heatmap(pivot_df, cmap="viridis", annot=True, fmt=".2f", ax=ax)
-    ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
-
-    ax.set_title(f"DMR Score Heatmap - {genome.readable_name} ({motif.motif})")
-    ax.set_xlabel("Treatment B")
-    ax.set_ylabel("Treatment A")
-
-    out_file = output_dir / f"{genome.readable_name}_{motif.readable_motif}_dmr_heatmap.pdf"
-    plt.savefig(out_file, format="pdf")
-    plt.close()
-    print(f"Saved PDF: {out_file}")
-    
-
-def extract_diff_methylated_genes_colwellia(
-    motif: Motif,
-    top_n: int = None
-) -> pl.DataFrame:
-    """
-    Extract the top differentially methylated locations (by DMR 'score') for a motif,
-    attach nearest/overlapping gene, and include the gene function in the final CSV.
-
-    Returns a Polars DataFrame.
-    """
-    genome: Genome = motif.genome
-    genome.use_balanced = True
-    top_rows = motif.dmr_data.filter(pl.col("balanced_map_pvalue") > 0, pl.col("balanced_map_pvalue") < 0.05).collect(streaming=True).sort("score", descending=True)
-    if top_rows.is_empty():
-        print(f"No DMR data for motif {motif.motif}")
-        return
-
-    # Add gene_caller_id if needed
-    data = genome.add_gene_caller_id(top_rows.lazy(), include_intergenic=True).collect(streaming=True)
-
-    # Add function
-    gc = GeneCollection(data.get_column("gene_callers_id").unique().to_list(), genome)
-    data = data.join(gc.get_function().collect(streaming=True), on="gene_callers_id", how="left")
-
-    # Add nearest gene if not in gene
-    data = genome.nearest_gene_to_positions(data.lazy()).collect(streaming=True)
-
-    # Add function of nearest genes
-    gc = GeneCollection(data.get_column("gene_callers_id_start").unique().to_list(), genome)
-    data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
-    gc = GeneCollection(data.get_column("gene_callers_id_end").unique().to_list(), genome)
-    data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
-    
-    # Logic to filter down the table by creating a ranking system
-    # Create ranking columns based on priority criteria
-    data = data.with_columns([
-        # First priority: gene_callers_id is not -1 (has gene annotation)
-        (pl.col("gene_callers_id") != -1).cast(pl.Int32).alias("has_gene"),
-        
-        # Create a sort priority column with clear priority rules
-        pl.struct([
-            # First priority: gene_callers_id is not -1 (has direct gene annotation)
-            (pl.col("gene_callers_id") != -1),
-            
-            # Second priority: KOfam > COG20_FUNCTION > others for direct annotation
-            pl.when(pl.col("source") == "KOfam").then(3)
-              .when(pl.col("source") == "COG20_FUNCTION").then(2)
-              .otherwise(1).alias("source_priority"),
-            
-            # Third priority: consistent annotations across direct and nearest genes
-            (pl.col("source") == pl.col("source_start")) & (pl.col("source") == pl.col("source_end")),
-            
-            # Fourth priority: quality of nearest gene annotations
-            pl.when(pl.col("source_start") == "KOfam").then(3)
-              .when(pl.col("source_start") == "COG20_FUNCTION").then(2)
-              .otherwise(1).alias("nearest_priority"),
-            
-            pl.when(pl.col("source_end") == "KOfam").then(3)
-              .when(pl.col("source_end") == "COG20_FUNCTION").then(2)
-              .otherwise(1).alias("nearest_priority_end")
-        ]).alias("sort_priority")
-    ])
-
-    # Sort the data by priority within each position group
-    data = data.sort("sort_priority", descending=True)
-    
-    # Group by position identifiers and take only the first row (highest priority) from each group
-    data = data.group_by(["contig", "position", "strand"]).agg(
-        pl.all().exclude(["contig", "position", "strand", "sort_priority", "has_gene"]).first()
-    )
-        
-    # Take top_n rows by score if requested
-    if top_n is not None and top_n > 0 and data.height > top_n:
-        data = data.sort("score", descending=True).head(top_n)
-    
-    # Write to excel
-    output_file = genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_diff_genes.xlsx"
-    if not {'treatment_a', 'treatment_b'}.issubset(set(data.columns)):
-            raise ValueError("Data does not contain 'treatment_a' and 'treatment_b' columns.")
-
-    df_pd = data.to_pandas()
-    with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
-        for (a, b), group in df_pd.groupby(["treatment_a", "treatment_b"]):
-            sheet = f"{str(a)}_{str(b)}"[:31].replace("/", "-").replace("\\", "-").replace("?", "").replace("*", "")
-            group.to_excel(writer, sheet_name=sheet, index=False)
-            group.to_excel(writer, sheet_name="Main", index=False)
-
-    output_file = genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_diff_genes_promoter.xlsx"
-    df_pd = data.filter(pl.col("distance_to_start") < 60).to_pandas()
-    with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
-        df_pd.to_excel(writer, sheet_name="Main", index=False)
-
-            
-    # Write group stats to a text file
-    effect_sizes = {}
-    effect_sizes_promoters = {}
-    group_stats_file = genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_diff_genes_group_stats.txt"
-    with open(group_stats_file, "w") as f:
-        for (t_a, t_b), group in df_pd.groupby(["treatment_a", "treatment_b"]):
-            f.writelines(f"Summary for ({t_a}, {t_b}):\n")
-            f.write(f"  Number of rows: {group.shape[0]}\n")
-            f.write(f"  Average effect size: {group['balanced_effect_size'].mean()}\n")
-        
-            effect_sizes[(t_a, t_b)] = group["balanced_effect_size"].abs().mean()
-            effect_sizes_promoters[(t_a, t_b)] = group[(group["distance_to_start"] <= 60) & (group["gene_callers_id"] == -1)]["balanced_effect_size"].abs().mean()
-
-            gene_id_neg1 = group["gene_callers_id"] == -1
-            f.write(f"  Rows where gene_callers_id == -1: {gene_id_neg1.shape[0]}\n")
-
-            dist_start_le60 = group[(group["distance_to_start"] <= 60) & (group["gene_callers_id"] == -1)]
-            f.write(f"  Rows where in promoter: {dist_start_le60.shape[0]}\n")
-    
-    # Plot a heatmap of effect sizes
-    unique_treatment_names = set(genome.treatment_name_map[t] for t in genome.default_treatments) 
-    all_treatment_names = sorted(
-        list(unique_treatment_names),
-        key=lambda t: genome.treatment_order_map.get(t, str(t))
-    )
-    
-    effect_size_matrix = pd.DataFrame(np.nan, index=all_treatment_names, columns=all_treatment_names, dtype=float)
-    effect_size_promoter_matrix = pd.DataFrame(np.nan, index=all_treatment_names, columns=all_treatment_names, dtype=float)
-    for (treat_a, treat_b), effect_size in effect_sizes.items():
-        treat_a = genome.treatment_name_map.get(treat_a)
-        treat_b = genome.treatment_name_map.get(treat_b)
-        
-        effect_size_matrix.loc[treat_a, treat_b] = effect_size
-        effect_size_matrix.loc[treat_b, treat_a] = effect_size
-
-    for (treat_a, treat_b), effect_size_promoter in effect_sizes_promoters.items():
-        treat_a = genome.treatment_name_map.get(treat_a)
-        treat_b = genome.treatment_name_map.get(treat_b)
-        
-        effect_size_promoter_matrix.loc[treat_a, treat_b] = effect_size_promoter
-        effect_size_promoter_matrix.loc[treat_b, treat_a] = effect_size_promoter
-    
-    _, axes = plt.subplots(1, 2, figsize=(30, 30), constrained_layout=True)
-    
-    for ax in axes:
-        sns.heatmap(
-            effect_size_matrix if ax == axes[0] else effect_size_promoter_matrix,
-            ax=ax,
-            annot=True,
-            fmt=".2f",
-            cmap="viridis",
-            cbar_kws={'label': 'Effect size', 'shrink': 0.8},
-            linewidths=0.5,
-            square=True
-        )
-        
-        # Color tick labels based on treatment
-        for tick in ax.get_xticklabels():
-            treatment = tick.get_text()
-            if treatment in genome.treatment_color_map:
-                tick.set_color(genome.treatment_color_map[treatment])
-        
-        for tick in ax.get_yticklabels():
-            treatment = tick.get_text()
-            if treatment in genome.treatment_color_map:
-                tick.set_color(genome.treatment_color_map[treatment])
-    
-        ax.set_title("Effect sizes of all DMRs" if ax == axes[0] else "Effect sizes of DMRs in promoters")
-    output_file = genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_diff_genes.xlsx"
-    plt.savefig(output_file.with_suffix(".pdf"), format="pdf")
-
-    return data
 
 
 def write_genbank_features_near_motifs(motif: Motif) -> None:
@@ -738,7 +518,7 @@ def motif_distribution(motif: Motif):
         f.write(f"Provirus vs Not Provirus difference (p-value: {provirus_not_provirus_p_value:.4f})\n")
 
 
-def do_stats(motif: Motif, alpha: float = 0.05) -> None:
+def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
     npy_file_path = motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_stats_data.npy"
     if not npy_file_path.exists():
 
@@ -916,79 +696,6 @@ def do_stats(motif: Motif, alpha: float = 0.05) -> None:
     
 
 
-def fraction_investigation(motif: Motif):
-    
-    unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
-    all_treatment_names = sorted(
-        list(unique_treatment_names),
-        key=lambda t: motif.genome.treatment_order_map.get(t, str(t))
-    )
-    
-    # Generate pairs of treatments using the sorted, unique names
-    low_methylation = []
-    
-    # Data - Restrict to promoters
-    data = motif.data()
-    data = motif.genome.nearest_gene_to_positions(data).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
-    
-    # Add functions
-    gene_ids = data.get_column("gene_callers_id_start").to_list() + data.get_column("gene_callers_id_end").to_list()
-    gene_ids = list(set(gene_ids))
-    
-    gc = GeneCollection(gene_ids, motif.genome)
-    data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
-    data = data.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
-
-    # Get sites that are lowly methylated
-    with pd.ExcelWriter(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.motif}_low_methylation.xlsx", engine="openpyxl") as writer:
-        for treatment in all_treatment_names:
-            # Get all positions where the methylation fraction is less than 2*sigma of the mean
-            low_threshold = data.select(pl.col(motif.meth_type).mean() - 2 * pl.col(motif.meth_type).std()).item()
-            low_positions = data.filter(pl.col(motif.meth_type) < low_threshold, pl.col("treatment") == treatment)
-            
-            # Add to overall results
-            low_methylation.append(low_positions)
-            
-            # Print to an excel file
-            low_positions.to_pandas().to_excel(writer, sheet_name=f"{treatment}_{low_threshold:.2f}", index=False)
-
-        # Add a sheet to the low methylation excel file with positions that are low in all conditions
-        low_methylation_df = pl.concat(low_methylation, how="vertical")
-        low_methylation_positions_df = low_methylation_df.group_by(["contig", "position", "strand"]).agg(pl.col("treatment").n_unique().alias("count")).filter(pl.col("count") == len(all_treatment_names))
-        low_methylation_df_always = low_methylation_df.join(low_methylation_positions_df, on=["contig", "position", "strand"], how="right").unique()
-        
-        low_methylation_df_always.to_pandas().to_excel(writer, sheet_name="Always", index=False)
-        
-        # Add a sheet to the low methylation excel file with positions that are low in 1 conditions
-        low_methylation_positions_df = low_methylation_df.group_by(["contig", "position", "strand"]).agg(pl.col("treatment").n_unique().alias("count")).filter(pl.col("count") == 1)
-        low_methylation_df_once = low_methylation_df.join(low_methylation_positions_df, on=["contig", "position", "strand"], how="right").unique()
-        
-        low_methylation_df_once.to_pandas().to_excel(writer, sheet_name="Once", index=False)
-
-    # Excel file for big changes
-    with pd.ExcelWriter(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.motif}_big_change.xlsx", engine="openpyxl") as writer:
-        for big_change_threshold in [0.05, 0.1, 0.15, 0.2]:# 
-            big_change_df = data.filter(((pl.col(motif.meth_type).max() - pl.col(motif.meth_type).min()) > big_change_threshold).over("contig", "position", "strand"))
-            big_change_df = big_change_df.with_columns(pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 1).alias("treatment_group"), pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("treatment_step"))
-            
-            # Make a dataframe that shows where big changes happen across cycles
-            change_df = big_change_df.select("contig", "position", "strand", "treatment", motif.meth_type, "treatment_group", "treatment_step").unique().sort(["contig", "strand", "position", "treatment_group", "treatment_step"])
-            change_df = change_df.with_columns(pl.when((pl.col(motif.meth_type) - pl.col(motif.meth_type).shift(1)).abs() > big_change_threshold).then(True).otherwise(False).over("contig", "strand", "position", "treatment_group").alias("changed"))
-            change_df = change_df.join(data, on=["contig", "position", "strand"], how="left").select("contig", "position", "strand", "function", "function_end", "source", "source_end", "gene_callers_id_start", "gene_callers_id_end", "distance_to_start", "distance_to_end", "treatment", motif.meth_type, "changed")
-            change_df = change_df.pivot(index=["contig", "position", "strand", "function", "function_end", "source", "source_end", "gene_callers_id_start", "gene_callers_id_end", "distance_to_start", "distance_to_end"], on="treatment", values=[motif.meth_type, "changed"], aggregate_function="first")            
-            
-            # Print to the excel file in a sheet
-            change_df.to_pandas().to_excel(writer, sheet_name=f"Threshold {big_change_threshold}", index=False)
-            
-            # Identify positions that are always different between the controls
-            always_different = big_change_df.group_by(["contig", "position", "strand", "treatment_group"]).agg(pl.col(motif.meth_type))
-            always_different = always_different.pivot(index=["contig", "position", "strand"], columns="treatment_group", values=motif.meth_type)
-
-            always_different = always_different.filter(pl.struct(["35ppt control", "55ppt control"]).map_elements(lambda row: all(abs(a - b) >= big_change_threshold for a in row["35ppt control"] for b in row["55ppt control"]), return_dtype=pl.Boolean))
-
-            always_different.to_pandas().to_excel(writer, sheet_name=f"Always Diff Cntrl {big_change_threshold}", index=False)
-
-
 def frac_investigation_with_stats(motif: Motif):
     npy_file_path = motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_stats_data.npy"
     if not npy_file_path.exists():
@@ -1027,9 +734,12 @@ def frac_investigation_with_stats(motif: Motif):
     
     all_result_stats = pl.concat(all_result_stats)
     
-    # Data - Restrict to promoters
-    all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats.lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
-    
+    # Filter entries for minimum effect size of 10%
+    all_result_stats = all_result_stats.filter((pl.col("beta_A") - pl.col("beta_B")).abs() > 0.1)
+
+    # Data - Restrict to promoters and big effect size
+    all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats.lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_(),(pl.col("beta_A") - pl.col("beta_B")).abs() > 0.05).collect()
+
     # Add functions
     gene_ids = all_result_stats.get_column("gene_callers_id_start").to_list() + all_result_stats.get_column("gene_callers_id_end").to_list()
     gene_ids = list(set(gene_ids))
@@ -1045,25 +755,7 @@ def frac_investigation_with_stats(motif: Motif):
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
     
-    from temp import analyze_differential_expression_patterns,comprehensive_advanced_analysis
     analyze_differential_expression_patterns(all_result_stats.to_pandas(), treatment_df.to_pandas(), output_file=f"{motif.genome.output_dir}/{motif.genome.readable_name}_{motif.readable_motif}_differential_meth_patterns.xlsx")
-    comprehensive_advanced_analysis(all_result_stats.to_pandas(), treatment_df.to_pandas(), output_file=f"{motif.genome.output_dir}/{motif.genome.readable_name}_{motif.readable_motif}_comprehensive_advanced_analysis.xlsx")
-
-
-def write_promoter_functions(motif:Motif):
-    # Data - Restrict to promoters
-    all_positions = motif.genome.nearest_gene_to_positions(motif.positions.lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
-    
-    # Add functions
-    gene_ids = all_positions.get_column("gene_callers_id_start").to_list() + all_positions.get_column("gene_callers_id_end").to_list()
-    gene_ids = list(set(gene_ids))
-    
-    gc = GeneCollection(gene_ids, motif.genome)
-    all_positions = all_positions.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
-    all_positions = all_positions.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
-    
-    # Write to excel
-    all_positions.write_excel(motif.genome.output_dir / f"promoter_functions{motif.readable_motif}.xlsx")
     
     
 def motif_functional_enrichment(motif: Motif):
@@ -1095,93 +787,73 @@ def motif_functional_enrichment(motif: Motif):
     print(enriched_strings.head())
     analyzer.save_results(results, motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_kegg_enrichment_promoters_vs_nonpromoters_pathway.csv")
     print(f"Percent of promoters without KOfam: {no_kofam / len(promoters) * 100:.2f}%")
-    
-    
-def find_important_features(motif: Motif, promoter_only: bool):
-    df = motif.data().collect()
-    
-    if promoter_only:
-        df = motif.genome.nearest_gene_to_positions(motif.data().lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
 
+
+def ensemble_significant_features(motif: Motif):
+    # Get mtofi data
+    df = motif.genome.nearest_gene_to_positions(motif.data().lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+    
+    # Make a treatments dataframe
+    unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
+    all_treatment_names = sorted(
+        list(unique_treatment_names),
+        key=lambda t: motif.genome.treatment_order_map.get(t, str(t))
+    )
+    
+    treatment_df = (pl.from_dict({"treatment": all_treatment_names})
+                    .with_columns(pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity"), 
+                                    (pl.col("group").str.contains("control")).alias("control"))
+                    )
+    
+    # Make the pandas stats DF
+    df = df.join(treatment_df, on="treatment", how="left")    
+    pandas_df = df.rename({motif.meth_type: "value"}).to_pandas()
+    pandas_df['feature'] = pandas_df.apply(lambda row: f"{row['contig']}|{row['position']}|{row['strand']}", axis=1)
+    
+    # Mutual information and Welch t-test    
     X = df.pivot(on=["contig", "position", "strand"], values=motif.meth_type, index="treatment")
     
     # Add a salinity column 
     y = X.with_columns(pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 1).alias("group"),
                          pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
 
-    y = y.with_columns(
-    (
-        (pl.col("group") == "55ppt control") |
-        (
-            (pl.col("group") == "Cycling") &
-            (pl.col("step") % 2 != 0)
-        )
-    ).alias("salinity")).get_column("salinity").to_pandas()
+    y = y.with_columns(((pl.col("group") == "55ppt control") 
+                        | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity")).get_column("salinity").to_pandas()
     X = X.drop("treatment").to_pandas()
+            
     
-    from src.utilities.utils import identify_predictive_features
+    # Do different feature importance methods
+    mi_df = do_mutual_information(X, y)
+    t_test_df = do_t_test(X, y)
+    correlation_df = do_spearmanr(pandas_df)
+    feature_importance, feature_importance_ci = bootstrap_pls(pandas_df)
     
-    result = identify_predictive_features(X, y, n_top_features=100)
-
-    # Get positions from consensus
-    consensus_positions = result['consensus']["feature"].tolist()
+    # Get feature columns back
+    mi_df = pl.from_pandas(mi_df)
+    t_test_df = pl.from_pandas(t_test_df).with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
+    correlation_df = pl.from_pandas(correlation_df).with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
+    feature_importance = pl.from_pandas(feature_importance, include_index=True).with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
     
-    pattern = r'\{"(.*?)",(\d+),(true|false)\}'
-    parsed = [re.findall(pattern, s)[0] for s in consensus_positions]
-
-    df = pl.DataFrame(
-        {
-            'contig': [x[0] for x in parsed],
-            'position': [int(x[1]) for x in parsed],
-            'strand': [x[2] == 'true' for x in parsed],
-        }
-    )
+    # Make a master table by joining all on left
+    master = (mi_df.join(t_test_df, on=["contig", "position", "strand"], how="outer", suffix="_t_test")
+                    .join(correlation_df, on=["contig", "position", "strand"], how="outer", suffix="_correlation")
+                    .join(feature_importance, on=["contig", "position", "strand"], how="outer", suffix="_pls"))
     
-    # Join functions
-    df = motif.genome.nearest_gene_to_positions(df.lazy()).collect()
-    gene_ids = df.get_column("gene_callers_id_start").to_list() + df.get_column("gene_callers_id_end").to_list()
-    gene_ids = list(set(gene_ids))
+    # Add functions onto master
+    master = motif.genome.nearest_gene_to_positions(master.lazy()).collect()
+    gene_ids = list(set(master.get_column("gene_callers_id_start").to_list() + master.get_column("gene_callers_id_end").to_list()))
     
     gc = GeneCollection(gene_ids, motif.genome)
-    df = df.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start", maintain_order="left")
-    df = df.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end", maintain_order="left")
-
-    # Save to csv
-    if promoter_only:
-        df.write_csv(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_important_features_prom_only.csv")
-    else:
-        df.write_csv(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_important_features.csv")
-
-
-def find_hypomethylated_sites(motif: Motif):
-    from src.utilities.compare_methylome import is_site_hypomethylated
+    master = master.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
+    master = master.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
     
-    df = motif.data(normalize=False).collect()
-    mean_meth = motif.data().select(pl.col(motif.meth_type).mean()).collect().item()
-    result_df = pl.DataFrame([], schema=df.schema)
-        
-    for site in df.iter_rows(named=True):
-        if is_site_hypomethylated(site[motif.meth_type], site[motif.canonical_base], background_rate=mean_meth, alpha=0.05):
-            result_df = pl.concat([result_df, pl.DataFrame([site])])
-            
-    # Add a column with the percent
-    result_df = result_df.with_columns(
-        (pl.col(motif.meth_type) / (pl.col(motif.meth_type) + pl.col(motif.canonical_base)) * 100).alias("percent_hypomethylation")
-    )
-    
-    # Aggregate by percentage range for every 10$
-    result_df = result_df.with_columns(
-        (pl.col("percent_hypomethylation") // 10 * 10).cast(pl.Int32).alias("percent_range")
-    )
-    
-    # Make a frequency plot of the values and save it
-    sns.histplot(result_df.get_column("percent_hypomethylation").to_list(), bins=50)
-    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_hypomethylated_sites.png")
-    
-    # Number of times each site is hypoemethylated
-    result_df_sheet_two = result_df.group_by("contig", "strand", "position").agg(pl.count("percent_hypomethylation").alias("num_times_hypomethylated"))
+    # Write each dataframe to a sheet in an excel file
+    with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_ensemble_significant_features.xlsx") as workbook: 
+        mi_df.write_excel(workbook=workbook, worksheet="mutual_information")
+        t_test_df.write_excel(workbook=workbook, worksheet="t_test")
+        correlation_df.write_excel(workbook=workbook, worksheet="spearman_correlation")
+        feature_importance.write_excel(workbook=workbook, worksheet="pls_feature_importance")
+        master.write_excel(workbook=workbook, worksheet="master_table")
 
-    # Write to excel result_df and result_df_sheet_two on different sheets
-    with pd.ExcelWriter(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_hypomethylated_sites.xlsx") as writer:
-        result_df.to_excel(writer, sheet_name="Sheet1", index=False)
-        result_df_sheet_two.to_excel(writer, sheet_name="Sheet2", index=False)
+    return

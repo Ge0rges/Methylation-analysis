@@ -1,0 +1,224 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+    
+    
+    
+      {
+        "name": "Python: Current File (Integrated Terminal)",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${file}",
+        "console": "integratedTerminal",
+        "cwd": "${fileDirname}",
+        "purpose":["debug-in-terminal"]
+      }, 
+      {
+        "name": "microbemod",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "/researchdrive/gkanaan/tools/Methylation-analysis/src/cli.py",
+        "args": [
+          "microbemod",
+          "-t", "/researchdrive/gkanaan/seaice_methylation/final_mageval/microbemod/viruses_filtered/viruses_filtered.rm.genes.tsv",
+          "-o", "/researchdrive/gkanaan/seaice_methylation/plots/",
+          "-n", "viruses",
+          "-m", "/researchdrive/gkanaan/seaice_methylation/methylation_data/viruses_filtered",
+        ],
+        "console": "integratedTerminal",
+        "justMyCode": true,
+        "env": {
+          "PYTHONPATH": "${env:PYTHONPATH}:/researchdrive/gkanaan/tools/Methylation-analysis"
+        }
+      },
+      {
+        "name": "quality_coverage",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "/researchdrive/gkanaan/tools/Methylation-analysis/src/cli.py",
+        "args": [
+          "quality-coverage",
+          "-q", "/researchdrive/gkanaan/seaice_methylation/final_mageval/checkm2_out/quality_report.tsv",
+          "-c", "/researchdrive/gkanaan/seaice_methylation/final_mageval/coverm_mean.tsv",
+          "-o", "/researchdrive/gkanaan/seaice_methylation/plots/",
+          "-i", "/researchdrive/gkanaan/seaice_methylation/treatment_info_map.tsv",
+          "-b", "/researchdrive/gkanaan/seaice_methylation/barcode_map.tsv",
+        ],
+        "console": "integratedTerminal",
+        "justMyCode": true,
+        "env": {
+          "PYTHONPATH": "${env:PYTHONPATH}:/researchdrive/gkanaan/tools/Methylation-analysis"
+        }
+      },
+      {
+        "name": "pelagibacter",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "/researchdrive/gkanaan/tools/Methylation-analysis/src/cli.py",
+        "args": [
+          "analyze-genome",
+          "-f", "/researchdrive/gkanaan/seaice_methylation/final_mags/g__pelagibacter__bin_0_9_3-contigs.fna",
+          "-b", "/researchdrive/gkanaan/seaice_methylation/barcode_map.tsv",
+          "-m", "/researchdrive/gkanaan/seaice_methylation/methylation_data/g__pelagibacter__bin_0_9_3-contigs",
+          "-o", "/researchdrive/gkanaan/seaice_methylation/plots/g__pelagibacter__bin_0_9_3-contigs",
+          "-c", "5",
+          "-g", "/researchdrive/gkanaan/seaice_methylation/anvio/gene-calls.txt",
+          "-t", "top",
+          "-t", "bottom",
+          "-u", "/researchdrive/gkanaan/seaice_methylation/anvio/function-calls.txt",
+          "-i", "/researchdrive/gkanaan/seaice_methylation/treatment_info_map.tsv"
+        ],
+        "console": "integratedTerminal",
+        "justMyCode": true,
+        "env": {
+          "PYTHONPATH": "${env:PYTHONPATH}:/researchdrive/gkanaan/tools/Methylation-analysis"
+        }
+      },
+      {
+        "name": "paraglaciecola",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "/researchdrive/gkanaan/tools/Methylation-analysis/src/cli.py",
+        "args": [
+          "analyze-genome",
+          "-f", "/researchdrive/gkanaan/seaice_methylation/final_mags/s__paraglaciecola_sp913058035__bin_4_1_1-contigs.fna",
+          "-b", "/researchdrive/gkanaan/seaice_methylation/barcode_map.tsv",
+          "-m", "/researchdrive/gkanaan/seaice_methylation/methylation_data/s__paraglaciecola_sp913058035__bin_4_1_1-contigs",
+          "-o", "/researchdrive/gkanaan/seaice_methylation/plots/s__paraglaciecola_sp913058035__bin_4_1_1-contigs",
+          "-c", "5",
+          "-g", "/researchdrive/gkanaan/seaice_methylation/anvio/gene-calls.txt",
+          "-t", "top",
+          "-t", "bottom",
+          "-u", "/researchdrive/gkanaan/seaice_methylation/anvio/function-calls.txt",
+          "-i", "/researchdrive/gkanaan/seaice_methylation/treatment_info_map.tsv"
+        ],
+        "console": "integratedTerminal",
+        "justMyCode": true,
+        "env": {
+          "PYTHONPATH": "${env:PYTHONPATH}:/researchdrive/gkanaan/tools/Methylation-analysis"
+        }
+      },
+      {
+        "name": "analyze-metagenome",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "/researchdrive/gkanaan/tools/Methylation-analysis/src/cli.py",
+        "args": [
+          "analyze-metagenome",
+          "-f", "/researchdrive/gkanaan/seaice_methylation/metagenome_bacteria_only_kaiju.fna",
+          "-b", "/researchdrive/gkanaan/seaice_methylation/barcode_map.tsv",
+          "-m", "/researchdrive/gkanaan/seaice_methylation/methylation_data/metagenome_bacteria_only_kaiju",
+          "-o", "/researchdrive/gkanaan/seaice_methylation/plots/metagenome_bacteria_only_kaiju",
+          "-c", "5",
+          "-g", "/researchdrive/gkanaan/seaice_methylation/anvio/gene-calls.txt",
+          "-t", "top",
+          "-t", "bottom",
+          "-u", "/researchdrive/gkanaan/seaice_methylation/anvio/function-calls.txt",
+          "-i", "/researchdrive/gkanaan/seaice_methylation/treatment_info_map.tsv",
+          "-x", "/researchdrive/gkanaan/seaice_methylation/kaiju/metagenome_refseq_nr.names",
+          "-y", "kaiju"
+        ],
+        "console": "integratedTerminal",
+        "justMyCode": true,
+        "env": {
+          "PYTHONPATH": "${env:PYTHONPATH}:/researchdrive/gkanaan/tools/Methylation-analysis"
+        }
+      },
+      {
+        "name": "analyze-viruses",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "/researchdrive/gkanaan/tools/Methylation-analysis/src/cli.py",
+        "args": [
+            "analyze-viruses",
+            "-f", "/researchdrive/gkanaan/seaice_methylation/final_mags/viruses_filtered.fna",
+            "-b", "/researchdrive/gkanaan/seaice_methylation/barcode_map.tsv",
+            "-m", "/researchdrive/gkanaan/seaice_methylation/methylation_data/viruses_filtered",
+            "-o", "/researchdrive/gkanaan/seaice_methylation/plots/viruses_filtered",
+            "-c", "5",
+            "-g", "/researchdrive/gkanaan/seaice_methylation/anvio/gene-calls.txt",
+            "-t", "top",
+            "-t", "bottom",
+            "-u", "/researchdrive/gkanaan/seaice_methylation/anvio/function-calls.txt",
+            "-i", "/researchdrive/gkanaan/seaice_methylation/treatment_info_map.tsv",
+            "-x", "/researchdrive/gkanaan/seaice_methylation/viruses/genomad_output/final_assembly_summary/final_assembly_virus_summary.tsv",
+            "-y", "genomad"
+          ],
+          "console": "integratedTerminal",
+          "justMyCode": true,
+          "env": {
+            "PYTHONPATH": "${env:PYTHONPATH}:/researchdrive/gkanaan/tools/Methylation-analysis"
+          }
+        },
+        {
+          "name": "rm_hmm",
+          "type": "debugpy",
+          "request": "launch",
+          "program": "/researchdrive/gkanaan/seaice_methylation/rm_hmm/run_hmmer.py",
+          "args": [
+            "-a", "/researchdrive/gkanaan/seaice_methylation/final_mags/metagenome_assembly.fna",
+            "-b", "/researchdrive/gkanaan/seaice_methylation/bams/aligned/assembly/",
+            "-m", "/researchdrive/gkanaan/seaice_methylation/rm_hmm/hmms/",
+            "-o", "/researchdrive/gkanaan/seaice_methylation/rm_hmm/result.txt"
+          ],
+          "console": "integratedTerminal",
+          "justMyCode": true
+        },
+        {
+          "name": "colwellia_34h",
+          "type": "debugpy",
+          "request": "launch",
+          "program": "/researchdrive/gkanaan/tools/Methylation-analysis/src/cli.py",
+          "args": [
+            "analyze-colwellia",
+            "-f", "/researchdrive/gkanaan/colwellia_methylation/exp/genomes/colwellia_34h.fna",
+            "-b", "/researchdrive/gkanaan/colwellia_methylation/exp/barcode_map.tsv",
+            "-m", "/researchdrive/gkanaan/colwellia_methylation/exp/methylation_data/colwellia_34h",
+            "-o", "/researchdrive/gkanaan/colwellia_methylation/exp/plots/colwellia_34h",
+            "-c", "30",
+            "-g", "/researchdrive/gkanaan/colwellia_methylation/exp/anvio/gene-calls.txt",
+            "-t", "RS1",
+            "-t", "RS2",
+            "-t", "RS14",
+            "-t", "RS15",
+            "-t", "33S1",
+            "-t", "33S2",
+            "-t", "33S23",
+            "-t", "33S24",
+            "-t", "55S1",
+            "-t", "55S2",
+            "-t", "55S12",
+            "-u", "/researchdrive/gkanaan/colwellia_methylation/exp/anvio/function-calls.txt",
+            "-i", "/researchdrive/gkanaan/colwellia_methylation/exp/treatment_info_map.tsv"
+          ],
+          "console": "integratedTerminal",
+          "justMyCode": true,
+          "env": {
+            "PYTHONPATH": "${env:PYTHONPATH}:/researchdrive/gkanaan/tools/Methylation-analysis"
+          },
+        },
+        {
+          "name": "psmc_002",
+          "type": "debugpy",
+          "request": "launch",
+          "program": "/researchdrive/gkanaan/tools/Methylation-analysis/src/cli.py",
+          "args": [
+            "analyze-pelagibacter",
+            "-f", "/researchdrive/gkanaan/sar11/genomes/psmc_002.fna",
+            "-b", "/researchdrive/gkanaan/sar11/barcode_map.tsv",
+            "-m", "/researchdrive/gkanaan/sar11/methylation_data/psmc_002",
+            "-o", "/researchdrive/gkanaan/sar11/plots/psmc_002",
+            "-c", "10",
+            "-g", "/researchdrive/gkanaan/sar11/anvio/gene-calls.txt",
+            "-t", "PSMC_002",
+            "-u", "/researchdrive/gkanaan/sar11/anvio/function-calls.txt",
+            "-i", "/researchdrive/gkanaan/sar11/treatment_info_map.tsv"
+          ],
+          "console": "integratedTerminal",
+          "justMyCode": true,
+          "env": {
+            "PYTHONPATH": "${env:PYTHONPATH}:/researchdrive/gkanaan/tools/Methylation-analysis"
+          }
+        }
+    ]
+  }

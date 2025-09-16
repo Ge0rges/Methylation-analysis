@@ -15,11 +15,6 @@ if TYPE_CHECKING:  # Only for type hints
     from gene import Gene
     from genome import Genome
 
-try:
-    from src.utilities.raobust import add_rao_score_by_gene
-except:
-    pass
-
 
 space_dict = {"3-4bp": (3, 4), "5-10bp": (5, 10), "11-12bp": (11, 12), "13-15bp": (13, 15), "11bp": (11, 11),
               "12bp": (12, 12), "5bp": (5, 5), "7bp": (7, 7), "15bp": (15, 15), "9bp": (9, 9), "4bp": (4, 4),
@@ -280,15 +275,6 @@ class GeneCollection(object):
     @cached_property
     def gc_content(self) -> pl.LazyFrame:
         return self.gene_caller_df.select("gene_callers_id", "gc_cont")
-
-
-    def is_significantly_different_between_samples(self, df: pl.LazyFrame, samples: list[str], baseline: str | bool) -> pl.DataFrame:
-        df = df.collect(streaming=True)
-        assert all(sample in df.get_column("sample").unique().to_list() for sample in samples)
-
-        df = add_rao_score_by_gene(df, samples, baseline)
-
-        return df.select("gene_callers_id", "test_result", "comparison", "rao_score")
 
 
     @lru_cache

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-compare_methylation.py – Run four global distribution tests and per-site
+compare_methylome.py – Run four global distribution tests and per-site
 statistical tests with flat 2D count arrays for replicate detection.
 
 Count format:
@@ -10,7 +10,7 @@ Count format:
 Usage example
 -------------
 import numpy as np
-from compare_methylation import compare_methylomes
+from compare_methylome import compare_methylomes
 
 # Single replicate: (n_sites, 2)
 counts_a = np.array([[10, 5], [15, 8], [3, 12]])
@@ -27,9 +27,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 from scipy import stats
-from scipy.optimize import minimize
 from statsmodels.stats.multitest import multipletests
-import warnings
 import math
 import polars as pl
 
@@ -340,16 +338,3 @@ def compare_methylomes(
         per_site_df = None  # empty frame when no counts provided
 
     return {"global_table": global_table, "global_table_str": global_table_str, "per_site_df": per_site_df}
-
-from scipy.stats import binomtest
-
-def is_site_hypomethylated(methylated_reads, unmethylated_reads, background_rate=0.85, alpha=0.05):
-    """
-    Performs a one-sided binomial test for hypomethylation.
-    Null hypothesis: observed methylation rate >= background_rate (default 85%)
-    Alternative hypothesis: observed methylation rate < background
-    Returns p-value and boolean for hypomethylation (True if significant hypomethylation).
-    """
-    result = binomtest(methylated_reads, unmethylated_reads+methylated_reads, background_rate, alternative='less')
-    pval = result.pvalue
-    return pval, pval < alpha
