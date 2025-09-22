@@ -3,7 +3,7 @@ from xlsxwriter import Workbook
 import polars as pl
 
 
-def analyze_differential_expression_patterns(df_diff, treatment_metadata, output_file):
+def analyze_differential_expression_patterns(df_diff, treatment_metadata, output_file) -> dict[str, pl.DataFrame]:
     """
     Comprehensive analysis of differential expression patterns across treatment types
 
@@ -101,7 +101,7 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
         if not feature_data['significant'].any():
             constant_features.append(feature)
 
-    results['1_constant_throughout'] = pd.DataFrame({
+    results['1_constant_throughout'] = pl.from_dict({
         'feature_id': constant_features,
         'contig': [f.split('<>')[0] for f in constant_features],
         'strand': [bool(f.split('<>')[1]) for f in constant_features],
@@ -153,7 +153,7 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
                         'description': f"Constant in control={control_val}, salinity={salinity_val} but changes elsewhere"
                     })
 
-    results['2_constant_in_one_type'] = pd.DataFrame(type_specific_constant)
+    results['2_constant_in_one_type'] = pl.from_dicts(type_specific_constant)
 
     # 3. Features that change in one treatment type but not others
     print("3. Finding features that change in one treatment type but not others...")
@@ -198,7 +198,14 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
                         'description': f"Changes in control={control_val}, salinity={salinity_val} but constant elsewhere"
                     })
 
-    results['3_changing_in_one_type'] = pd.DataFrame(type_specific_changing)
+    results['3_changing_in_one_type'] = pl.from_dicts(type_specific_changing, schema={
+        'feature_id': pl.Utf8,
+        'contig': pl.Utf8,
+        'strand': pl.Boolean,
+        'position': pl.Int64,
+        'treatment_type': pl.Utf8,
+        'description': pl.Utf8
+    })
 
     # 4. Features constant in controls but change in experimentals
     print("4. Finding features constant in controls but changing in experimentals...")
@@ -210,7 +217,7 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
         if control_constant and exp_changes:
             control_constant_exp_change.append(feature)
 
-    results['4_constant_controls_change_experimental'] = pd.DataFrame({
+    results['4_constant_controls_change_experimental'] = pl.from_dict({
         'feature_id': control_constant_exp_change,
         'contig': [f.split('<>')[0] for f in control_constant_exp_change],
         'strand': [bool(f.split('<>')[1]) for f in control_constant_exp_change],
@@ -228,7 +235,7 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
         if control_changes and exp_constant:
             control_change_exp_constant.append(feature)
 
-    results['5_change_controls_constant_experimental'] = pd.DataFrame({
+    results['5_change_controls_constant_experimental'] = pl.from_dict({
         'feature_id': control_change_exp_constant,
         'contig': [f.split('<>')[0] for f in control_change_exp_constant],
         'strand': [bool(f.split('<>')[1]) for f in control_change_exp_constant],
@@ -246,7 +253,7 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
         if high_sal_constant and low_sal_changes:
             high_sal_constant_low_sal_change.append(feature)
 
-    results['6_constant_high_salinity_change_low_salinity'] = pd.DataFrame({
+    results['6_constant_high_salinity_change_low_salinity'] = pl.from_dict({
         'feature_id': high_sal_constant_low_sal_change,
         'contig': [f.split('<>')[0] for f in high_sal_constant_low_sal_change],
         'strand': [bool(f.split('<>')[1]) for f in high_sal_constant_low_sal_change],
@@ -264,7 +271,7 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
         if high_sal_changes and low_sal_constant:
             high_sal_change_low_sal_constant.append(feature)
 
-    results['7_change_high_salinity_constant_low_salinity'] = pd.DataFrame({
+    results['7_change_high_salinity_constant_low_salinity'] = pl.from_dict({
         'feature_id': high_sal_change_low_sal_constant,
         'contig': [f.split('<>')[0] for f in high_sal_change_low_sal_constant],
         'strand': [bool(f.split('<>')[1]) for f in high_sal_change_low_sal_constant],
@@ -292,7 +299,7 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
         if feature_changes_between_groups(feature, control_step1_treatments, other_control_steps):
             control_step1_diffs.append(feature)
 
-    results['8_control_step1_vs_other_control'] = pd.DataFrame({
+    results['8_control_step1_vs_other_control'] = pl.from_dict({
         'feature_id': control_step1_diffs,
         'contig': [f.split('<>')[0] for f in control_step1_diffs],
         'strand': [bool(f.split('<>')[1]) for f in control_step1_diffs],
@@ -324,7 +331,7 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
         if constant_low and diff_high:
             low_step1_constant_high_diff.append(feature)
 
-    results['9_lowSal_step1_constant_diff_highSal_step1'] = pd.DataFrame({
+    results['9_lowSal_step1_constant_diff_highSal_step1'] = pl.from_dict({
         'feature_id': low_step1_constant_high_diff,
         'contig': [f.split('<>')[0] for f in low_step1_constant_high_diff],
         'strand': [bool(f.split('<>')[1]) for f in low_step1_constant_high_diff],
@@ -356,7 +363,7 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
         if constant_highstep1_and_highcontrols:
             both_constant_features.append(feature)
 
-    results['10_constant_high_sal_step1_and_high_sal_control'] = pd.DataFrame({
+    results['10_constant_high_sal_step1_and_high_sal_control'] = pl.from_dict({
         'feature_id': both_constant_features,
         'contig': [f.split('<>')[0] for f in both_constant_features],
         'strand': [bool(f.split('<>')[1]) for f in both_constant_features],
@@ -393,7 +400,7 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
             if feature_changes_between_groups(feature, exp_step_early + exp_step_late, control_all):
                 both_exp_constant.append(feature)
 
-    results['11_constant_exp_early_late_diff_control'] = pd.DataFrame({
+    results['11_constant_exp_early_late_diff_control'] = pl.from_dict({
         'feature_id': both_exp_constant,
         'contig': [f.split('<>')[0] for f in both_exp_constant],
         'strand': [bool(f.split('<>')[1]) for f in both_exp_constant],
@@ -465,7 +472,7 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
             })
 
     # Create main results DataFrame with detailed shift information
-    results['12_consecutive_exp_shifts_stable_controls'] = pd.DataFrame(feature_shift_details)
+    results['12_consecutive_exp_shifts_stable_controls'] = pl.from_dicts(feature_shift_details)
 
     # Print summary
     print(f"\nFound {len(consecutive_exp_shift_control_stable)} features that shift between consecutive experimental treatments but never in controls")
@@ -477,19 +484,15 @@ def analyze_differential_expression_patterns(df_diff, treatment_metadata, output
     print(f"\nWriting results to {output_file}...")
     with Workbook(output_file) as workbook: 
         for sheet_name, df in results.items():
-            if df.empty:
+            clean_sheet_name = sheet_name.replace('_', ' ').title()[:31]
+
+            if df.is_empty():
                 df = pl.from_dict({"no data": []})
-                df.write_excel(workbook=workbook, worksheet=sheet_name[:31])
+                df.write_excel(workbook=workbook, worksheet=clean_sheet_name)
                 continue
             
             # Join df with df_diff on contig,strand,position
-            df = df.merge(df_diff, on=['contig', 'strand', 'position'], how='left')
-            
-            if df.empty:
-                df = pd.DataFrame(columns=["no data"])
-            
-            clean_sheet_name = sheet_name.replace('_', ' ').title()[:31]
-            df = pl.from_pandas(df)
+            df = df.join(pl.from_pandas(df_diff), on=['contig', 'strand', 'position'], how='left')
             df.write_excel(workbook=workbook, worksheet=clean_sheet_name)
 
     # Print summary

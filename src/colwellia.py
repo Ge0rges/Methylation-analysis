@@ -20,7 +20,9 @@ from src.utilities.compare_methylome import compare_methylomes
 from src.utilities.kegg_enrichment import KEGGEnrichmentAnalyzer
 from src.utilities.feature_statistics import *
 from src.diff_pattern import analyze_differential_expression_patterns
-
+from adjustText import adjust_text
+from sklearn.decomposition import PCA
+from sklearn.cluster import KMeans
 
 sns.set_theme(context="poster", style="whitegrid")
 pl.enable_string_cache()
@@ -533,6 +535,7 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
         all_result_stats = []
         
         # Get Stats
+        all_result_stats_per_site = []
         for pair_treatments in pairs:
             data = get_stats_data(motif, pair_treatments)
             beta_a = data["group1_means"]
@@ -543,9 +546,8 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
             no_pr_beta_b = data["group2_no_promoter_means"]
             counts_a = data["group1_counts"]
             counts_b = data["group2_counts"]
-            positions = data["counts_positions"]
 
-            results_means = compare_methylomes(beta_a, beta_b, counts_a, counts_b)
+            results_means = compare_methylomes(beta_a, beta_b, counts_a, counts_b, motif=motif)
             results_promoters = compare_methylomes(pr_beta_a, pr_beta_b)
             results_no_promoters = compare_methylomes(no_pr_beta_a, no_pr_beta_b)
 
@@ -553,39 +555,13 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
             all_result_stats.append(results_means["global_table"].with_columns(pl.lit(pair_treatments[0]).alias("Treatment A"), pl.lit(pair_treatments[1]).alias("Treatment B"), pl.lit("means").alias("group")))
             all_result_stats.append(results_promoters["global_table"].with_columns(pl.lit(pair_treatments[0]).alias("Treatment A"), pl.lit(pair_treatments[1]).alias("Treatment B"), pl.lit("means_pr").alias("group")))
             all_result_stats.append(results_no_promoters["global_table"].with_columns(pl.lit(pair_treatments[0]).alias("Treatment A"), pl.lit(pair_treatments[1]).alias("Treatment B"), pl.lit("means_no_pr").alias("group")))
-
-            # Replace index with positions
-            results_means["per_site_df"] = pl.concat([positions, pl.from_pandas(results_means["per_site_df"])], how="horizontal") if results_means["per_site_df"] is not None else None
-            
-            output_dir = motif.genome.output_dir
-            output_dir.mkdir(parents=True, exist_ok=True)
-            file_path = output_dir / f"stats_test_{motif.readable_motif}_{pair_treatments[0]}_vs_{pair_treatments[1]}.txt"
-
-            significant_sites = results_means["per_site_df"].filter(pl.col("significant") == True).drop("index") if results_means["per_site_df"] is not None else None
-            with open(file_path, "w") as f:
-                f.write(f"Comparison: {pair_treatments}\n\n")
-                f.write("Global Table Means:\n")
-                f.write(results_means["global_table_str"])
-                f.write("\n\n")
-                f.write("Global Table Promoters:\n")
-                f.write(results_promoters["global_table_str"])
-                f.write("\n\n")
-                f.write("Global Table No Promoters:\n")
-                f.write(results_no_promoters["global_table_str"])
-                f.write("\n\n")
-                f.write("Significant Per-Site Results:\n")
-                f.write(str(significant_sites))
-            
-            # Write significant_sites to excel
-            if significant_sites is not None:
-                excel_file_path = output_dir / f"stats_test_{motif.readable_motif}_{pair_treatments[0]}_vs_{pair_treatments[1]}.xlsx"
-                with pd.ExcelWriter(excel_file_path, engine="openpyxl") as writer:
-                    significant_sites_pd = significant_sites.to_pandas()
-                    significant_sites_pd.to_excel(writer, sheet_name="Significant Sites", index=False)
-                    results_means["per_site_df"].to_pandas().to_excel(writer, sheet_name="All Sites", index=False)            
-            
-            print(f"Wrote stats to {file_path}")            
+            all_result_stats_per_site.append(results_means["per_site_df"].with_columns(pl.lit(pair_treatments[0]).alias("treatment_1"), pl.lit(pair_treatments[1]).alias("treatment_2"), pl.lit("means").alias("group")))
         
+        # Write per site to an excel file
+        all_result_stats_per_site = pl.concat(all_result_stats_per_site, how="vertical")
+        with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx") as wb:
+            all_result_stats_per_site.write_excel(wb, include_header=True)
+            
         # For each pair and statistic, plot a heatmap
         all_result_stats = pl.concat(all_result_stats, how="vertical")
         stat_groups = all_result_stats.get_column("group").unique().to_list()
@@ -696,49 +672,17 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
     
 
 
-def frac_investigation_with_stats(motif: Motif):
-    npy_file_path = motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_stats_data.npy"
-    if not npy_file_path.exists():
-        assert False, f"Expected stats data file {npy_file_path} to exist. Run do_stats() first."
+def frac_investigation_with_stats(motif: Motif) -> dict[str, pl.DataFrame]:
+    all_result_stats = pl.read_excel(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx")
+    all_result_stats = all_result_stats.filter(pl.col("significant") == True)
     
-    unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
-    all_treatment_names = sorted(
-        list(unique_treatment_names),
-        key=lambda t: motif.genome.treatment_order_map.get(t, str(t))
-    )
-    
-    # Generate pairs of treatments using the sorted, unique names
-    pairs = list(tuple(sorted(x)) for x in combinations(all_treatment_names, 2))
-    all_result_stats = []
-    
-    # Get Stats
-    for pair_treatments in pairs:    
-        excel_file_path = motif.genome.output_dir / f"stats_test_{motif.readable_motif}_{pair_treatments[0]}_vs_{pair_treatments[1]}.xlsx"
-        # Load into a dataframe
-        df = pl.from_pandas(pd.read_excel(excel_file_path, sheet_name="Significant Sites"), schema_overrides={"contig": pl.Utf8,
-                                                                    "position": pl.Int64,
-                                                                    "strand": pl.Boolean,
-                                                                    "beta_A": pl.Float64,
-                                                                    "beta_B": pl.Float64,
-                                                                    "n_replicates_A": pl.Int64,
-                                                                    "n_replicates_B": pl.Int64,
-                                                                    "test_method": pl.Utf8,
-                                                                    "p_raw": pl.Float64,
-                                                                    "q_BH": pl.Float64,
-                                                                    "significant": pl.Boolean,
-                                                                    "treatment_1": pl.Utf8,
-                                                                    "treatment_2": pl.Utf8,
-                                                                })
-        df = df.with_columns(pl.lit(pair_treatments[0]).alias("treatment_1"), pl.lit(pair_treatments[1]).alias("treatment_2"))
-        all_result_stats.append(df)
-    
-    all_result_stats = pl.concat(all_result_stats)
-    
-    # Filter entries for minimum effect size of 10%
-    all_result_stats = all_result_stats.filter((pl.col("beta_A") - pl.col("beta_B")).abs() > 0.1)
-
     # Data - Restrict to promoters and big effect size
-    all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats.lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_(),(pl.col("beta_A") - pl.col("beta_B")).abs() > 0.05).collect()
+    all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats.lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_(), (pl.col("beta_A") - pl.col("beta_B")).abs() > 0.1).collect()
+
+    # Write to an excel
+    output_file = motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_promoter_differential_stats_all.xlsx"
+    with Workbook(output_file) as wb:
+        all_result_stats.write_excel(wb, worksheet="All Promoter Sites", include_header=True)
 
     # Add functions
     gene_ids = all_result_stats.get_column("gene_callers_id_start").to_list() + all_result_stats.get_column("gene_callers_id_end").to_list()
@@ -755,8 +699,81 @@ def frac_investigation_with_stats(motif: Motif):
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
     
-    analyze_differential_expression_patterns(all_result_stats.to_pandas(), treatment_df.to_pandas(), output_file=f"{motif.genome.output_dir}/{motif.genome.readable_name}_{motif.readable_motif}_differential_meth_patterns.xlsx")
+    results = analyze_differential_expression_patterns(all_result_stats.to_pandas(), treatment_df.to_pandas(), output_file=f"{motif.genome.output_dir}/{motif.genome.readable_name}_{motif.readable_motif}_differential_meth_patterns.xlsx")
+    return results
+
+
+def position_stats_heatmap(motif: Motif, position: int):
+    all_result_stats = pl.read_excel(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx")
+    all_result_stats = all_result_stats.filter(pl.col("significant") == True)
     
+    all_result_stats = all_result_stats.filter(pl.col("position") == position).with_columns((pl.col("beta_A") - pl.col("beta_B")).alias("beta_diff"))
+    
+    # Make a heatmap where rows are treatment_1, columns are treatment_2, and values are beta_A - beta_B
+    heatmap_data = all_result_stats.select("treatment_1", "treatment_2", "beta_diff").unique().to_pandas().pivot(index="treatment_1", columns="treatment_2", values="beta_diff")
+    heatmap_data = heatmap_data.combine_first(heatmap_data.T)  # Make symmetric
+    
+    # Annotate the heatmap with the value and an asterik if significant is True
+    annot_data = all_result_stats.with_columns(pl.when(pl.col("significant")).then(pl.col("beta_diff").cast(pl.Utf8) + "*").otherwise(pl.col("beta_diff").cast(pl.Utf8)).alias("annot")).select("treatment_1", "treatment_2", "annot").unique().to_pandas().pivot(index="treatment_1", columns="treatment_2", values="annot")
+    annot_data = annot_data.combine_first(annot_data.T)
+
+    # Sort annot_data and heatmap_data so rows and columns are in the same order
+    sorted_treatments = sorted(motif.genome.treatment_order_map.keys(), key=motif.genome.treatment_order_map.get)
+    heatmap_data = heatmap_data.reindex(index=sorted_treatments, columns=sorted_treatments)
+    annot_data = annot_data.reindex(index=sorted_treatments, columns=sorted_treatments)
+    
+    sns.heatmap(heatmap_data, annot=annot_data, cmap="coolwarm", center=0, fmt="")
+    plt.title(f"Methylation Difference at Position {position} for Motif {motif.readable_motif}")
+    plt.xlabel("Treatment 2 (Negative)")
+    plt.ylabel("Treatment 1 (Positive)")
+    plt.xticks(rotation=45, ha='right')
+    plt.yticks(rotation=0)
+    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_position_{position}_heatmap.pdf", format="pdf")
+
+
+def write_frac_sequence_with_stats(motif: Motif) -> pl.DataFrame:
+    all_result_stats = pl.read_excel(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx")
+
+    all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats)
+
+    # Data - Restrict to promoters and big effect size
+    all_result_stats = all_result_stats.filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_(),(pl.col("beta_A") - pl.col("beta_B")).abs() > 0.1)
+
+    # Get the motif data
+    motif_data = motif.data().filter(pl.col("position").is_in(all_result_stats.get_column("position"))).collect().pivot(
+        index=["contig", "position", "strand"],
+        on="treatment",
+        values=motif.meth_type
+    )
+    
+    # Add columns on the end saying if significant
+    result = all_result_stats.pivot(
+        index=["contig", "position", "strand"],
+        on=["treatment_1", "treatment_2"],
+        values="significant"
+    ).join(motif_data, on=["contig", "position", "strand"], how="left")
+    
+    # Reorder columns
+    # , '{"35ppt control S2","35ppt control S23"}'
+    result = result.select("contig", "position", "strand", "35ppt control S1", "35ppt control S2", "35ppt control S23", "35ppt control S24", "55ppt control S1", "55ppt control S2", "55ppt control S12", "Cycling S1", "Cycling S2", "Cycling S14", "Cycling S15", '{"35ppt control S1","35ppt control S2"}', '{"35ppt control S23","35ppt control S24"}', '{"55ppt control S1","55ppt control S2"}', '{"55ppt control S12","55ppt control S2"}', '{"Cycling S1","Cycling S2"}', '{"Cycling S14","Cycling S2"}', '{"Cycling S14","Cycling S15"}')
+
+    # Add functions
+    result = motif.genome.nearest_gene_to_positions(result)
+    gene_ids = result.get_column("gene_callers_id_start").to_list() + result.get_column("gene_callers_id_end").to_list()
+    gene_ids = list(set(gene_ids))
+    
+    gc = GeneCollection(gene_ids, motif.genome)
+    result = result.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
+    result = result.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
+    
+    
+    # Write to excel
+    excel_file_path = motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_stats_sequence.xlsx"
+    with Workbook(excel_file_path) as wb:
+        result.write_excel(wb, worksheet="Seq")
+
+    return result
+
     
 def motif_functional_enrichment(motif: Motif):
      # Data
@@ -789,8 +806,8 @@ def motif_functional_enrichment(motif: Motif):
     print(f"Percent of promoters without KOfam: {no_kofam / len(promoters) * 100:.2f}%")
 
 
-def ensemble_significant_features(motif: Motif):
-    # Get mtofi data
+def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
+    # Get motif data
     df = motif.genome.nearest_gene_to_positions(motif.data().lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
     
     # Make a treatments dataframe
@@ -856,4 +873,116 @@ def ensemble_significant_features(motif: Motif):
         feature_importance.write_excel(workbook=workbook, worksheet="pls_feature_importance")
         master.write_excel(workbook=workbook, worksheet="master_table")
 
-    return
+    return master
+
+
+def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: dict[str, pl.DataFrame], seq_df: pl.DataFrame):
+
+    # For group in frac_groups, get the list of unique features, and merge with results from ensemble and seq_df
+    with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_synthesis.xlsx") as workbook:
+
+         # For each group
+        for key, df in frac_groups_df.items():
+            if df.is_empty():
+                continue
+            
+            merged = df.join(ensemble_df, on=["contig", "position", "strand"], how="left", suffix="_ensemble").join(seq_df, on=["contig", "position", "strand"], how="left", suffix="_seq")
+            
+            # Select and filter
+            try:
+                merged = merged.select('contig', 'strand',	'position', 'description', 'mi_score',	'Component_1',	'Component_2',	'35ppt control S1',	'35ppt control S2',	'35ppt control S23',	'35ppt control S24',	'55ppt control S1',	'55ppt control S2',	'55ppt control S12',	'Cycling S1',	'Cycling S2',	'Cycling S14',	'Cycling S15',	'{"35ppt control S1","35ppt control S2"}',	'{"35ppt control S23","35ppt control S24"}',	'{"55ppt control S1","55ppt control S2"}',	'{"55ppt control S12","55ppt control S2"}',	'{"Cycling S1","Cycling S2"}',	'{"Cycling S14","Cycling S2"}',	'{"Cycling S14","Cycling S15"}',	'gene_callers_id_start_seq',	'gene_callers_id_end_seq',	'distance_to_start_seq',	'distance_to_end_seq',	'function_seq',	'source_seq',	'function_end_seq',	'source_end_seq')
+            except Exception as e:
+                merged = merged.select('contig', 'strand',	'position', 'shifting_pairs', 'num_pairs_shifted', 'mi_score',	'Component_1',	'Component_2',	'35ppt control S1',	'35ppt control S2',	'35ppt control S23',	'35ppt control S24',	'55ppt control S1',	'55ppt control S2',	'55ppt control S12',	'Cycling S1',	'Cycling S2',	'Cycling S14',	'Cycling S15',	'{"35ppt control S1","35ppt control S2"}',	'{"35ppt control S23","35ppt control S24"}',	'{"55ppt control S1","55ppt control S2"}',	'{"55ppt control S12","55ppt control S2"}',	'{"Cycling S1","Cycling S2"}',	'{"Cycling S14","Cycling S2"}',	'{"Cycling S14","Cycling S15"}',	'gene_callers_id_start_seq',	'gene_callers_id_end_seq',	'distance_to_start_seq',	'distance_to_end_seq',	'function_seq',	'source_seq',	'function_end_seq',	'source_end_seq')
+
+            merged = merged.filter(pl.col("source_seq").eq("COG20_FUNCTION"), pl.col("source_end_seq").eq("COG20_FUNCTION")).unique()
+            merged.write_excel(workbook, worksheet=key[:31])
+            
+
+def average_change_between_treatments(motif: Motif) -> float:
+    # Get the motif data
+    motif_data = motif.genome.nearest_gene_to_positions(motif.data().lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect().pivot(
+        index=["contig", "position", "strand"],
+        on="treatment",
+        values=motif.meth_type
+    )
+
+    # Calculate the average change between every treatment pair seperately for those that change positively, and those that change negatively
+    unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
+    all_treatment_names = sorted(
+        list(unique_treatment_names),
+        key=lambda t: motif.genome.treatment_order_map.get(t, str(t))
+    )
+    
+    # Generate pairs of treatments using the sorted, unique names
+    pairs = list(tuple(sorted(x)) for x in combinations(all_treatment_names, 2))
+    
+    results = []
+    for pair in pairs:
+       df = motif_data.select("contig", "position", "strand", pair[0], pair[1]).with_columns((pl.col(pair[1]) - pl.col(pair[0])).alias(f"change_{pair[0]}_to_{pair[1]}"))
+       
+       # Average all positive/negative changes together and get STD Val
+       positive_changes = df.filter(pl.col(f"change_{pair[0]}_to_{pair[1]}") > 0)
+       negative_changes = df.filter(pl.col(f"change_{pair[0]}_to_{pair[1]}") < 0)
+
+       average_positive = positive_changes.select(pl.mean(f"change_{pair[0]}_to_{pair[1]}")).item()
+       average_negative = negative_changes.select(pl.mean(f"change_{pair[0]}_to_{pair[1]}")).item()
+       std_positive = positive_changes.select(pl.std(f"change_{pair[0]}_to_{pair[1]}")).item()
+       std_negative = negative_changes.select(pl.std(f"change_{pair[0]}_to_{pair[1]}")).item()
+       
+       # Make a new df with the results
+       result = pl.DataFrame({
+            "treatment_pair": [f"{pair[0]}_to_{pair[1]}"],
+            "num_positive_changes": [positive_changes.height],
+            "num_negative_changes": [negative_changes.height],
+            "average_positive_change": [average_positive],
+            "average_negative_change": [average_negative],
+            "std_positive_change": [std_positive],
+            "std_negative_change": [std_negative]
+        })
+       results.append(result)
+    
+    # Concat and save
+    results_df = pl.concat(results)
+    results_df.write_csv(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_average_changes_between_treatments.csv")
+    return results_df
+
+
+def annotated_pca(motif: Motif):
+    df = motif.genome.nearest_gene_to_positions(motif.data()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+    
+    # Pivot so that features are per row, and treatments are columns
+    X = df.pivot(index=["contig", "position", "strand"], on="treatment", values=motif.meth_type)
+    
+    # Do PCA
+    pca = PCA(n_components=2)
+    features = X.drop("contig", "position", "strand").to_pandas()
+    pca_result = pca.fit_transform(features)
+    
+    # Do clustering
+    kmeans = KMeans(n_clusters=2, random_state=0)
+    clusters = kmeans.fit_predict(features)
+    
+    # Plot PCA using seaborn, colored by clusters, add variance explained by each component
+    pca_df = pd.DataFrame(pca_result, columns=["Component_1", "Component_2"])
+    pca_df["contig"] = X.get_column("contig").to_list()
+    pca_df["position"] = X.get_column("position").to_list()
+    pca_df["strand"] = X.get_column("strand").to_list()
+    pca_df["cluster"] = clusters
+    
+    plt.figure(figsize=(10, 8))
+    sns.scatterplot(data=pca_df, x="Component_1", y="Component_2", hue="cluster", palette="Set1", s=100, alpha=0.7)
+    plt.title(f"PCA of Methylation Patterns for Motif {motif.readable_motif}")
+    plt.xlabel(f"Component 1 ({pca.explained_variance_ratio_[0]*100:.2f}% Variance)")
+    plt.ylabel(f"Component 2 ({pca.explained_variance_ratio_[1]*100:.2f}% Variance)")
+   
+    # Add arrows using adjustText for outlier points designating the position
+    texts = []
+    for i, row in pca_df.iterrows():
+        if (abs(row["Component_1"]) > 2 * pca_df["Component_1"].std()) or (abs(row["Component_2"]) > 2 * pca_df["Component_2"].std()):
+            texts.append(plt.text(row["Component_1"], row["Component_2"], f"{row['position']}", fontsize=6))
+
+    adjust_text(texts, arrowprops=dict(arrowstyle="->", color="red"))
+    
+    # Save fig
+    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_pca_clusters.pdf", format="pdf")
+    plt.close()

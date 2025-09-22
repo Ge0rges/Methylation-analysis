@@ -367,28 +367,8 @@ def get_stats_data(motif, treatments):
     
     # Counts for means in format:  list of list, one list per row, methylated, unmethylated * number of replicates
     counts_df = filter_common(raw_data.select(cols_for_calcs + [canonical_col_name]).filter(is_valid_filter(meth_col_name), is_valid_filter(canonical_col_name))).sort(sort_cols).collect()
-    group1_counts = (counts_df.filter(group1_filter)
-                                .with_columns(pl.struct(sort_cols).cum_count().over(pl.struct(sort_cols)).alias("replicate"))
-                                .pivot(
-                                    values=[meth_col_name, canonical_col_name],
-                                    index=sort_cols,
-                                    columns="replicate"))
-    
-    replicates = sorted(set(int(c.split('_')[-1]) for c in group1_counts.columns if '_' in c))
-    desired_cols = [f"{v}_{r}" for r in replicates for v in [meth_col_name, canonical_col_name] if f"{v}_{r}" in group1_counts.columns]
-    group1_counts = group1_counts.select(desired_cols).to_numpy()    
-    
-    group2_counts = (counts_df.filter(group2_filter)
-                                .with_columns(pl.struct(sort_cols).cum_count().over(pl.struct(sort_cols)).alias("replicate"))
-                                .pivot(
-                                    values=[meth_col_name, canonical_col_name],
-                                    index=sort_cols,
-                                    columns="replicate"
-                                ))
-
-    replicates = sorted(set(int(c.split('_')[-1]) for c in group2_counts.columns if '_' in c))
-    desired_cols = [f"{v}_{r}" for r in replicates for v in [meth_col_name, canonical_col_name] if f"{v}_{r}" in group2_counts.columns]
-    group2_counts = group2_counts.select(desired_cols).to_numpy()
+    group1_counts = counts_df.filter(group1_filter)
+    group2_counts = counts_df.filter(group2_filter)
     
     # Returna as dict
     return {"group1_means": group1_means,
@@ -402,9 +382,8 @@ def get_stats_data(motif, treatments):
             "group1_promoter_standard_error": group1_promoter_standard_error,
             "group2_promoter_standard_error": group2_promoter_standard_error,
             "group1_counts": group1_counts,
-            "group2_counts": group2_counts,
-            "counts_positions": counts_df.filter(group1_filter).select(sort_cols)}
-
+            "group2_counts": group2_counts
+    }
 
 # Function to find closest control step for a given cycling step
 def find_closest_step(cycling_step, control_steps):

@@ -30,6 +30,8 @@ from scipy import stats
 from statsmodels.stats.multitest import multipletests
 import math
 import polars as pl
+from src.objects.motif import Motif
+
 
 # ------------------------------------------------------------------
 # Core helper functions
@@ -193,13 +195,14 @@ def _per_site_test(site_counts_a_flat, site_counts_b_flat):
 def compare_methylomes(
     beta_a: np.ndarray,
     beta_b: np.ndarray,
-    counts_a: np.ndarray | None = None,
-    counts_b: np.ndarray | None = None,
+    counts_a: pl.DataFrame | None = None,
+    counts_b: pl.DataFrame | None = None,
     *,
     n_perm: int = 10_000,
     n_boot: int = 5_000,
     alpha: float = 0.05,
     seed: int = 1,
+    motif: Motif = None
 ) -> dict:
     """
     Compare two methylomes with flat 2D count arrays.
@@ -287,44 +290,56 @@ def compare_methylomes(
     # --------------------------------------------------------------
     # 2. Per-site tests with flat 2D count array parsing
     # --------------------------------------------------------------
-    if counts_a is not None and counts_b is not None:
-        counts_a = np.asarray(counts_a)
-        counts_b = np.asarray(counts_b)
-        
-        # Validate input format
-        if counts_a.ndim != 2 or counts_b.ndim != 2:
-            raise ValueError("Count arrays must be 2-dimensional")
-        
-        n_sites_a, n_cols_a = counts_a.shape
-        n_sites_b, n_cols_b = counts_b.shape
-        
-        if n_sites_a != n_sites_b:
-            raise ValueError("Count arrays must have same number of sites")
-        
-        if n_cols_a % 2 != 0 or n_cols_b % 2 != 0:
-            raise ValueError("Count array columns must be even (2*n_replicates)")
-        
-        if n_sites_a != len(beta_a):
-            raise ValueError("Count arrays must match beta array length")
-        
+    if counts_a is not None and counts_b is not None:    
         pvals = []
         test_methods = []
         n_replicates_a_list = []
         n_replicates_b_list = []
+        contigs = []
+        strands = []
+        positions = []
         
-        for site_counts_a, site_counts_b in zip(counts_a, counts_b):
-            pval, method, n_rep_a, n_rep_b = _per_site_test(site_counts_a, site_counts_b)
+        for site_counts_a, site_counts_b in zip(counts_a.group_by("contig", "strand", "position", maintain_order=True), counts_b.group_by("contig", "strand", "position", maintain_order=True)):
+            site_counts_a_df = (site_counts_a[1].with_columns(pl.struct("contig", "strand", "position").cum_count().over(pl.struct("contig", "strand", "position")).alias("replicate"))
+                                .pivot(
+                                    values=[motif.meth_type, motif.canonical_base],
+                                    index=["contig", "strand", "position"],
+                                    columns="replicate"
+                                ))
+
+            replicates = sorted(set(int(c.split('_')[-1]) for c in site_counts_a_df.columns if '_' in c))
+            desired_cols = [f"{v}_{r}" for r in replicates for v in [motif.meth_type, motif.canonical_base] if f"{v}_{r}" in site_counts_a_df.columns]
+            site_counts_a_df = site_counts_a_df.select(desired_cols).to_numpy()
+            
+            site_counts_b_df = (site_counts_b[1].with_columns(pl.struct("contig", "strand", "position").cum_count().over(pl.struct("contig", "strand", "position")).alias("replicate"))
+                                .pivot(
+                                    values=[motif.meth_type, motif.canonical_base],
+                                    index=["contig", "strand", "position"],
+                                    columns="replicate"
+                                ))
+
+            replicates = sorted(set(int(c.split('_')[-1]) for c in site_counts_b_df.columns if '_' in c))
+            desired_cols = [f"{v}_{r}" for r in replicates for v in [motif.meth_type, motif.canonical_base] if f"{v}_{r}" in site_counts_b_df.columns]
+            site_counts_b_df = site_counts_b_df.select(desired_cols).to_numpy()
+            
+            pval, method, n_rep_a, n_rep_b = _per_site_test(site_counts_a_df[0], site_counts_b_df[0])
             pvals.append(pval)
             test_methods.append(method)
             n_replicates_a_list.append(n_rep_a)
             n_replicates_b_list.append(n_rep_b)
-        
+            contig, strand, position = site_counts_a[0][0], site_counts_a[0][1], site_counts_a[0][2]
+            contigs.append(contig)
+            strands.append(strand)
+            positions.append(position)
+            
         # FDR correction
         pvals = np.array(pvals)
         reject, qvals, *_ = multipletests(pvals, alpha=alpha, method="fdr_bh")
         
-        per_site_df = pd.DataFrame({
-            "index": np.arange(len(beta_a)),
+        per_site_df = pl.from_dict({
+            "contig": contigs,
+            "strand": strands,
+            "position": positions,
             "beta_A": beta_a,
             "beta_B": beta_b,
             "n_replicates_A": n_replicates_a_list,
