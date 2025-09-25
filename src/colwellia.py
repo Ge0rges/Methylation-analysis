@@ -213,12 +213,10 @@ def plot_motif_methylation_distribution_colwellia(motif: Motif, output_dir: Path
     print(f"Saved PDF: {out_file}")
 
 
-def plot_statistics_heatmap_with_timeline(
-    output_dir: Path,
+def plot_statistics_heatmap(
     statistic_keys: list[str],
     significance_matrix: dict[str, pd.DataFrame],
     value_matrices: dict[str, pd.DataFrame],
-    timeline_df: pd.DataFrame,
     motif: Motif,
     alpha: float,
     stat_name: str
@@ -238,88 +236,104 @@ def plot_statistics_heatmap_with_timeline(
     sns.set_theme(context="poster", style="whitegrid")
 
     n_stats = len(statistic_keys)
-    _, axes = plt.subplots(n_stats, 3, figsize=(24, 15 * n_stats), constrained_layout=True, width_ratios=[1, 0.3, 0.3])
+    _, axes = plt.subplots(n_stats, 3, figsize=(40, 10 * n_stats), constrained_layout=True)
 
     if n_stats == 1:
         axes = [axes]
 
     for i, stat_key in enumerate(statistic_keys):
-        heatmap_ax, timeline_ax1, timeline_ax2 = axes[i]
-        timeline_ax1.sharey(timeline_ax2)
+        heatmap_ax_controls, heatmap_ax_cycling, heatmap_ax_cycling_controls = axes[i]
 
         pval_matrix = significance_matrix[stat_key]
         val_matrix = value_matrices[stat_key]
+        
+        # Round val matrix to 2
+        val_matrix = val_matrix.round(2)
         
         # Sort indices and columns based on genome treatment order
         sorted_treatments = sorted(motif.genome.treatment_order_map.keys(), key=motif.genome.treatment_order_map.get)
         pval_matrix = pval_matrix.reindex(index=sorted_treatments, columns=sorted_treatments)
         val_matrix = val_matrix.reindex(index=sorted_treatments, columns=sorted_treatments)
+        
+        # Handle boolean pval_matrix
+        if pval_matrix.dtypes.iloc[0] == object:
+            condition = pval_matrix
+        else:
+            condition = pval_matrix < alpha
+        annot_matrix = pd.DataFrame(np.where(condition, val_matrix, "X"), index=val_matrix.index, columns=val_matrix.columns)
 
-        # Make pairwise heatmap
-        annot = np.where(pval_matrix < alpha, val_matrix.round(2), "X")
+        # Get the data we want
+        controls_matrix = val_matrix.loc[
+            val_matrix.index.str.contains("control"),
+            val_matrix.index.str.contains("control")
+        ]
+        cycling_matrix = val_matrix.loc[
+            val_matrix.index.str.contains("Cycling"),
+            val_matrix.index.str.contains("Cycling")
+        ]
+        cycling_controls_matrix = val_matrix.loc[
+            val_matrix.index.str.contains("Cycling"), 
+            val_matrix.columns.str.contains("control")
+        ]
+        
+        # Get the correct annotations out for each matrix
+        controls_annot_matrix = annot_matrix.loc[controls_matrix.index, controls_matrix.columns]
+        cycling_annot_matrix = annot_matrix.loc[cycling_matrix.index, cycling_matrix.columns]
+        cycling_controls_annot_matrix = annot_matrix.loc[cycling_controls_matrix.index, cycling_controls_matrix.columns]
+
+        # Get global min and max values
+        global_min = min(controls_matrix.min().min(), cycling_matrix.min().min(), cycling_controls_matrix.min().min())
+        global_max = max(controls_matrix.max().max(), cycling_matrix.max().max(), cycling_controls_matrix.max().max())
+
+        # Make pairwise heatmap of just controls versus each other
         sns.heatmap(
-            val_matrix, ax=heatmap_ax, annot=annot, fmt="s", cmap="viridis",
-            cbar_kws={'label': "D-value" if stat_name == "Kilmogorov-Smirnov" else stat_name, 'shrink': 0.8}, linewidths=0.5
+            controls_matrix, ax=heatmap_ax_controls, annot=controls_annot_matrix, fmt="s", cmap="viridis",
+            vmin=global_min, vmax=global_max,
+            cbar_kws={'label': "D-value" if stat_name == "Kilmogorov-Smirnov" else stat_name, 'shrink': 0.8}, 
+            linewidths=0.5
         )
-        heatmap_ax.set_xticklabels(heatmap_ax.get_xticklabels(), rotation=90)
 
-        # Color tick labels
-        for tick in heatmap_ax.get_xticklabels():
-            treatment = tick.get_text()
-            if treatment in motif.genome.treatment_color_map:
-                tick.set_color(motif.genome.treatment_color_map[treatment])
-        for tick in heatmap_ax.get_yticklabels():
-            treatment = tick.get_text()
-            if treatment in motif.genome.treatment_color_map:
-                tick.set_color(motif.genome.treatment_color_map[treatment])
+        # Make pairwise heatmap of just cycling versus each other
+        sns.heatmap(
+            cycling_matrix, ax=heatmap_ax_cycling, annot=cycling_annot_matrix, fmt="s", cmap="viridis",
+            vmin=global_min, vmax=global_max,
+            cbar_kws={'label': "D-value" if stat_name == "Kilmogorov-Smirnov" else stat_name, 'shrink': 0.8}, 
+            linewidths=0.5
+        )
 
-        title_stat_key = stat_key.replace('_', ' ').title()
-        if "no_pr" in stat_key:
-            title_stat_key = title_stat_key.replace("No Pr", "(No Promoter)")
-        elif "pr" in stat_key:
-            title_stat_key = title_stat_key.replace("Pr", "(Promoter)")
-        heatmap_ax.set_title(title_stat_key)
+        # Make pairwise heatmap of just cycling versus controls
+        sns.heatmap(
+            cycling_controls_matrix, ax=heatmap_ax_cycling_controls, annot=cycling_controls_annot_matrix, fmt="s", cmap="viridis",
+            vmin=global_min, vmax=global_max,
+            cbar_kws={'label': "D-value" if stat_name == "Kilmogorov-Smirnov" else stat_name, 'shrink': 0.8}, 
+            linewidths=0.5
+        )
 
-        # Make timeline plots
-        start_steps, end_steps = [1, 2], [14, 15]
-        for ax, steps in [(timeline_ax1, start_steps), (timeline_ax2, end_steps)]:
-            sns.set_theme(context="poster", style="whitegrid")
-            sns.scatterplot(
-                data=timeline_df[(timeline_df['Stat Key'] == stat_key) & (timeline_df['Cycling Step'].isin(steps))],
-                x='Cycling Step', y="Statistic", hue='Control', hue_order=['35ppt control', '55ppt control'],
-                palette=['blue', 'red'], style='Significant', markers={True: 'o', False: 'X'},
-                s=180, alpha=0.7, ax=ax, legend="full", style_order=[True, False]
-            )
-            
-            ax.set_ylabel("D-value" if stat_name == "Kilmogorov-Smirnov" else stat_name)
-            ax.set_xlim(min(steps) - 0.5, max(steps) + 0.5)
-            ax.set_xticks(steps)
+        # Decorations
+        for ax in axes[i]:
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+            ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+
+            # Color tick labels
             for tick in ax.get_xticklabels():
-                val = int(tick.get_text())
-                tick.set_color('blue' if val % 2 == 1 else 'red')
+                treatment = tick.get_text()
+                if treatment in motif.genome.treatment_color_map:
+                    tick.set_color(motif.genome.treatment_color_map[treatment])
+            for tick in ax.get_yticklabels():
+                treatment = tick.get_text()
+                if treatment in motif.genome.treatment_color_map:
+                    tick.set_color(motif.genome.treatment_color_map[treatment])
         
-        # Merge legends
-        handles1, labels1 = timeline_ax1.get_legend_handles_labels()
-        handles2, labels2 = timeline_ax2.get_legend_handles_labels()
-        combined = dict(zip(labels1 + labels2, handles1 + handles2))
-        timeline_ax1.get_legend().remove()
-        timeline_ax2.get_legend().remove()
-        
-        timeline_ax2.legend(list(combined.values()), list(combined.keys()), loc='lower right')
+            # Set title
+            title_stat_key = stat_key.replace('_', ' ').title()
+            if "no_pr" in stat_key:
+                title_stat_key = title_stat_key.replace("No Pr", "(No Promoter)")
+            elif "pr" in stat_key:
+                title_stat_key = title_stat_key.replace("Pr", "(Promoter)")
+            ax.set_title(title_stat_key)
 
-        # Visual cleanup for broken axis
-        timeline_ax1.spines['right'].set_visible(False)
-        timeline_ax2.spines['left'].set_visible(False)
-        timeline_ax2.set_ylabel("")
-        plt.setp(timeline_ax2.get_yticklabels(), visible=False)
-        
-        d = .015
-        kwargs = dict(transform=timeline_ax1.transAxes, color='k', clip_on=False)
-        timeline_ax1.plot((1 - d, 1 + d), (-d, +d), **kwargs)
-        kwargs.update(transform=timeline_ax2.transAxes)
-        timeline_ax2.plot((-d, +d), (-d, +d), **kwargs)
-
-    plt.savefig(output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_{stat_name}_heatmap.pdf", format="pdf")
+    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_{stat_name}_heatmap.pdf", format="pdf")
+    plt.close()
 
 
 def write_genbank_features_near_motifs(motif: Motif) -> None:
@@ -561,63 +575,14 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
         all_result_stats_per_site = pl.concat(all_result_stats_per_site, how="vertical")
         with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx") as wb:
             all_result_stats_per_site.write_excel(wb, include_header=True)
-            
-        # For each pair and statistic, plot a heatmap
+        
         all_result_stats = pl.concat(all_result_stats, how="vertical")
         stat_groups = all_result_stats.get_column("group").unique().to_list()
-
-        # Find nearest matching steps between cycling and controls
-        pattern = re.compile(r"(Cycling|35ppt control|55ppt control) S(\d+)")
-        cycling_steps = []
-        control_35ppt = []
-        control_55ppt = []
-
-        for treatment in all_treatment_names:
-            match = pattern.match(treatment)
-            if match:
-                group, step = match.groups()
-                step = int(step)
-                if group == "Cycling":
-                    cycling_steps.append((treatment, step))
-                elif group == "35ppt control":
-                    control_35ppt.append((treatment, step))
-                elif group == "55ppt control":
-                    control_55ppt.append((treatment, step))
-        
-        cycling_steps.sort(key=lambda x: x[1])
-        control_35ppt.sort(key=lambda x: x[1])
-        control_55ppt.sort(key=lambda x: x[1])
-        
-        closest_controls = {}
-        for treatment, step in cycling_steps:
-            closest_controls[(treatment, step)] = {
-                find_closest_step(step, control_35ppt): "35ppt control",
-                find_closest_step(step, control_55ppt): "55ppt control",
-            }
-
-        timeline_data = []
-        for (cycling_treatment, cycling_step), correspond_controls in closest_controls.items():
-            # Filter down result to the current comparison
-            comparison_df = all_result_stats.filter((pl.col("Treatment A").eq(cycling_treatment) & pl.col("Treatment B").is_in(list(correspond_controls.keys()))) | (pl.col("Treatment A").is_in(list(correspond_controls.keys())) & pl.col("Treatment B").eq(cycling_treatment)))
-            
-            for row in comparison_df.iter_rows(named=True):            
-                # Append to timeline data
-                timeline_data.append({
-                    'Cycling Step': cycling_step,
-                    'Statistic': row['Statistic'],
-                    'Control': correspond_controls.get(row['Treatment B'], correspond_controls.get(row['Treatment A'])),
-                    'Significant': row['p-value'] < alpha,
-                    'Stat Key': row['group'],
-                    'Test': row["Test"]
-                })
-                                    
-        timeline_df = pd.DataFrame(timeline_data)
 
         # Save all_result_stats, and value_matrices, significance_matrices, to a numpy file
         np.save(npy_file_path, {
             "all_result_stats": all_result_stats.to_pandas(),
             "stat_groups": stat_groups,
-            "timeline_df": timeline_df
         })
         print(f"Saved numpy data file: {npy_file_path}")
     
@@ -626,7 +591,6 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
         data = np.load(npy_file_path, allow_pickle=True).item()
         all_result_stats = pl.from_pandas(data["all_result_stats"])
         stat_groups = data["stat_groups"]
-        timeline_df = data["timeline_df"]    
         
     # Plot each test
     for test in all_result_stats.get_column("Test").unique().to_list():
@@ -644,7 +608,7 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
             value_matrices[stat] = value_matrices[stat].combine_first(value_matrices[stat].T)
             significance_matrices[stat] = significance_matrices[stat].combine_first(significance_matrices[stat].T)
             
-        plot_statistics_heatmap_with_timeline(motif.genome.output_dir, stat_groups, significance_matrices, value_matrices, timeline_df[timeline_df["Test"] == test], motif, alpha, test)
+        plot_statistics_heatmap(stat_groups, significance_matrices, value_matrices, motif, alpha, test)
     
     # Print how well each test's result correlates with each other
     p_values_wide = all_result_stats.pivot(
@@ -705,30 +669,30 @@ def frac_investigation_with_stats(motif: Motif) -> dict[str, pl.DataFrame]:
 
 def position_stats_heatmap(motif: Motif, position: int):
     all_result_stats = pl.read_excel(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx")
-    all_result_stats = all_result_stats.filter(pl.col("significant") == True)
-    
     all_result_stats = all_result_stats.filter(pl.col("position") == position).with_columns((pl.col("beta_A") - pl.col("beta_B")).alias("beta_diff"))
+    
+    # Make significant true when significant is true and abs(beta_diff) > 0.1
+    all_result_stats = all_result_stats.with_columns((pl.col("significant") & (pl.col("beta_diff").abs() >= 0.1)).alias("significant"))
     
     # Make a heatmap where rows are treatment_1, columns are treatment_2, and values are beta_A - beta_B
     heatmap_data = all_result_stats.select("treatment_1", "treatment_2", "beta_diff").unique().to_pandas().pivot(index="treatment_1", columns="treatment_2", values="beta_diff")
-    heatmap_data = heatmap_data.combine_first(heatmap_data.T)  # Make symmetric
     
-    # Annotate the heatmap with the value and an asterik if significant is True
-    annot_data = all_result_stats.with_columns(pl.when(pl.col("significant")).then(pl.col("beta_diff").cast(pl.Utf8) + "*").otherwise(pl.col("beta_diff").cast(pl.Utf8)).alias("annot")).select("treatment_1", "treatment_2", "annot").unique().to_pandas().pivot(index="treatment_1", columns="treatment_2", values="annot")
-    annot_data = annot_data.combine_first(annot_data.T)
-
-    # Sort annot_data and heatmap_data so rows and columns are in the same order
-    sorted_treatments = sorted(motif.genome.treatment_order_map.keys(), key=motif.genome.treatment_order_map.get)
-    heatmap_data = heatmap_data.reindex(index=sorted_treatments, columns=sorted_treatments)
-    annot_data = annot_data.reindex(index=sorted_treatments, columns=sorted_treatments)
+    # Signifiance matrix
+    significance_data = all_result_stats.select("treatment_1", "treatment_2", "significant").unique().to_pandas().pivot(index="treatment_1", columns="treatment_2", values="significant")
     
-    sns.heatmap(heatmap_data, annot=annot_data, cmap="coolwarm", center=0, fmt="")
-    plt.title(f"Methylation Difference at Position {position} for Motif {motif.readable_motif}")
-    plt.xlabel("Treatment 2 (Negative)")
-    plt.ylabel("Treatment 1 (Positive)")
-    plt.xticks(rotation=45, ha='right')
-    plt.yticks(rotation=0)
-    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_position_{position}_heatmap.pdf", format="pdf")
+    # Make symmetric
+    heatmap_data = heatmap_data.combine_first(heatmap_data.T)
+    significance_data = significance_data.combine_first(significance_data.T)
+    
+    # Plot heatmap 
+    plot_statistics_heatmap(
+        statistic_keys=["Chi2"],
+        significance_matrix={"Chi2": significance_data},
+        value_matrices={"Chi2": heatmap_data},
+        motif=motif,
+        alpha=None,
+        stat_name=f"Position {position}"
+    )
 
 
 def write_frac_sequence_with_stats(motif: Motif) -> pl.DataFrame:
@@ -955,7 +919,7 @@ def annotated_pca(motif: Motif):
     
     # Do PCA
     pca = PCA(n_components=2)
-    features = X.drop("contig", "position", "strand").to_pandas()
+    features = X.drop("contig", "position", "strand").to_pandas().T
     pca_result = pca.fit_transform(features)
     
     # Do clustering
@@ -964,9 +928,6 @@ def annotated_pca(motif: Motif):
     
     # Plot PCA using seaborn, colored by clusters, add variance explained by each component
     pca_df = pd.DataFrame(pca_result, columns=["Component_1", "Component_2"])
-    pca_df["contig"] = X.get_column("contig").to_list()
-    pca_df["position"] = X.get_column("position").to_list()
-    pca_df["strand"] = X.get_column("strand").to_list()
     pca_df["cluster"] = clusters
     
     plt.figure(figsize=(10, 8))
@@ -975,14 +936,121 @@ def annotated_pca(motif: Motif):
     plt.xlabel(f"Component 1 ({pca.explained_variance_ratio_[0]*100:.2f}% Variance)")
     plt.ylabel(f"Component 2 ({pca.explained_variance_ratio_[1]*100:.2f}% Variance)")
    
-    # Add arrows using adjustText for outlier points designating the position
-    texts = []
-    for i, row in pca_df.iterrows():
-        if (abs(row["Component_1"]) > 2 * pca_df["Component_1"].std()) or (abs(row["Component_2"]) > 2 * pca_df["Component_2"].std()):
-            texts.append(plt.text(row["Component_1"], row["Component_2"], f"{row['position']}", fontsize=6))
+    # Print top loading features for each component
+    # Map loadings back to original features
+    feature_identifiers = X.select("contig", "position", "strand").to_pandas()
+    loading_df = pd.DataFrame(pca.components_.T, columns=["Component_1", "Component_2"])
+    loading_df = pd.concat([feature_identifiers, loading_df], axis=1)
+    # Calculate mean and standard deviation for loadings
+    mean_comp1 = loading_df['Component_1'].mean()
+    std_comp1 = loading_df['Component_1'].std()
+    mean_comp2 = loading_df['Component_2'].mean()
+    std_comp2 = loading_df['Component_2'].std()
 
-    adjust_text(texts, arrowprops=dict(arrowstyle="->", color="red"))
-    
+    # Define thresholds
+    threshold_comp1 = mean_comp1 + 3 * std_comp1
+    threshold_comp2 = mean_comp2 + 3 * std_comp2
+
+    # Filter features based on the threshold for absolute loading values
+    top_loadings_comp1 = loading_df[loading_df['Component_1'].abs() > threshold_comp1].sort_values(by='Component_1', ascending=False)
+    top_loadings_comp2 = loading_df[loading_df['Component_2'].abs() > threshold_comp2].sort_values(by='Component_2', ascending=False)
+
+    print(f"Features with Component 1 loading > 3*std from mean:\n{top_loadings_comp1}\n")
+    print(f"Features with Component 2 loading > 3*std from mean:\n{top_loadings_comp2}\n")
+    print(f"Mean loading and standard deviation for Component 1: {mean_comp1:.4f} ± {std_comp1:.4f}")
+    print(f"Mean loading and standard deviation for Component 2: {mean_comp2:.4f} ± {std_comp2:.4f}")
+
     # Save fig
     plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_pca_clusters.pdf", format="pdf")
     plt.close()
+
+
+def non_negative_matrix_factorization(motif: Motif):
+    from sklearn.decomposition import NMF
+    df = motif.genome.nearest_gene_to_positions(motif.data()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+    
+    # Pivot so that features are per row, and treatments are columns
+    X = df.pivot(index=["contig", "position", "strand"], on="treatment", values=motif.meth_type).fill_null(0)
+    
+    # Do NMF
+    nmf = NMF(n_components=2, init='random', random_state=0, max_iter=1000)
+    features = X.drop("contig", "position", "strand").to_pandas().T
+    W = nmf.fit_transform(features)
+    H = nmf.components_
+    
+    # Plot NMF using seaborn, colored by clusters from kmeans on W
+    kmeans = KMeans(n_clusters=2, random_state=0)
+    clusters = kmeans.fit_predict(W)
+    
+    nmf_df = pd.DataFrame(W, columns=["Component_1", "Component_2"])
+    nmf_df["cluster"] = clusters
+    
+    plt.figure(figsize=(10, 8))
+    sns.scatterplot(data=nmf_df, x="Component_1", y="Component_2", hue="cluster", palette="Set1", s=100, alpha=0.7)
+    plt.title(f"NMF of Methylation Patterns for Motif {motif.readable_motif}")
+    plt.xlabel("Component 1")
+    plt.ylabel("Component 2")
+    
+    # Print top loading features for each component
+    # Map loadings back to original features
+    feature_identifiers = X.select("contig", "position", "strand").to_pandas()
+    loading_df = pd.DataFrame(H.T, columns=["Component_1", "Component_2"])
+    loading_df = pd.concat([feature_identifiers, loading_df], axis=1)
+    
+    # Calculate mean and standard deviation for loadings
+    mean_comp1 = loading_df['Component_1'].mean()
+    std_comp1 = loading_df['Component_1'].std()
+    mean_comp2 = loading_df['Component_2'].mean()
+    std_comp2 = loading_df['Component_2'].std()
+
+    # Define thresholds
+    threshold_comp1 = mean_comp1 + 3 * std_comp1
+    threshold_comp2 = mean_comp2 + 3 * std_comp2
+    
+    # Filter features based on the threshold for absolute loading values
+    top_loadings_comp1 = loading_df[loading_df['Component_1'] > threshold_comp1].sort_values(by='Component_1', ascending=False)
+    top_loadings_comp2 = loading_df[loading_df['Component_2'] > threshold_comp2].sort_values(by='Component_2', ascending=False)
+    print(f"Features with Component 1 loading > 3*std from mean:\n{top_loadings_comp1}\n")
+    print(f"Features with Component 2 loading > 3*std from mean:\n{top_loadings_comp2}\n")
+    print(f"Mean loading and standard deviation for Component 1: {mean_comp1:.4f} ± {std_comp1:.4f}")
+    print(f"Mean loading and standard deviation for Component 2: {mean_comp2:.4f} ± {std_comp2:.4f}")
+
+
+def lasso_regression(motif: Motif):
+    from sklearn.linear_model import LassoCV
+    df = motif.genome.nearest_gene_to_positions(motif.data()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+    
+    # Pivot so that features are per row, and treatments are columns
+    X = df.pivot(index="treatment", on=["contig", "position", "strand"], values=motif.meth_type).fill_null(0)
+    
+    # Make a treatments dataframe
+    unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
+    all_treatment_names = sorted(
+        list(unique_treatment_names),
+        key=lambda t: motif.genome.treatment_order_map.get(t, str(t))
+    )
+    
+    treatment_df = (pl.from_dict({"treatment": all_treatment_names})
+                    .with_columns(pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity"), 
+                                    (pl.col("group").str.contains("control")).alias("control"))
+                    )
+    
+    # Add a salinity column 
+    y = treatment_df.get_column("salinity").to_pandas().astype(int)
+    X = X.drop("treatment").to_pandas()
+    
+    # Do L1 regression with cross validation to find the best alpha
+    lasso = LassoCV(cv=5, random_state=0, max_iter=10000)
+    lasso.fit(X, y)
+    
+    # Get coefficients and map back to features
+    coef_df = pd.DataFrame({
+        "feature": X.columns,
+        "coefficient": lasso.coef_
+    })
+    
+    # Filter to non-zero coefficients and sort by absolute value
+    coef_df = coef_df[coef_df["coefficient"] != 0].sort_values(by="coefficient", key=abs, ascending=False)
+    print(f"Lasso selected {len(coef_df)} features with non-zero coefficients.")
+    print(coef_df)
