@@ -334,7 +334,7 @@ def compare_methylomes(
             
         # FDR correction
         pvals = np.array(pvals)
-        reject, qvals, *_ = multipletests(pvals, alpha=alpha, method="fdr_bh")
+        reject, qvals, *_ = multipletests(pvals, alpha=alpha, method="fdr_tsbh")
         
         per_site_df = pl.from_dict({
             "contig": contigs,

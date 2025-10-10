@@ -89,18 +89,18 @@ def analyze_colwellia(
         # motif_functional_enrichment(motif)
                                 
         # Statistics        
-        # do_whole_methylome_stats(motif)
-        # ensemble_df = ensemble_significant_features(motif)
-        # frac_groups_df = frac_investigation_with_stats(motif)
-        # seq_df = write_frac_sequence_with_stats(motif)
-        # synthesis(motif, ensemble_df, frac_groups_df, seq_df)
-        # average_change_between_treatments(motif)
+        do_whole_methylome_stats(motif, alpha=0.05)
+        ensemble_df = ensemble_significant_features(motif)
+        frac_groups_df = frac_investigation_with_stats(motif)
+        seq_df = write_frac_sequence_with_stats(motif)
+        synthesis(motif, ensemble_df, frac_groups_df, seq_df)
         annotated_pca(motif)
         non_negative_matrix_factorization(motif)
-        lasso_regression(motif)
+        colinear_features(motif)
+        regulatory_candidates(motif)
 
-        # for pos in [4001064, 5367876, 5367834, 2119419, 1831923, 1019353, 1158890, 5367887, 5027643, 1563702, 1514217, 1283010, 1186097, 99550, 75199]:
-        #     position_stats_heatmap(motif, pos)
+        for pos in [4001064, 5034408]:
+            position_stats_plots(motif, pos)
 
     # Basic stats file
     # write_basic_stats_colwellia(genome, motifs)

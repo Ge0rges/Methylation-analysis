@@ -5,6 +5,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn.model_selection import RepeatedKFold, StratifiedKFold
 from xlsxwriter import Workbook
 import pandas as pd
 import polars as pl
@@ -17,6 +18,7 @@ from src.objects.motif import Motif
 from src.utilities.utils import readable_modification_name, get_stats_data, find_closest_step
 from src.utilities.data_loading import parse_genbank
 from src.utilities.compare_methylome import compare_methylomes
+
 from src.utilities.kegg_enrichment import KEGGEnrichmentAnalyzer
 from src.utilities.feature_statistics import *
 from src.diff_pattern import analyze_differential_expression_patterns
@@ -248,8 +250,8 @@ def plot_statistics_heatmap(
         val_matrix = value_matrices[stat_key]
         
         # Round val matrix to 2
-        val_matrix = val_matrix.round(2)
-        
+        val_matrix = (val_matrix*100).round(2) if stat_name == "1-Wasserstein" else val_matrix.round(2)
+
         # Sort indices and columns based on genome treatment order
         sorted_treatments = sorted(motif.genome.treatment_order_map.keys(), key=motif.genome.treatment_order_map.get)
         pval_matrix = pval_matrix.reindex(index=sorted_treatments, columns=sorted_treatments)
@@ -327,9 +329,11 @@ def plot_statistics_heatmap(
             # Set title
             title_stat_key = stat_key.replace('_', ' ').title()
             if "no_pr" in stat_key:
-                title_stat_key = title_stat_key.replace("No Pr", "(No Promoter)")
+                title_stat_key = "No promoters"
             elif "pr" in stat_key:
-                title_stat_key = title_stat_key.replace("Pr", "(Promoter)")
+                title_stat_key = "Promoters only"
+            else:
+                title_stat_key = "All sites"
             ax.set_title(title_stat_key)
 
     plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_{stat_name}_heatmap.pdf", format="pdf")
@@ -561,9 +565,9 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
             counts_a = data["group1_counts"]
             counts_b = data["group2_counts"]
 
-            results_means = compare_methylomes(beta_a, beta_b, counts_a, counts_b, motif=motif)
-            results_promoters = compare_methylomes(pr_beta_a, pr_beta_b)
-            results_no_promoters = compare_methylomes(no_pr_beta_a, no_pr_beta_b)
+            results_means = compare_methylomes(beta_a, beta_b, counts_a, counts_b, motif=motif, alpha=alpha)
+            results_promoters = compare_methylomes(pr_beta_a, pr_beta_b, motif=motif, alpha=alpha)
+            results_no_promoters = compare_methylomes(no_pr_beta_a, no_pr_beta_b, motif=motif, alpha=alpha)
 
             # Add
             all_result_stats.append(results_means["global_table"].with_columns(pl.lit(pair_treatments[0]).alias("Treatment A"), pl.lit(pair_treatments[1]).alias("Treatment B"), pl.lit("means").alias("group")))
@@ -576,7 +580,12 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
         with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx") as wb:
             all_result_stats_per_site.write_excel(wb, include_header=True)
         
+        # Do multiple test correction on the whole methylomes
         all_result_stats = pl.concat(all_result_stats, how="vertical")
+        pvalues = all_result_stats.get_column("p-value").to_list()
+        corrected_pvalues = multipletests(pvalues, method="fdr_bh", alpha=alpha)[1]
+        all_result_stats = all_result_stats.with_columns(pl.Series("p-value", corrected_pvalues))
+        
         stat_groups = all_result_stats.get_column("group").unique().to_list()
 
         # Save all_result_stats, and value_matrices, significance_matrices, to a numpy file
@@ -617,7 +626,6 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
         values="p-value"
     )
 
-    # You can do the same for the statistics if you want to correlate them too
     statistics_wide = all_result_stats.pivot(
         index=["Treatment A", "Treatment B", "group"],
         columns="Test",
@@ -634,6 +642,38 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
     print("\n--- Overall Statistic Correlation Matrix ---")
     print(statistic_correlation)
     
+    # Print how well the test results correlate within groups (promoters only, non-promoters only, all)
+    for test in all_result_stats.get_column("Test").unique().to_list():
+        test_df = all_result_stats.filter(pl.col("Test").eq(test))
+        
+        p_values_wide = test_df.pivot(
+            index=["Treatment A", "Treatment B"],
+            columns="group",
+            values="p-value"
+        )
+        
+        statistics_wide = test_df.pivot(
+            index=["Treatment A", "Treatment B"],
+            columns="group",
+            values="Statistic"
+        )
+        
+        group_names = test_df.get_column("group").unique().to_list()
+        print(f"\n--- Correlations for test: {test} ---")
+
+        # P-value correlations
+        print("\n--- P-value Correlations ---")
+        p_values_df = p_values_wide.select(group_names).to_pandas().dropna()
+        for group1, group2 in combinations(group_names, 2):
+            corr, p_val = spearmanr(p_values_df[group1], p_values_df[group2])
+            print(f"'{group1}' vs '{group2}': Spearman Correlation={corr:.4f}, p-value={p_val:.4f}")
+
+        # Statistic correlations
+        print("\n--- Statistic Correlations ---")
+        statistics_df = statistics_wide.select(group_names).to_pandas().dropna()
+        for group1, group2 in combinations(group_names, 2):
+            corr, p_val = spearmanr(statistics_df[group1], statistics_df[group2])
+            print(f"'{group1}' vs '{group2}': Spearman Correlation={corr:.4f}, p-value={p_val:.4f}")
 
 
 def frac_investigation_with_stats(motif: Motif) -> dict[str, pl.DataFrame]:
@@ -667,12 +707,13 @@ def frac_investigation_with_stats(motif: Motif) -> dict[str, pl.DataFrame]:
     return results
 
 
-def position_stats_heatmap(motif: Motif, position: int):
+def position_stats_plots(motif: Motif, position: int):
     all_result_stats = pl.read_excel(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx")
     all_result_stats = all_result_stats.filter(pl.col("position") == position).with_columns((pl.col("beta_A") - pl.col("beta_B")).alias("beta_diff"))
     
-    # Make significant true when significant is true and abs(beta_diff) > 0.1
-    all_result_stats = all_result_stats.with_columns((pl.col("significant") & (pl.col("beta_diff").abs() >= 0.1)).alias("significant"))
+    # Make significant true when significant is true and abs(beta_diff) >= 3*stddev
+    mean_stddev = motif.data().group_by("contig", "strand", "position").agg(pl.col(motif.meth_type).std()).select(pl.col(motif.meth_type).mean()).collect().item()
+    all_result_stats = all_result_stats.with_columns((pl.col("significant") & (pl.col("beta_diff").abs() >= 3*mean_stddev)).alias("significant"))
     
     # Make a heatmap where rows are treatment_1, columns are treatment_2, and values are beta_A - beta_B
     heatmap_data = all_result_stats.select("treatment_1", "treatment_2", "beta_diff").unique().to_pandas().pivot(index="treatment_1", columns="treatment_2", values="beta_diff")
@@ -681,8 +722,12 @@ def position_stats_heatmap(motif: Motif, position: int):
     significance_data = all_result_stats.select("treatment_1", "treatment_2", "significant").unique().to_pandas().pivot(index="treatment_1", columns="treatment_2", values="significant")
     
     # Make symmetric
-    heatmap_data = heatmap_data.combine_first(heatmap_data.T)
-    significance_data = significance_data.combine_first(significance_data.T)
+    heatmap_data = heatmap_data.combine_first(-heatmap_data.T)
+    
+    # Print
+    print(f"\n--- Position {position} statistics ---")
+    print(heatmap_data)
+    print(all_result_stats.select("q_BH").to_pandas().combine_first(all_result_stats.select("q_BH").to_pandas().T))
     
     # Plot heatmap 
     plot_statistics_heatmap(
@@ -693,7 +738,66 @@ def position_stats_heatmap(motif: Motif, position: int):
         alpha=None,
         stat_name=f"Position {position}"
     )
+    
+    # Plot lineplot of the position, with hue = salinity, style = group
+    data = motif.data().filter(pl.col("position") == position).collect().to_pandas()
+    data["group"] = data["treatment"].str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", expand=True)[0]
+    data["step"] = data["treatment"].str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", expand=True)[1].astype(int)
+    data["salinity"] = (data["group"] == "55ppt control") | ((data["group"] == "Cycling") & (data["step"] % 2 != 0))
+    data["control"] = data["group"].str.contains("control")
 
+    # Determine the maximum step value
+    data.loc[(data["step"] == 23), "step"] = 12
+    data.loc[(data["step"] == 24), "step"] = 13
+    max_step = data["step"].max()
+
+    # Create figure with two subplots side by side
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
+
+    # Plot on left subplot (steps 1, 2)
+    data_left = data[data["step"].isin([1, 2])]
+    sns.lineplot(data=data_left, x="step", y=motif.meth_type, hue="group", 
+                markers=True, dashes=False, ax=ax1)
+    ax1.set_xlim(0.5, 2.5)
+    ax1.set_xlabel("Step")
+    ax1.set_ylabel("Methylation fraction")
+    ax1.legend_.remove()  # Remove legend from left plot
+
+    # Plot on right subplot (steps t-1, t-2)
+    data_right = data[data["step"].isin([max_step-1, max_step])]
+    sns.lineplot(data=data_right, x="step", y=motif.meth_type, hue="group", 
+                markers=True, dashes=False, ax=ax2)
+    ax2.set_xlim(max_step-1.5, max_step+0.5)
+    ax2.set_xlabel("Step")
+    ax2.set_ylabel("")  # Remove y-label from right plot
+
+    # Add break indicators
+    # Remove spines between the plots
+    ax1.spines['right'].set_visible(False)
+    ax2.spines['left'].set_visible(False)
+    ax2.tick_params(left=False)  # Remove left ticks from right plot
+
+    # Add diagonal lines to indicate the break
+    d = 0.015  # Size of diagonal lines
+    kwargs = dict(transform=ax1.transAxes, color='k', clip_on=False)
+    ax1.plot((1-d, 1+d), (-d, +d), **kwargs)        # top-right diagonal
+    ax1.plot((1-d, 1+d), (1-d, 1+d), **kwargs)      # bottom-right diagonal
+
+    kwargs.update(transform=ax2.transAxes)  # switch to right axis
+    ax2.plot((-d, +d), (1-d, 1+d), **kwargs)        # top-left diagonal  
+    ax2.plot((-d, +d), (-d, +d), **kwargs)          # bottom-left diagonal
+
+    # Set overall title
+    fig.suptitle(f"{motif.readable_motif} at position {position}", fontsize=14)
+
+    # Adjust layout
+    plt.subplots_adjust(wspace=0.05)
+
+    # Save the plot
+    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_position_{position}_lineplot_broken.pdf", 
+                format="pdf", bbox_inches='tight')
+    plt.close()
+    
 
 def write_frac_sequence_with_stats(motif: Motif) -> pl.DataFrame:
     all_result_stats = pl.read_excel(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx")
@@ -701,7 +805,8 @@ def write_frac_sequence_with_stats(motif: Motif) -> pl.DataFrame:
     all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats)
 
     # Data - Restrict to promoters and big effect size
-    all_result_stats = all_result_stats.filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_(),(pl.col("beta_A") - pl.col("beta_B")).abs() > 0.1)
+    mean_stddev = motif.data().group_by("contig", "strand", "position").agg(pl.col(motif.meth_type).std()).select(pl.col(motif.meth_type).mean()).collect().item()
+    all_result_stats = all_result_stats.filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_(),(pl.col("beta_A") - pl.col("beta_B")).abs() >= 3*mean_stddev)
 
     # Get the motif data
     motif_data = motif.data().filter(pl.col("position").is_in(all_result_stats.get_column("position"))).collect().pivot(
@@ -730,7 +835,6 @@ def write_frac_sequence_with_stats(motif: Motif) -> pl.DataFrame:
     result = result.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
     result = result.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
     
-    
     # Write to excel
     excel_file_path = motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_stats_sequence.xlsx"
     with Workbook(excel_file_path) as wb:
@@ -741,7 +845,7 @@ def write_frac_sequence_with_stats(motif: Motif) -> pl.DataFrame:
     
 def motif_functional_enrichment(motif: Motif):
      # Data
-    all_positions = motif.genome.nearest_gene_to_positions(motif.positions.lazy()).collect()
+    all_positions = motif.genome.nearest_gene_to_positions(motif.positions)
     
     # Add functions
     gene_ids = all_positions.get_column("gene_callers_id_start").to_list() + all_positions.get_column("gene_callers_id_end").to_list()
@@ -800,39 +904,58 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
                          pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
 
     y = y.with_columns(((pl.col("group") == "55ppt control") 
-                        | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity")).get_column("salinity").to_pandas()
+                        | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity"))
     X = X.drop("treatment").to_pandas()
             
     
     # Do different feature importance methods
-    mi_df = do_mutual_information(X, y)
-    t_test_df = do_t_test(X, y)
+    mi_salinity_df = do_mutual_information(X, y.get_column("salinity").to_pandas())
+    mi_group_df = do_mutual_information(X, y.get_column("group").to_pandas())
+    mi_step_df = do_mutual_information(X, y.get_column("step").to_pandas())
+
+    t_test_salinity_df = do_t_test(X, y.get_column("salinity").to_pandas())
+    t_test_group_df = do_t_test(X, y.get_column("group").to_pandas())
+    t_test_step_df = do_t_test(X, y.get_column("step").to_pandas())
+    
     correlation_df = do_spearmanr(pandas_df)
-    feature_importance, feature_importance_ci = bootstrap_pls(pandas_df)
+    feature_importance, _ = bootstrap_pls(pandas_df)
     
     # Get feature columns back
-    mi_df = pl.from_pandas(mi_df)
-    t_test_df = pl.from_pandas(t_test_df).with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
-    correlation_df = pl.from_pandas(correlation_df).with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
+    t_test_salinity_df = t_test_salinity_df.with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
+    t_test_group_df = t_test_group_df.with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
+    t_test_step_df = t_test_step_df.with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
+
+    correlation_df = correlation_df.with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
     feature_importance = pl.from_pandas(feature_importance, include_index=True).with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
     
     # Make a master table by joining all on left
-    master = (mi_df.join(t_test_df, on=["contig", "position", "strand"], how="outer", suffix="_t_test")
+    master = (mi_salinity_df.rename({"mi_score": "mi_score_salinity"})
+                    .join(mi_group_df, on=["contig", "position", "strand"], how="outer", suffix="_group")
+                    .join(mi_step_df, on=["contig", "position", "strand"], how="outer", suffix="_step")
+                    .join(t_test_salinity_df, on=["contig", "position", "strand"], how="outer", suffix="_t_test_salinity")
+                    .join(t_test_group_df, on=["contig", "position", "strand"], how="outer", suffix="_t_test_group")
+                    .join(t_test_step_df, on=["contig", "position", "strand"], how="outer", suffix="_t_test_step")
                     .join(correlation_df, on=["contig", "position", "strand"], how="outer", suffix="_correlation")
                     .join(feature_importance, on=["contig", "position", "strand"], how="outer", suffix="_pls"))
     
     # Add functions onto master
-    master = motif.genome.nearest_gene_to_positions(master.lazy()).collect()
+    master = motif.genome.nearest_gene_to_positions(master)
     gene_ids = list(set(master.get_column("gene_callers_id_start").to_list() + master.get_column("gene_callers_id_end").to_list()))
     
-    gc = GeneCollection(gene_ids, motif.genome)
-    master = master.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
-    master = master.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
+    gc = GeneCollection(gene_ids, motif.genome).get_function().collect(streaming=True)
+    master = master.join(gc, left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
+    master = master.join(gc, left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
     
     # Write each dataframe to a sheet in an excel file
     with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_ensemble_significant_features.xlsx") as workbook: 
-        mi_df.write_excel(workbook=workbook, worksheet="mutual_information")
-        t_test_df.write_excel(workbook=workbook, worksheet="t_test")
+        mi_salinity_df.write_excel(workbook=workbook, worksheet="mutual_information_salinity")
+        mi_group_df.write_excel(workbook=workbook, worksheet="mutual_information_group")
+        mi_step_df.write_excel(workbook=workbook, worksheet="mutual_information_step")
+
+        t_test_salinity_df.write_excel(workbook=workbook, worksheet="t_test_salinity")
+        t_test_group_df.write_excel(workbook=workbook, worksheet="t_test_group")
+        t_test_step_df.write_excel(workbook=workbook, worksheet="t_test_step")
+
         correlation_df.write_excel(workbook=workbook, worksheet="spearman_correlation")
         feature_importance.write_excel(workbook=workbook, worksheet="pls_feature_importance")
         master.write_excel(workbook=workbook, worksheet="master_table")
@@ -860,55 +983,6 @@ def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: dict[str,
 
             merged = merged.filter(pl.col("source_seq").eq("COG20_FUNCTION"), pl.col("source_end_seq").eq("COG20_FUNCTION")).unique()
             merged.write_excel(workbook, worksheet=key[:31])
-            
-
-def average_change_between_treatments(motif: Motif) -> float:
-    # Get the motif data
-    motif_data = motif.genome.nearest_gene_to_positions(motif.data().lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect().pivot(
-        index=["contig", "position", "strand"],
-        on="treatment",
-        values=motif.meth_type
-    )
-
-    # Calculate the average change between every treatment pair seperately for those that change positively, and those that change negatively
-    unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
-    all_treatment_names = sorted(
-        list(unique_treatment_names),
-        key=lambda t: motif.genome.treatment_order_map.get(t, str(t))
-    )
-    
-    # Generate pairs of treatments using the sorted, unique names
-    pairs = list(tuple(sorted(x)) for x in combinations(all_treatment_names, 2))
-    
-    results = []
-    for pair in pairs:
-       df = motif_data.select("contig", "position", "strand", pair[0], pair[1]).with_columns((pl.col(pair[1]) - pl.col(pair[0])).alias(f"change_{pair[0]}_to_{pair[1]}"))
-       
-       # Average all positive/negative changes together and get STD Val
-       positive_changes = df.filter(pl.col(f"change_{pair[0]}_to_{pair[1]}") > 0)
-       negative_changes = df.filter(pl.col(f"change_{pair[0]}_to_{pair[1]}") < 0)
-
-       average_positive = positive_changes.select(pl.mean(f"change_{pair[0]}_to_{pair[1]}")).item()
-       average_negative = negative_changes.select(pl.mean(f"change_{pair[0]}_to_{pair[1]}")).item()
-       std_positive = positive_changes.select(pl.std(f"change_{pair[0]}_to_{pair[1]}")).item()
-       std_negative = negative_changes.select(pl.std(f"change_{pair[0]}_to_{pair[1]}")).item()
-       
-       # Make a new df with the results
-       result = pl.DataFrame({
-            "treatment_pair": [f"{pair[0]}_to_{pair[1]}"],
-            "num_positive_changes": [positive_changes.height],
-            "num_negative_changes": [negative_changes.height],
-            "average_positive_change": [average_positive],
-            "average_negative_change": [average_negative],
-            "std_positive_change": [std_positive],
-            "std_negative_change": [std_negative]
-        })
-       results.append(result)
-    
-    # Concat and save
-    results_df = pl.concat(results)
-    results_df.write_csv(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_average_changes_between_treatments.csv")
-    return results_df
 
 
 def annotated_pca(motif: Motif):
@@ -922,19 +996,41 @@ def annotated_pca(motif: Motif):
     features = X.drop("contig", "position", "strand").to_pandas().T
     pca_result = pca.fit_transform(features)
     
-    # Do clustering
-    kmeans = KMeans(n_clusters=2, random_state=0)
-    clusters = kmeans.fit_predict(features)
+    # Do elbow method to find optimal number of clusters
+    from sklearn.metrics import silhouette_score
+    
+    # Plot silhouette scores
+    silhouette_scores = []
+    cluster_range = range(2, 8)
+    optimal_cluster_labels = None
+    for n_clusters in cluster_range:
+        kmeans = KMeans(n_clusters=n_clusters, random_state=0)
+        cluster_labels = kmeans.fit_predict(features)
+        silhouette_avg = silhouette_score(features, cluster_labels)
+        silhouette_scores.append(silhouette_avg)
+
+        if silhouette_avg == max(silhouette_scores):
+            optimal_cluster_labels = cluster_labels
+    
+    sns.lineplot(x=list(cluster_range), y=silhouette_scores, marker="o")
+    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_pca_silhouette_scores.pdf", format="pdf")
+    plt.close()
     
     # Plot PCA using seaborn, colored by clusters, add variance explained by each component
     pca_df = pd.DataFrame(pca_result, columns=["Component_1", "Component_2"])
-    pca_df["cluster"] = clusters
+    pca_df["Cluster"] = optimal_cluster_labels
     
     plt.figure(figsize=(10, 8))
-    sns.scatterplot(data=pca_df, x="Component_1", y="Component_2", hue="cluster", palette="Set1", s=100, alpha=0.7)
+    sns.scatterplot(data=pca_df, x="Component_1", y="Component_2", hue="Cluster", palette="Set1", s=100, alpha=0.7)
     plt.title(f"PCA of Methylation Patterns for Motif {motif.readable_motif}")
     plt.xlabel(f"Component 1 ({pca.explained_variance_ratio_[0]*100:.2f}% Variance)")
     plt.ylabel(f"Component 2 ({pca.explained_variance_ratio_[1]*100:.2f}% Variance)")
+    
+    # Add treatment name to each point on the PCA using adjustText
+    texts = []
+    for i, row in pca_df.iterrows():
+        texts.append(plt.text(row["Component_1"], row["Component_2"], features.index[i], fontsize=9))
+    adjust_text(texts, arrowprops=dict(arrowstyle='->', color='black'), )
    
     # Print top loading features for each component
     # Map loadings back to original features
@@ -955,6 +1051,7 @@ def annotated_pca(motif: Motif):
     top_loadings_comp1 = loading_df[loading_df['Component_1'].abs() > threshold_comp1].sort_values(by='Component_1', ascending=False)
     top_loadings_comp2 = loading_df[loading_df['Component_2'].abs() > threshold_comp2].sort_values(by='Component_2', ascending=False)
 
+    print("PCA Top Loadings:")
     print(f"Features with Component 1 loading > 3*std from mean:\n{top_loadings_comp1}\n")
     print(f"Features with Component 2 loading > 3*std from mean:\n{top_loadings_comp2}\n")
     print(f"Mean loading and standard deviation for Component 1: {mean_comp1:.4f} ± {std_comp1:.4f}")
@@ -967,29 +1064,17 @@ def annotated_pca(motif: Motif):
 
 def non_negative_matrix_factorization(motif: Motif):
     from sklearn.decomposition import NMF
+    
     df = motif.genome.nearest_gene_to_positions(motif.data()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
     
     # Pivot so that features are per row, and treatments are columns
-    X = df.pivot(index=["contig", "position", "strand"], on="treatment", values=motif.meth_type).fill_null(0)
+    X = df.pivot(index=["contig", "position", "strand"], on="treatment", values=motif.meth_type)
     
     # Do NMF
-    nmf = NMF(n_components=2, init='random', random_state=0, max_iter=1000)
+    nmf = NMF(n_components=2, init='random', random_state=42, max_iter=1000)
     features = X.drop("contig", "position", "strand").to_pandas().T
     W = nmf.fit_transform(features)
     H = nmf.components_
-    
-    # Plot NMF using seaborn, colored by clusters from kmeans on W
-    kmeans = KMeans(n_clusters=2, random_state=0)
-    clusters = kmeans.fit_predict(W)
-    
-    nmf_df = pd.DataFrame(W, columns=["Component_1", "Component_2"])
-    nmf_df["cluster"] = clusters
-    
-    plt.figure(figsize=(10, 8))
-    sns.scatterplot(data=nmf_df, x="Component_1", y="Component_2", hue="cluster", palette="Set1", s=100, alpha=0.7)
-    plt.title(f"NMF of Methylation Patterns for Motif {motif.readable_motif}")
-    plt.xlabel("Component 1")
-    plt.ylabel("Component 2")
     
     # Print top loading features for each component
     # Map loadings back to original features
@@ -1008,49 +1093,101 @@ def non_negative_matrix_factorization(motif: Motif):
     threshold_comp2 = mean_comp2 + 3 * std_comp2
     
     # Filter features based on the threshold for absolute loading values
-    top_loadings_comp1 = loading_df[loading_df['Component_1'] > threshold_comp1].sort_values(by='Component_1', ascending=False)
-    top_loadings_comp2 = loading_df[loading_df['Component_2'] > threshold_comp2].sort_values(by='Component_2', ascending=False)
+    top_loadings_comp1 = loading_df[loading_df['Component_1'].abs() > threshold_comp1].sort_values(by='Component_1', ascending=False)
+    top_loadings_comp2 = loading_df[loading_df['Component_2'].abs() > threshold_comp2].sort_values(by='Component_2', ascending=False)
+    
+    print("NMF Top Loadings:")
     print(f"Features with Component 1 loading > 3*std from mean:\n{top_loadings_comp1}\n")
     print(f"Features with Component 2 loading > 3*std from mean:\n{top_loadings_comp2}\n")
     print(f"Mean loading and standard deviation for Component 1: {mean_comp1:.4f} ± {std_comp1:.4f}")
     print(f"Mean loading and standard deviation for Component 2: {mean_comp2:.4f} ± {std_comp2:.4f}")
 
+    
+def colinear_features(motif: Motif):
+    df = motif.genome.nearest_gene_to_positions(motif.data()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+    
+    # Add functions
+    gene_ids = list(set(df.get_column("gene_callers_id_start").to_list()))
+    gc = GeneCollection(gene_ids, motif.genome)
+    df = df.join(gc.get_function().collect(streaming=True), left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
+    
+    # Pivot so that features are per row, and treatments are columns
+    X = df.filter(pl.col("source").eq("COG20_FUNCTION")).pivot(index="treatment", on=["contig", "position", "strand", "function"], values=motif.meth_type).fill_null(0)
+    
+    # Convert to numpy array for scipy
+    data_array = X.drop("treatment").to_pandas().values
 
-def lasso_regression(motif: Motif):
-    from sklearn.linear_model import LassoCV
+    # Calculate correlation and p-value matrices simultaneously
+    correlation_matrix, pvalue_matrix = spearmanr(data_array, axis=0)
+
+    # Convert back to DataFrames with proper column names
+    feature_names = X.drop("treatment").columns
+    correlation_df = pd.DataFrame(correlation_matrix, index=feature_names, columns=feature_names)
+    pvalue_df = pd.DataFrame(pvalue_matrix, index=feature_names, columns=feature_names)
+    
+    # Do multiple test correction on p-values
+    pvalue_flat = pvalue_df.values.flatten()
+    _, pvalue_corrected_flat, _, _ = multipletests(pvalue_flat, method='fdr_tsbh')
+    pvalue_corrected = pvalue_corrected_flat.reshape(pvalue_df.shape)
+    pvalue_corrected_df = pd.DataFrame(pvalue_corrected, index=feature_names, columns=feature_names)
+    
+    # Filter for significant and strong correlations, excluding self-correlation
+    significant_strong_corr = correlation_df[pvalue_corrected_df < 0.05]
+
+    # Unstack to get a list of correlated pairs
+    colinear_pairs = significant_strong_corr.stack().reset_index()
+    colinear_pairs.columns = ['feature_1', 'feature_2', 'correlation']
+    colinear_pairs = colinear_pairs[colinear_pairs['feature_1'] != colinear_pairs['feature_2']]
+    
+    # Remove duplicate pairs (e.g., (A, B) and (B, A))
+    colinear_pairs['pair'] = colinear_pairs.apply(lambda row: tuple(sorted([row['feature_1'], row['feature_2']])), axis=1)
+    colinear_pairs = colinear_pairs.drop_duplicates(subset=['pair']).drop(columns=['pair'])
+    
+    # Add p value as a column
+    colinear_pairs['p_value'] = colinear_pairs.apply(lambda row: pvalue_corrected_df.at[row['feature_1'], row['feature_2']], axis=1)
+    
+    # Mean correlation per feature
+    print(f"Mean correlation among colinear features: {colinear_pairs['correlation'].mean():.4f}")
+    
+    # Save the results to an excel file
+    output_file = motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_colinear_features.xlsx"
+    with Workbook(output_file) as wb:
+        pl.from_pandas(colinear_pairs).write_excel(wb, worksheet="colinear_features", include_header=True)
+
+
+def regulatory_candidates(motif: Motif):
     df = motif.genome.nearest_gene_to_positions(motif.data()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
     
     # Pivot so that features are per row, and treatments are columns
-    X = df.pivot(index="treatment", on=["contig", "position", "strand"], values=motif.meth_type).fill_null(0)
+    X = df.pivot(index=["contig", "position", "strand"], on="treatment", values=motif.meth_type).fill_null(0)
     
-    # Make a treatments dataframe
-    unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
-    all_treatment_names = sorted(
-        list(unique_treatment_names),
-        key=lambda t: motif.genome.treatment_order_map.get(t, str(t))
-    )
+    # Get the list of sites whose standard deviation over the experiment is at least three times higher than the rest of the dataset
+    mean_stddev = X.select(pl.concat_list(pl.exclude("contig", "strand", "position")).list.std().mean()).item()
+    high_variance_sites = X.filter(pl.concat_list(pl.exclude("contig", "strand", "position")).list.std().alias("std_dev") >= 3 * mean_stddev)
+
+    # Get the list of sites whose value is ever above or below three time the standard deviation plus the mean of any given treatment.
+    all_outliers = []
+    for treatment in X.columns:
+        if treatment in ["contig", "position", "strand"]:
+            continue
+        treatment_mean = X.select(pl.col(treatment)).mean().item()
+        treatment_std = X.select(pl.col(treatment)).std().item()
+        outliers = X.filter((pl.col(treatment) > treatment_mean + 3 * treatment_std) | (pl.col(treatment) < treatment_mean - 3 * treatment_std))
+        all_outliers.append(outliers)
     
-    treatment_df = (pl.from_dict({"treatment": all_treatment_names})
-                    .with_columns(pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
-                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity"), 
-                                    (pl.col("group").str.contains("control")).alias("control"))
-                    )
+    all_outliers_df = pl.concat(all_outliers).unique()
     
-    # Add a salinity column 
-    y = treatment_df.get_column("salinity").to_pandas().astype(int)
-    X = X.drop("treatment").to_pandas()
-    
-    # Do L1 regression with cross validation to find the best alpha
-    lasso = LassoCV(cv=5, random_state=0, max_iter=10000)
-    lasso.fit(X, y)
-    
-    # Get coefficients and map back to features
-    coef_df = pd.DataFrame({
-        "feature": X.columns,
-        "coefficient": lasso.coef_
-    })
-    
-    # Filter to non-zero coefficients and sort by absolute value
-    coef_df = coef_df[coef_df["coefficient"] != 0].sort_values(by="coefficient", key=abs, ascending=False)
-    print(f"Lasso selected {len(coef_df)} features with non-zero coefficients.")
-    print(coef_df)
+    # Add functions to both
+    high_variance_sites = motif.genome.nearest_gene_to_positions(high_variance_sites)
+    all_outliers_df = motif.genome.nearest_gene_to_positions(all_outliers_df)
+    gene_ids = high_variance_sites.get_column("gene_callers_id_start").unique().to_list() + all_outliers_df.get_column("gene_callers_id_start").unique().to_list()
+
+    gc = GeneCollection(gene_ids, motif.genome).get_function().collect(streaming=True)
+    high_variance_sites = high_variance_sites.join(gc, left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
+    all_outliers_df = all_outliers_df.join(gc, left_on="gene_callers_id_start", right_on="gene_callers_id", how="left", suffix="_start")
+
+    # Save to excel file with sheets
+    with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_regulatory_candidates.xlsx") as wb:
+        high_variance_sites.write_excel(wb, worksheet="high_variance_sites", include_header=True)
+        all_outliers_df.write_excel(wb, worksheet="outlier_sites", include_header=True)
+        

@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import polars as pl
 from sklearn.feature_selection import mutual_info_classif
 from scipy.stats import ttest_ind, spearmanr
 from statsmodels.stats.multitest import multipletests
@@ -21,12 +22,12 @@ def do_mutual_information(X, y):
     
     # 1. Mutual information
     mi_scores = mutual_info_classif(X, y, random_state=42)
-    mi_table = pd.DataFrame({
+    mi_table = pl.from_dict({
         "contig": [x.split(",")[0][2:-1] for x in X.columns],
         "position": [int(x.split(",")[1]) for x in X.columns],
         "strand": [bool(x.split(",")[2]) for x in X.columns],
         "mi_score": mi_scores
-    }).sort_values('mi_score', ascending=False)
+    }).sort(by="mi_score", descending=True)
     
     return mi_table
 
@@ -47,7 +48,7 @@ def do_t_test(X, y, p_threshold=0.05):
     
     significant = significant[reject_mask].sort_values('t_stat', ascending=False)
 
-    return significant
+    return pl.from_pandas(significant)
     
 
 def do_spearmanr(df, p_threshold=0.05):
@@ -98,7 +99,7 @@ def do_spearmanr(df, p_threshold=0.05):
     # Filter for significance
     results = results[results[['salinity_pval', 'control_pval', 'step_pval']].min(axis=1) < p_threshold]
     
-    return results
+    return pl.from_pandas(results)
 
 
 def bootstrap_pls(df, n_boot=1000, random_state=42):
