@@ -25,6 +25,7 @@ from src.diff_pattern import analyze_differential_expression_patterns
 from adjustText import adjust_text
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
+from netgraph import Graph
 
 sns.set_theme(context="poster", style="whitegrid")
 pl.enable_string_cache()
@@ -340,6 +341,110 @@ def plot_statistics_heatmap(
     plt.close()
 
 
+def plot_statistics_graph(statistic_keys: list[str],
+    significance_matrix: dict[str, pd.DataFrame],
+    value_matrices: dict[str, pd.DataFrame],
+    motif: Motif,
+    alpha: float,
+    stat_name: str
+) -> None:
+
+    if stat_name != "1-Wasserstein":
+        return
+    
+    for i, stat_key in enumerate(statistic_keys):
+        pval_matrix = significance_matrix[stat_key]
+        val_matrix = value_matrices[stat_key]
+        
+        # Round val matrix to 2
+        val_matrix = (val_matrix*100).round(2) if stat_name == "1-Wasserstein" else val_matrix.round(2)
+
+        # Sort indices and columns based on genome treatment order
+        sorted_treatments = sorted(motif.genome.treatment_order_map.keys(), key=motif.genome.treatment_order_map.get)
+        pval_matrix = pval_matrix.reindex(index=sorted_treatments, columns=sorted_treatments)
+        val_matrix = val_matrix.reindex(index=sorted_treatments, columns=sorted_treatments)
+        
+        # Create a mapping from original treatment names to cleaned names
+        def clean_treatment_name(treatment):
+            return treatment.replace("ppt control ", "").replace("Cycling ", "C")
+
+        treatment_name_map = {treatment: clean_treatment_name(treatment) for treatment in sorted_treatments}
+
+        # Add all edges with significance information
+        edge_length = {}
+        merge_nodes = []
+        for i, treatment_a in enumerate(sorted_treatments):
+            for j, treatment_b in enumerate(sorted_treatments):
+                if i < j:
+                    pval = pval_matrix.at[treatment_a, treatment_b]
+                    value = val_matrix.at[treatment_a, treatment_b]
+                    
+                    # Use cleaned names for edges
+                    cleaned_a = treatment_name_map[treatment_a]
+                    cleaned_b = treatment_name_map[treatment_b]
+                    
+                    # Add edge with significance status
+                    if pval < alpha:
+                        edge_length[(cleaned_a, cleaned_b)] = value
+                    else:
+                        merge_nodes.append((cleaned_a, cleaned_b))
+        
+        # Merge nodes that are not significantly different by renaming edges
+        for node_a, node_b in merge_nodes:
+            new_node_name = f"{node_a},{node_b}"
+            edges_to_update = [(a, b) for (a, b) in edge_length.keys() if a == node_a or a == node_b or b == node_a or b == node_b]
+            for a, b in edges_to_update:
+                if a == node_a or a == node_b:
+                    edge_length[(new_node_name, b)] = edge_length.pop((a, b))
+                    
+                elif b == node_a or b == node_b:
+                    edge_length[(a, new_node_name)] = edge_length.pop((a, b))
+
+        edges = list(edge_length.keys())
+        
+        # Node colors by default
+        default_node_color = {}
+        for treatment in sorted_treatments:
+            cleaned_name = clean_treatment_name(treatment)
+            if treatment in motif.genome.treatment_color_map:
+                default_node_color[cleaned_name] = motif.genome.treatment_color_map[treatment]
+        
+        # Iterate through the nodes and assign colors
+        final_node_color = {}
+        for node_a, node_b in edges:
+            if node_a in default_node_color:
+                final_node_color[node_a] = default_node_color[node_a]
+            else:
+                # Handle merged nodes by averaging colors if different
+                subnodes = node_a.split(',')
+                colors = [default_node_color[subnode] for subnode in subnodes if subnode in default_node_color]
+
+                # If all colors are the same keep color
+                if all(color == colors[0] for color in colors):
+                    final_node_color[node_a] = colors[0]
+                else: # Make it purple
+                    final_node_color[node_a] = "purple"
+                
+            if node_b in default_node_color:
+                final_node_color[node_b] = default_node_color[node_b]
+            else:
+                # Handle merged nodes by averaging colors if different
+                subnodes = node_a.split(',')
+                colors = [default_node_color[subnode] for subnode in subnodes if subnode in default_node_color]
+
+                # If all colors are the same keep color
+                if all(color == colors[0] for color in colors):
+                    final_node_color[node_a] = colors[0]
+                else: # Make it purple
+                    final_node_color[node_a] = "purple"
+
+        _, ax = plt.subplots(figsize=(20, 20), constrained_layout=True)
+        Graph(edges, node_labels=True, node_layout='geometric', node_layout_kwargs=dict(edge_length=edge_length), ax=ax, node_color=final_node_color, scale=(float(val_matrix.max().max()+2), float(val_matrix.max().max()+2)), node_size=30, node_label_fontdictdict={'size': 40})
+        ax.set_aspect('equal')
+        plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_{stat_name}_{stat_key}_graph.pdf", format="pdf")
+        plt.close()
+
+
 def write_genbank_features_near_motifs(motif: Motif) -> None:
     features = pl.from_dict(parse_genbank("/researchdrive/gkanaan/colwellia_methylation/exp/colwellia_34h.gb")).lazy()
     features = features.with_columns(pl.lit(motif.positions.collect().get_column("contig").unique().first()).alias("contig"))
@@ -618,6 +723,7 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
             significance_matrices[stat] = significance_matrices[stat].combine_first(significance_matrices[stat].T)
             
         plot_statistics_heatmap(stat_groups, significance_matrices, value_matrices, motif, alpha, test)
+        plot_statistics_graph(stat_groups, significance_matrices, value_matrices, motif, alpha, test)
     
     # Print how well each test's result correlates with each other
     p_values_wide = all_result_stats.pivot(
@@ -723,6 +829,7 @@ def position_stats_plots(motif: Motif, position: int):
     
     # Make symmetric
     heatmap_data = heatmap_data.combine_first(-heatmap_data.T)
+    significance_data = significance_data.combine_first(significance_data.T)
     
     # Print
     print(f"\n--- Position {position} statistics ---")
@@ -738,65 +845,6 @@ def position_stats_plots(motif: Motif, position: int):
         alpha=None,
         stat_name=f"Position {position}"
     )
-    
-    # Plot lineplot of the position, with hue = salinity, style = group
-    data = motif.data().filter(pl.col("position") == position).collect().to_pandas()
-    data["group"] = data["treatment"].str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", expand=True)[0]
-    data["step"] = data["treatment"].str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", expand=True)[1].astype(int)
-    data["salinity"] = (data["group"] == "55ppt control") | ((data["group"] == "Cycling") & (data["step"] % 2 != 0))
-    data["control"] = data["group"].str.contains("control")
-
-    # Determine the maximum step value
-    data.loc[(data["step"] == 23), "step"] = 12
-    data.loc[(data["step"] == 24), "step"] = 13
-    max_step = data["step"].max()
-
-    # Create figure with two subplots side by side
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6), sharey=True)
-
-    # Plot on left subplot (steps 1, 2)
-    data_left = data[data["step"].isin([1, 2])]
-    sns.lineplot(data=data_left, x="step", y=motif.meth_type, hue="group", 
-                markers=True, dashes=False, ax=ax1)
-    ax1.set_xlim(0.5, 2.5)
-    ax1.set_xlabel("Step")
-    ax1.set_ylabel("Methylation fraction")
-    ax1.legend_.remove()  # Remove legend from left plot
-
-    # Plot on right subplot (steps t-1, t-2)
-    data_right = data[data["step"].isin([max_step-1, max_step])]
-    sns.lineplot(data=data_right, x="step", y=motif.meth_type, hue="group", 
-                markers=True, dashes=False, ax=ax2)
-    ax2.set_xlim(max_step-1.5, max_step+0.5)
-    ax2.set_xlabel("Step")
-    ax2.set_ylabel("")  # Remove y-label from right plot
-
-    # Add break indicators
-    # Remove spines between the plots
-    ax1.spines['right'].set_visible(False)
-    ax2.spines['left'].set_visible(False)
-    ax2.tick_params(left=False)  # Remove left ticks from right plot
-
-    # Add diagonal lines to indicate the break
-    d = 0.015  # Size of diagonal lines
-    kwargs = dict(transform=ax1.transAxes, color='k', clip_on=False)
-    ax1.plot((1-d, 1+d), (-d, +d), **kwargs)        # top-right diagonal
-    ax1.plot((1-d, 1+d), (1-d, 1+d), **kwargs)      # bottom-right diagonal
-
-    kwargs.update(transform=ax2.transAxes)  # switch to right axis
-    ax2.plot((-d, +d), (1-d, 1+d), **kwargs)        # top-left diagonal  
-    ax2.plot((-d, +d), (-d, +d), **kwargs)          # bottom-left diagonal
-
-    # Set overall title
-    fig.suptitle(f"{motif.readable_motif} at position {position}", fontsize=14)
-
-    # Adjust layout
-    plt.subplots_adjust(wspace=0.05)
-
-    # Save the plot
-    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_position_{position}_lineplot_broken.pdf", 
-                format="pdf", bbox_inches='tight')
-    plt.close()
     
 
 def write_frac_sequence_with_stats(motif: Motif) -> pl.DataFrame:
