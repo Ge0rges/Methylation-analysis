@@ -5,7 +5,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.model_selection import RepeatedKFold, StratifiedKFold
 from xlsxwriter import Workbook
 import pandas as pd
 import polars as pl
@@ -15,7 +14,7 @@ from src.utilities.chi_squared_test import chi_squared_test
 from src.objects.gene_collection import GeneCollection
 from src.objects.genome import Genome
 from src.objects.motif import Motif
-from src.utilities.utils import readable_modification_name, get_stats_data, find_closest_step
+from src.utilities.utils import readable_modification_name, get_stats_data
 from src.utilities.data_loading import parse_genbank
 from src.utilities.compare_methylome import compare_methylomes
 
@@ -68,7 +67,7 @@ def plot_number_of_positions_by_coverage_colwellia(motif: Motif, output_dir: Pat
     plt.xlabel("Coverage")
     plt.ylabel("Site Count")
     plt.savefig(output_dir / f"{genome.readable_name}_{motif.readable_motif}_coverage_sitecount_lineplot.pdf", format="pdf")
-    plt.show()
+    plt.close()
     
     genome.default_coverage = original_cov  # Reset to original coverage
 
@@ -158,10 +157,6 @@ def plot_whole_methylome_colwellia(motif: Motif, output_dir: Path, promoter_only
         ax.legend(title="Treatment")
         sns.move_legend(ax, "lower left")
         
-        # Rugplot of motif instances with no data
-        missing_positions = motif.genome.add_genome_relative_position(motif.positions).filter(pl.col("genome_position").is_in(pair_df.get_column("genome_position")).not_()).collect(streaming=True).to_pandas()
-        sns.rugplot(data=missing_positions, x="genome_position", ax=ax, alpha=.05, clip_on=False)
-        
         # Axis settings
         ax.set_xlabel("Genome position (bp)")
         ax.set_ylabel(f"Methylation fraction")
@@ -178,7 +173,7 @@ def plot_whole_methylome_colwellia(motif: Motif, output_dir: Path, promoter_only
 
     out_file = output_dir / f"{genome.readable_name}_whole_methylome_pairwise_{motif.readable_motif}_promoter.pdf" if promoter_only else output_dir / f"{genome.readable_name}_whole_methylome_pairwise_{motif.readable_motif}.pdf"
     plt.savefig(out_file, bbox_inches='tight')
-    print(f"Saved PDF: {out_file}")
+    plt.close()
 
 
 def plot_motif_methylation_distribution_colwellia(motif: Motif, output_dir: Path) -> None:
@@ -213,7 +208,6 @@ def plot_motif_methylation_distribution_colwellia(motif: Motif, output_dir: Path
     out_file = output_dir / f"{genome.readable_name}_{motif.readable_motif}_methylation_distribution.pdf"
     plt.savefig(out_file, format="pdf") 
     plt.close()
-    print(f"Saved PDF: {out_file}")
 
 
 def plot_statistics_heatmap(
@@ -366,80 +360,38 @@ def plot_statistics_graph(statistic_keys: list[str],
         
         # Create a mapping from original treatment names to cleaned names
         def clean_treatment_name(treatment):
-            return treatment.replace("ppt control ", "").replace("Cycling ", "C")
-
-        treatment_name_map = {treatment: clean_treatment_name(treatment) for treatment in sorted_treatments}
-
+            name = ""
+            for word in treatment.split(","):
+                name += word.replace("ppt control ", "").replace("Cycling ", "C") + ","
+            return name[:-1]  # Remove trailing comma
+  
         # Add all edges with significance information
         edge_length = {}
-        merge_nodes = []
         for i, treatment_a in enumerate(sorted_treatments):
             for j, treatment_b in enumerate(sorted_treatments):
                 if i < j:
                     pval = pval_matrix.at[treatment_a, treatment_b]
                     value = val_matrix.at[treatment_a, treatment_b]
                     
-                    # Use cleaned names for edges
-                    cleaned_a = treatment_name_map[treatment_a]
-                    cleaned_b = treatment_name_map[treatment_b]
-                    
-                    # Add edge with significance status
-                    if pval < alpha:
-                        edge_length[(cleaned_a, cleaned_b)] = value
-                    else:
-                        merge_nodes.append((cleaned_a, cleaned_b))
-        
-        # Merge nodes that are not significantly different by renaming edges
-        for node_a, node_b in merge_nodes:
-            new_node_name = f"{node_a},{node_b}"
-            edges_to_update = [(a, b) for (a, b) in edge_length.keys() if a == node_a or a == node_b or b == node_a or b == node_b]
-            for a, b in edges_to_update:
-                if a == node_a or a == node_b:
-                    edge_length[(new_node_name, b)] = edge_length.pop((a, b))
-                    
-                elif b == node_a or b == node_b:
-                    edge_length[(a, new_node_name)] = edge_length.pop((a, b))
+                    # Find corresponding edge for significance
+                    node_a = clean_treatment_name(treatment_a)
+                    node_b = clean_treatment_name(treatment_b)
 
+                    # Add significant edges
+                    if pval < alpha:
+                        edge_length[(node_a, node_b)] = float(value)
+                    else:
+                        edge_length[(node_a, node_b)] = 0.01
+        
         edges = list(edge_length.keys())
         
         # Node colors by default
-        default_node_color = {}
+        node_color = {}
         for treatment in sorted_treatments:
-            cleaned_name = clean_treatment_name(treatment)
-            if treatment in motif.genome.treatment_color_map:
-                default_node_color[cleaned_name] = motif.genome.treatment_color_map[treatment]
-        
-        # Iterate through the nodes and assign colors
-        final_node_color = {}
-        for node_a, node_b in edges:
-            if node_a in default_node_color:
-                final_node_color[node_a] = default_node_color[node_a]
-            else:
-                # Handle merged nodes by averaging colors if different
-                subnodes = node_a.split(',')
-                colors = [default_node_color[subnode] for subnode in subnodes if subnode in default_node_color]
-
-                # If all colors are the same keep color
-                if all(color == colors[0] for color in colors):
-                    final_node_color[node_a] = colors[0]
-                else: # Make it purple
-                    final_node_color[node_a] = "purple"
-                
-            if node_b in default_node_color:
-                final_node_color[node_b] = default_node_color[node_b]
-            else:
-                # Handle merged nodes by averaging colors if different
-                subnodes = node_a.split(',')
-                colors = [default_node_color[subnode] for subnode in subnodes if subnode in default_node_color]
-
-                # If all colors are the same keep color
-                if all(color == colors[0] for color in colors):
-                    final_node_color[node_a] = colors[0]
-                else: # Make it purple
-                    final_node_color[node_a] = "purple"
+            node_color[clean_treatment_name(treatment)] = motif.genome.treatment_color_map[treatment]
 
         _, ax = plt.subplots(figsize=(20, 20), constrained_layout=True)
-        Graph(edges, node_labels=True, node_layout='geometric', node_layout_kwargs=dict(edge_length=edge_length), ax=ax, node_color=final_node_color, scale=(float(val_matrix.max().max()+2), float(val_matrix.max().max()+2)), node_size=30, node_label_fontdictdict={'size': 40})
+        Graph(edges, node_labels=True, node_layout='geometric', node_layout_kwargs=dict(edge_length=edge_length, tol=1e-6), scale=(5,5), ax=ax, node_color=node_color, node_size=25, node_label_fontdictdict={'size': 40})
         ax.set_aspect('equal')
         plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_{stat_name}_{stat_key}_graph.pdf", format="pdf")
         plt.close()
@@ -804,12 +756,12 @@ def frac_investigation_with_stats(motif: Motif) -> dict[str, pl.DataFrame]:
     
     # Make a treatments dataframe
     treatment_df = (pl.from_dict({"treatment": list(set(all_result_stats.get_column("treatment_1").to_list() + all_result_stats.get_column("treatment_2").to_list()))})
-                    .with_columns(pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+                    .with_columns(pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
                     .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity"), 
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
     
-    results = analyze_differential_expression_patterns(all_result_stats.to_pandas(), treatment_df.to_pandas(), output_file=f"{motif.genome.output_dir}/{motif.genome.readable_name}_{motif.readable_motif}_differential_meth_patterns.xlsx")
+    results = analyze_differential_expression_patterns(all_result_stats, treatment_df, output_file=f"{motif.genome.output_dir}/{motif.genome.readable_name}_{motif.readable_motif}_differential_meth_patterns.xlsx")
     return results
 
 
@@ -843,7 +795,7 @@ def position_stats_plots(motif: Motif, position: int):
         value_matrices={"Chi2": heatmap_data},
         motif=motif,
         alpha=None,
-        stat_name=f"Position {position}"
+        stat_name=f"Methylation fraction difference"
     )
     
 
@@ -871,8 +823,8 @@ def write_frac_sequence_with_stats(motif: Motif) -> pl.DataFrame:
     ).join(motif_data, on=["contig", "position", "strand"], how="left")
     
     # Reorder columns
-    # , '{"35ppt control S2","35ppt control S23"}'
-    result = result.select("contig", "position", "strand", "35ppt control S1", "35ppt control S2", "35ppt control S23", "35ppt control S24", "55ppt control S1", "55ppt control S2", "55ppt control S12", "Cycling S1", "Cycling S2", "Cycling S14", "Cycling S15", '{"35ppt control S1","35ppt control S2"}', '{"35ppt control S23","35ppt control S24"}', '{"55ppt control S1","55ppt control S2"}', '{"55ppt control S12","55ppt control S2"}', '{"Cycling S1","Cycling S2"}', '{"Cycling S14","Cycling S2"}', '{"Cycling S14","Cycling S15"}')
+    # , '{"33ppt control S2","33ppt control S23"}'
+    result = result.select("contig", "position", "strand", "33ppt control S1", "33ppt control S2", "33ppt control S23", "33ppt control S24", "55ppt control S1", "55ppt control S2", "55ppt control S12", "Cycling S1", "Cycling S2", "Cycling S14", "Cycling S15", '{"33ppt control S1","33ppt control S2"}', '{"33ppt control S23","33ppt control S24"}', '{"55ppt control S1","55ppt control S2"}', '{"55ppt control S12","55ppt control S2"}', '{"Cycling S1","Cycling S2"}', '{"Cycling S14","Cycling S2"}', '{"Cycling S14","Cycling S15"}')
 
     # Add functions
     result = motif.genome.nearest_gene_to_positions(result)
@@ -934,7 +886,7 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
     )
     
     treatment_df = (pl.from_dict({"treatment": all_treatment_names})
-                    .with_columns(pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+                    .with_columns(pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
                     .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity"), 
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
@@ -948,8 +900,8 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
     X = df.pivot(on=["contig", "position", "strand"], values=motif.meth_type, index="treatment")
     
     # Add a salinity column 
-    y = X.with_columns(pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 1).alias("group"),
-                         pl.col("treatment").str.extract(r"(Cycling|35ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+    y = X.with_columns(pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 1).alias("group"),
+                         pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
 
     y = y.with_columns(((pl.col("group") == "55ppt control") 
                         | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity"))
@@ -1011,26 +963,20 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
     return master
 
 
-def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: dict[str, pl.DataFrame], seq_df: pl.DataFrame):
+def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: pl.DataFrame, seq_df: pl.DataFrame):
 
     # For group in frac_groups, get the list of unique features, and merge with results from ensemble and seq_df
     with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_synthesis.xlsx") as workbook:
+        merged = frac_groups_df.join(ensemble_df, on=["contig", "position", "strand"], how="left", suffix="_ensemble").join(seq_df, on=["contig", "position", "strand"], how="left", suffix="_seq")
+        
+        # Select and filter
+        try:
+            merged = merged.select('contig', 'strand',	'position', 'description', 'mi_score',	'Component_1',	'Component_2',	'33ppt control S1',	'33ppt control S2',	'33ppt control S23',	'33ppt control S24',	'55ppt control S1',	'55ppt control S2',	'55ppt control S12',	'Cycling S1',	'Cycling S2',	'Cycling S14',	'Cycling S15',	'{"33ppt control S1","33ppt control S2"}',	'{"33ppt control S23","33ppt control S24"}',	'{"55ppt control S1","55ppt control S2"}',	'{"55ppt control S12","55ppt control S2"}',	'{"Cycling S1","Cycling S2"}',	'{"Cycling S14","Cycling S2"}',	'{"Cycling S14","Cycling S15"}',	'gene_callers_id_start_seq',	'gene_callers_id_end_seq',	'distance_to_start_seq',	'distance_to_end_seq',	'function_seq',	'source_seq',	'function_end_seq',	'source_end_seq')
+        except Exception as e:
+            merged = merged.select('contig', 'strand',	'position', 'shifting_pairs', 'num_pairs_shifted', 'mi_score',	'Component_1',	'Component_2',	'33ppt control S1',	'33ppt control S2',	'33ppt control S23',	'33ppt control S24',	'55ppt control S1',	'55ppt control S2',	'55ppt control S12',	'Cycling S1',	'Cycling S2',	'Cycling S14',	'Cycling S15',	'{"33ppt control S1","33ppt control S2"}',	'{"33ppt control S23","33ppt control S24"}',	'{"55ppt control S1","55ppt control S2"}',	'{"55ppt control S12","55ppt control S2"}',	'{"Cycling S1","Cycling S2"}',	'{"Cycling S14","Cycling S2"}',	'{"Cycling S14","Cycling S15"}',	'gene_callers_id_start_seq',	'gene_callers_id_end_seq',	'distance_to_start_seq',	'distance_to_end_seq',	'function_seq',	'source_seq',	'function_end_seq',	'source_end_seq')
 
-         # For each group
-        for key, df in frac_groups_df.items():
-            if df.is_empty():
-                continue
-            
-            merged = df.join(ensemble_df, on=["contig", "position", "strand"], how="left", suffix="_ensemble").join(seq_df, on=["contig", "position", "strand"], how="left", suffix="_seq")
-            
-            # Select and filter
-            try:
-                merged = merged.select('contig', 'strand',	'position', 'description', 'mi_score',	'Component_1',	'Component_2',	'35ppt control S1',	'35ppt control S2',	'35ppt control S23',	'35ppt control S24',	'55ppt control S1',	'55ppt control S2',	'55ppt control S12',	'Cycling S1',	'Cycling S2',	'Cycling S14',	'Cycling S15',	'{"35ppt control S1","35ppt control S2"}',	'{"35ppt control S23","35ppt control S24"}',	'{"55ppt control S1","55ppt control S2"}',	'{"55ppt control S12","55ppt control S2"}',	'{"Cycling S1","Cycling S2"}',	'{"Cycling S14","Cycling S2"}',	'{"Cycling S14","Cycling S15"}',	'gene_callers_id_start_seq',	'gene_callers_id_end_seq',	'distance_to_start_seq',	'distance_to_end_seq',	'function_seq',	'source_seq',	'function_end_seq',	'source_end_seq')
-            except Exception as e:
-                merged = merged.select('contig', 'strand',	'position', 'shifting_pairs', 'num_pairs_shifted', 'mi_score',	'Component_1',	'Component_2',	'35ppt control S1',	'35ppt control S2',	'35ppt control S23',	'35ppt control S24',	'55ppt control S1',	'55ppt control S2',	'55ppt control S12',	'Cycling S1',	'Cycling S2',	'Cycling S14',	'Cycling S15',	'{"35ppt control S1","35ppt control S2"}',	'{"35ppt control S23","35ppt control S24"}',	'{"55ppt control S1","55ppt control S2"}',	'{"55ppt control S12","55ppt control S2"}',	'{"Cycling S1","Cycling S2"}',	'{"Cycling S14","Cycling S2"}',	'{"Cycling S14","Cycling S15"}',	'gene_callers_id_start_seq',	'gene_callers_id_end_seq',	'distance_to_start_seq',	'distance_to_end_seq',	'function_seq',	'source_seq',	'function_end_seq',	'source_end_seq')
-
-            merged = merged.filter(pl.col("source_seq").eq("COG20_FUNCTION"), pl.col("source_end_seq").eq("COG20_FUNCTION")).unique()
-            merged.write_excel(workbook, worksheet=key[:31])
+        merged = merged.filter(pl.col("source_seq").eq("COG20_FUNCTION"), pl.col("source_end_seq").eq("COG20_FUNCTION")).unique()
+        merged.write_excel(workbook)
 
 
 def annotated_pca(motif: Motif):

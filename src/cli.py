@@ -90,14 +90,14 @@ def analyze_colwellia(
                                 
         # Statistics        
         do_whole_methylome_stats(motif, alpha=0.05)
-        # ensemble_df = ensemble_significant_features(motif)
-        # frac_groups_df = frac_investigation_with_stats(motif)
-        # seq_df = write_frac_sequence_with_stats(motif)
-        # synthesis(motif, ensemble_df, frac_groups_df, seq_df)
-        # annotated_pca(motif)
-        # non_negative_matrix_factorization(motif)
-        # colinear_features(motif)
-        # regulatory_candidates(motif)
+        ensemble_df = ensemble_significant_features(motif)
+        frac_groups_df = frac_investigation_with_stats(motif)
+        seq_df = write_frac_sequence_with_stats(motif)
+        synthesis(motif, ensemble_df, frac_groups_df, seq_df)
+        annotated_pca(motif)
+        non_negative_matrix_factorization(motif)
+        colinear_features(motif)
+        regulatory_candidates(motif)
 
         for pos in [4001064, 5034408]:
             position_stats_plots(motif, pos)
