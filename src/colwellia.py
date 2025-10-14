@@ -1003,7 +1003,8 @@ def annotated_pca(motif: Motif):
         silhouette_avg = silhouette_score(features, cluster_labels)
         silhouette_scores.append(silhouette_avg)
 
-        if silhouette_avg == max(silhouette_scores):
+        #if silhouette_avg == max(silhouette_scores):
+        if n_clusters == 3:  # Choose 3 clusters for consistency, 4 is unstable despite having highest silhouette score
             optimal_cluster_labels = cluster_labels
     
     sns.lineplot(x=list(cluster_range), y=silhouette_scores, marker="o")

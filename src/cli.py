@@ -99,7 +99,7 @@ def analyze_colwellia(
         colinear_features(motif)
         regulatory_candidates(motif)
 
-        for pos in [4001064, 5034408]:
+        for pos in [4001064, 5367876, 5027643]:
             position_stats_plots(motif, pos)
 
     # Basic stats file
