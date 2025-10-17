@@ -60,8 +60,12 @@ def plot_number_of_positions_by_coverage_colwellia(motif: Motif, output_dir: Pat
         y="count",
         hue="treatment",
         hue_order=treatment_order,
-        style="treatment"
+        style="treatment",
+        markers=True
     )
+    
+    # Draw a vertical line at x=30
+    plt.axvline(x=30, color='gray', linestyle='--')
     
     plt.title("Site Count vs Coverage by Treatment")
     plt.xlabel("Coverage")
@@ -81,8 +85,6 @@ def plot_whole_methylome_colwellia(motif: Motif, output_dir: Path, promoter_only
     """
     genome: Genome = motif.genome
     df = motif.genome.add_genome_relative_position(motif.data()).rename({"treatment": "Treatment"}).collect()
-    if df is None:
-        return
     
     if promoter_only:
         df =  motif.genome.nearest_gene_to_positions(df).filter(pl.col("distance_to_start") < 60)
@@ -245,7 +247,7 @@ def plot_statistics_heatmap(
         val_matrix = value_matrices[stat_key]
         
         # Round val matrix to 2
-        val_matrix = (val_matrix*100).round(2) if stat_name == "1-Wasserstein" else val_matrix.round(2)
+        val_matrix = (val_matrix*100).round(2) if stat_name == "1-Wasserstein" or stat_name == "Methylation percent difference" else val_matrix.round(2)
 
         # Sort indices and columns based on genome treatment order
         sorted_treatments = sorted(motif.genome.treatment_order_map.keys(), key=motif.genome.treatment_order_map.get)
@@ -265,11 +267,11 @@ def plot_statistics_heatmap(
             val_matrix.index.str.contains("control")
         ]
         cycling_matrix = val_matrix.loc[
-            val_matrix.index.str.contains("Cycling"),
-            val_matrix.index.str.contains("Cycling")
+            val_matrix.index.str.contains("Alternating"),
+            val_matrix.index.str.contains("Alternating")
         ]
         cycling_controls_matrix = val_matrix.loc[
-            val_matrix.index.str.contains("Cycling"), 
+            val_matrix.index.str.contains("Alternating"), 
             val_matrix.columns.str.contains("control")
         ]
         
@@ -362,7 +364,7 @@ def plot_statistics_graph(statistic_keys: list[str],
         def clean_treatment_name(treatment):
             name = ""
             for word in treatment.split(","):
-                name += word.replace("ppt control ", "").replace("Cycling ", "C") + ","
+                name += word.replace("ppt control ", "").replace("Alternating ", "A") + ","
             return name[:-1]  # Remove trailing comma
   
         # Add all edges with significance information
@@ -756,8 +758,8 @@ def frac_investigation_with_stats(motif: Motif) -> dict[str, pl.DataFrame]:
     
     # Make a treatments dataframe
     treatment_df = (pl.from_dict({"treatment": list(set(all_result_stats.get_column("treatment_1").to_list() + all_result_stats.get_column("treatment_2").to_list()))})
-                    .with_columns(pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
-                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity"), 
+                    .with_columns(pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 0))).alias("salinity"), 
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
     
@@ -822,9 +824,6 @@ def write_frac_sequence_with_stats(motif: Motif) -> pl.DataFrame:
         values="significant"
     ).join(motif_data, on=["contig", "position", "strand"], how="left")
     
-    # Reorder columns
-    # , '{"33ppt control S2","33ppt control S23"}'
-    result = result.select("contig", "position", "strand", "33ppt control S1", "33ppt control S2", "33ppt control S23", "33ppt control S24", "55ppt control S1", "55ppt control S2", "55ppt control S12", "Cycling S1", "Cycling S2", "Cycling S14", "Cycling S15", '{"33ppt control S1","33ppt control S2"}', '{"33ppt control S23","33ppt control S24"}', '{"55ppt control S1","55ppt control S2"}', '{"55ppt control S12","55ppt control S2"}', '{"Cycling S1","Cycling S2"}', '{"Cycling S14","Cycling S2"}', '{"Cycling S14","Cycling S15"}')
 
     # Add functions
     result = motif.genome.nearest_gene_to_positions(result)
@@ -845,7 +844,7 @@ def write_frac_sequence_with_stats(motif: Motif) -> pl.DataFrame:
     
 def motif_functional_enrichment(motif: Motif):
      # Data
-    all_positions = motif.genome.nearest_gene_to_positions(motif.positions)
+    all_positions = motif.genome.nearest_gene_to_positions(motif.positions).collect()
     
     # Add functions
     gene_ids = all_positions.get_column("gene_callers_id_start").to_list() + all_positions.get_column("gene_callers_id_end").to_list()
@@ -886,8 +885,8 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
     )
     
     treatment_df = (pl.from_dict({"treatment": all_treatment_names})
-                    .with_columns(pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
-                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity"), 
+                    .with_columns(pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 0))).alias("salinity"), 
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
     
@@ -900,11 +899,11 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
     X = df.pivot(on=["contig", "position", "strand"], values=motif.meth_type, index="treatment")
     
     # Add a salinity column 
-    y = X.with_columns(pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 1).alias("group"),
-                         pl.col("treatment").str.extract(r"(Cycling|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+    y = X.with_columns(pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 1).alias("group"),
+                         pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
 
     y = y.with_columns(((pl.col("group") == "55ppt control") 
-                        | ((pl.col("group") == "Cycling") & (pl.col("step") % 2 != 0))).alias("salinity"))
+                        | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 0))).alias("salinity"))
     X = X.drop("treatment").to_pandas()
             
     
@@ -969,12 +968,6 @@ def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: pl.DataFr
     with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_synthesis.xlsx") as workbook:
         merged = frac_groups_df.join(ensemble_df, on=["contig", "position", "strand"], how="left", suffix="_ensemble").join(seq_df, on=["contig", "position", "strand"], how="left", suffix="_seq")
         
-        # Select and filter
-        try:
-            merged = merged.select('contig', 'strand',	'position', 'description', 'mi_score',	'Component_1',	'Component_2',	'33ppt control S1',	'33ppt control S2',	'33ppt control S23',	'33ppt control S24',	'55ppt control S1',	'55ppt control S2',	'55ppt control S12',	'Cycling S1',	'Cycling S2',	'Cycling S14',	'Cycling S15',	'{"33ppt control S1","33ppt control S2"}',	'{"33ppt control S23","33ppt control S24"}',	'{"55ppt control S1","55ppt control S2"}',	'{"55ppt control S12","55ppt control S2"}',	'{"Cycling S1","Cycling S2"}',	'{"Cycling S14","Cycling S2"}',	'{"Cycling S14","Cycling S15"}',	'gene_callers_id_start_seq',	'gene_callers_id_end_seq',	'distance_to_start_seq',	'distance_to_end_seq',	'function_seq',	'source_seq',	'function_end_seq',	'source_end_seq')
-        except Exception as e:
-            merged = merged.select('contig', 'strand',	'position', 'shifting_pairs', 'num_pairs_shifted', 'mi_score',	'Component_1',	'Component_2',	'33ppt control S1',	'33ppt control S2',	'33ppt control S23',	'33ppt control S24',	'55ppt control S1',	'55ppt control S2',	'55ppt control S12',	'Cycling S1',	'Cycling S2',	'Cycling S14',	'Cycling S15',	'{"33ppt control S1","33ppt control S2"}',	'{"33ppt control S23","33ppt control S24"}',	'{"55ppt control S1","55ppt control S2"}',	'{"55ppt control S12","55ppt control S2"}',	'{"Cycling S1","Cycling S2"}',	'{"Cycling S14","Cycling S2"}',	'{"Cycling S14","Cycling S15"}',	'gene_callers_id_start_seq',	'gene_callers_id_end_seq',	'distance_to_start_seq',	'distance_to_end_seq',	'function_seq',	'source_seq',	'function_end_seq',	'source_end_seq')
-
         merged = merged.filter(pl.col("source_seq").eq("COG20_FUNCTION"), pl.col("source_end_seq").eq("COG20_FUNCTION")).unique()
         merged.write_excel(workbook)
 

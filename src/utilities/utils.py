@@ -247,6 +247,7 @@ def parse_barcode_tsv(barcode_treatment_sample_file):
     # Load barcode→treatment mappings
     barcode_sample_map = {}
     barcode_treatment_map = {}
+    sample_treatment_map = {}
 
     with open(barcode_treatment_sample_file, mode='r') as file:
         reader = csv.reader(file, delimiter='\t')
@@ -263,8 +264,9 @@ def parse_barcode_tsv(barcode_treatment_sample_file):
             
             barcode_treatment_map[row[0]] = row[1]
             barcode_sample_map[row[0]] = row[2]
+            sample_treatment_map[row[2]] = row[1]
     
-    return barcode_treatment_map, barcode_sample_map
+    return barcode_treatment_map, barcode_sample_map, sample_treatment_map
 
 
 def do_ks_test(motif, treatments, alpha):     

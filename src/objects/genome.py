@@ -60,11 +60,12 @@ class Genome(object):
         if default_treatments is None:
             raise ValueError("No default treatments provided.")
         
-         # Load barcode mappings
-        barcode_treatment_map, barcode_sample_map = parse_barcode_tsv(barcode_treatment_sample_file)
+        # Load barcode mappings
+        barcode_treatment_map, barcode_sample_map, sample_treatment_map = parse_barcode_tsv(barcode_treatment_sample_file)
 
         self.barcode_treatment_map: dict[str, str] = barcode_treatment_map                
         self.barcode_sample_map: dict[str, str] = barcode_sample_map
+        self.sample_treatment_map: dict[str, str] = sample_treatment_map
         
         # Load treatment information mappings
         treatment_name_map, treatment_color_map, treatment_order_map = parse_treatment_tsv(treatment_info)
