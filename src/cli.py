@@ -75,32 +75,33 @@ def analyze_colwellia(
     for motif in motifs:
         click.echo(f"Analyzing motif: {motif.motif} (meth_type={motif.meth_type})")
 
-        # # Diagnostic and metadata
+        # Diagnostic and metadata
         # plot_number_of_positions_by_coverage_colwellia(motif, output_dir)
         # write_genbank_features_near_motifs(motif)
         # plot_motif_methylation_distribution_colwellia(motif, output_dir)        
 
-        # # Whole methylome view 
+        # Whole methylome view 
         # plot_whole_methylome_colwellia(motif, output_dir)
         # plot_whole_methylome_colwellia(motif, output_dir, True)                
         
-        # # Motif distribution                
+        # Motif distribution                
         # motif_distribution(motif)
         # motif_functional_enrichment(motif)
                                 
         # Statistics        
         do_whole_methylome_stats(motif, alpha=0.05)
-        ensemble_df = ensemble_significant_features(motif)
-        frac_groups_df = frac_investigation_with_stats(motif)
-        seq_df = write_frac_sequence_with_stats(motif)
-        synthesis(motif, ensemble_df, frac_groups_df, seq_df)
-        annotated_pca(motif)
-        non_negative_matrix_factorization(motif)
-        colinear_features(motif)
-        regulatory_candidates(motif)
+        # ensemble_df = ensemble_significant_features(motif)
+        # frac_groups_df = frac_investigation_with_stats(motif)
+        # seq_df = write_frac_sequence_with_stats(motif)
+        # synthesis(motif, ensemble_df, frac_groups_df, seq_df)
+        # annotated_pca(motif)
+        # colinear_features(motif)
+        # regulatory_candidates(motif)
 
-        for pos in [4001064, 5367876, 5027643]:
-            position_stats_plots(motif, pos)
+        # for pos in [4001064, 5027643, 5367876]:
+            # position_stats_plots(motif, pos)
+        
+        # plot_stat_dists(motif)
 
     # Basic stats file
     # write_basic_stats_colwellia(genome, motifs)

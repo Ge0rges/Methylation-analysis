@@ -134,63 +134,50 @@ def _per_site_test(site_counts_a_flat, site_counts_b_flat):
     tuple
         (p_value, test_method, n_replicates_a, n_replicates_b)
     """
-    try:
-        n_replicates_a = len(site_counts_a_flat) // 2
-        n_replicates_b = len(site_counts_b_flat) // 2
+    n_replicates_a = len(site_counts_a_flat) // 2
+    n_replicates_b = len(site_counts_b_flat) // 2
 
-
-        # Single replicate case
-        if n_replicates_a == 1 and n_replicates_b == 1:
-            ma, ua = site_counts_a_flat[0], site_counts_a_flat
-            mb, ub = site_counts_b_flat, site_counts_b_flat
-            table = np.array([[ma, ua], [mb, ub]])
-            try:
-                res = stats.chi2_contingency(table)
-                return res.pvalue, "chi2_single", n_replicates_a, n_replicates_b
-            except Exception:
-                return 1.0, "chi2_failed", n_replicates_a, n_replicates_b
-
-
-        # Multiple replicate case
-        else:
-            # Build within-group tables
-            a_table = np.array(site_counts_a_flat).reshape(n_replicates_a, 2)
-            b_table = np.array(site_counts_b_flat).reshape(n_replicates_b, 2)
-
-
-            # Test for consistency within replicates: 2xN table for each group
-            try:
-                a_pval = stats.chi2_contingency(a_table).pvalue if n_replicates_a > 1 else 1.0
-                b_pval = stats.chi2_contingency(b_table).pvalue if n_replicates_b > 1 else 1.0
-            except Exception:
-                return 1.0, "replicates_test_failed", n_replicates_a, n_replicates_b
-
-
-            # If replicates differ within A or B, reject test, no pooling
-            if a_pval < 0.05 or b_pval < 0.05:
-                return 1.0, "replicates_inconsistent", n_replicates_a, n_replicates_b
-
-
-            # Pool replicates for A and B
-            pooled_a = np.sum(a_table, axis=0)
-            pooled_b = np.sum(b_table, axis=0)
-            table = np.array([pooled_a, pooled_b])
-
-
-            try:
-                pval = stats.chi2_contingency(table).pvalue
-                return pval, "chi2_pooled", n_replicates_a, n_replicates_b
-            except Exception:
-                return 1.0, "chi2_failed", n_replicates_a, n_replicates_b
-
-
-    except Exception:
-        return 1.0, "failed", 0, 0
-
+    assert n_replicates_a > 0 and n_replicates_b > 0, "At least one replicate required per group"
     
-# ------------------------------------------------------------------
-# Public API
-# ------------------------------------------------------------------
+    # Single replicate case
+    if n_replicates_a == 1 and n_replicates_b == 1:
+        ma, ua = site_counts_a_flat[0], site_counts_a_flat[1]
+        mb, ub = site_counts_b_flat[0], site_counts_b_flat[1]
+        table = np.array([[ma, ua], [mb, ub]])
+        try:
+            res = stats.chi2_contingency(table)
+            return res.pvalue, "chi2_single", n_replicates_a, n_replicates_b
+        except Exception:
+            return 1.0, "chi2_failed", n_replicates_a, n_replicates_b
+
+    # Multiple replicate case
+    else:
+        # Build within-group tables
+        a_table = np.array(site_counts_a_flat).reshape(n_replicates_a, 2)
+        b_table = np.array(site_counts_b_flat).reshape(n_replicates_b, 2)
+
+        # Test for consistency within replicates: 2xN table for each group
+        try:
+            a_pval = stats.chi2_contingency(a_table).pvalue if n_replicates_a > 1 else 1.0
+            b_pval = stats.chi2_contingency(b_table).pvalue if n_replicates_b > 1 else 1.0
+        except Exception:
+            return 1.0, "replicates_test_failed", n_replicates_a, n_replicates_b
+
+        # If replicates differ within A or B, reject test, no pooling
+        if a_pval < 0.05 or b_pval < 0.05:
+            return 1.0, "replicates_inconsistent", n_replicates_a, n_replicates_b
+
+        # Pool replicates for A and B
+        pooled_a = np.sum(a_table, axis=0)
+        pooled_b = np.sum(b_table, axis=0)
+        table = np.array([pooled_a, pooled_b])
+
+        try:
+            pval = stats.chi2_contingency(table).pvalue
+            return pval, "chi2_pooled", n_replicates_a, n_replicates_b
+        except Exception:
+            return 1.0, "chi2_failed", n_replicates_a, n_replicates_b
+    
 
 def compare_methylomes(
     beta_a: np.ndarray,
@@ -353,3 +340,69 @@ def compare_methylomes(
         per_site_df = None  # empty frame when no counts provided
 
     return {"global_table": global_table, "global_table_str": global_table_str, "per_site_df": per_site_df}
+
+
+def visualize_ks_test(beta_a, beta_b, treatment_a, treatment_b, motif: Motif):
+    # This also effectively shows wasserstein, as the area between CDFs is W1
+    # Calculate empirical CDFs
+    sorted_a = np.sort(beta_a)
+    sorted_b = np.sort(beta_b)
+
+    # Create a common set of evaluation points (all unique values from both distributions)
+    all_values = np.sort(np.concatenate([sorted_a, sorted_b]))
+
+    # Evaluate both CDFs at the same points
+    cdf_a = np.searchsorted(sorted_a, all_values, side='right') / len(sorted_a)
+    cdf_b = np.searchsorted(sorted_b, all_values, side='right') / len(sorted_b)
+
+    # Calculate KS statistic and location
+    d_index = np.argmax(np.abs(cdf_a - cdf_b))
+    d_value = np.abs(cdf_a[d_index] - cdf_b[d_index])
+    d_position = all_values[d_index]  # The x-value where max difference occurs
+    
+    # Plotting
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(8, 6))
+    # Plot CDFs using the common evaluation points
+    plt.step(all_values, cdf_a, label=f'{treatment_a}', where='post')
+    plt.step(all_values, cdf_b, label=f'{treatment_b}', where='post')
+    
+    # Draw vertical line at the position of maximum KS distance
+    plt.vlines(x=d_position, ymin=min(cdf_a[d_index], cdf_b[d_index]), 
+               ymax=max(cdf_a[d_index], cdf_b[d_index]), 
+               color='red', linestyle='--', linewidth=2, 
+               label=f'KS Statistic D={d_value:.3f}')
+    
+    plt.title(f'Empirical CDFs with KS Statistic\n{motif.motif} ({motif.meth_type})')
+    plt.xlabel('Methylation Fraction (β)')
+    plt.ylabel('Empirical CDF')
+    plt.legend()
+    plt.grid(alpha=0.3)
+    plt.savefig(motif.genome.output_dir / f"ks_test_{motif.motif}_{motif.meth_type}_{treatment_a}_{treatment_b}.png", 
+                dpi=300, bbox_inches='tight')
+    plt.close()
+
+
+def visualize_epps_singleton_test(beta_a, beta_b, treatment_a, treatment_b, motif: Motif):
+    # Plotting empirical characteristic functions
+    import matplotlib.pyplot as plt
+    t_values = np.linspace(-10, 10, 400)
+    
+    def ecf(data, t):
+        return np.array([np.mean(np.exp(1j * ti * data)) for ti in t])
+    
+    ecf_a = ecf(beta_a, t_values)
+    ecf_b = ecf(beta_b, t_values)
+    
+    plt.figure(figsize=(8, 6))
+    plt.plot(t_values, ecf_a.real, label='Sample A Real', color='blue')
+    plt.plot(t_values, ecf_a.imag, label='Sample A Imag', color='cyan')
+    plt.plot(t_values, ecf_b.real, label='Sample B Real', color='orange')
+    plt.plot(t_values, ecf_b.imag, label='Sample B Imag', color='red')
+    plt.title('Empirical Characteristic Functions')
+    plt.xlabel('t')
+    plt.ylabel('ECF')
+    plt.legend()
+    plt.grid()
+    plt.savefig(motif.genome.output_dir / f"epps_singleton_test_{motif.motif}_{motif.meth_type}_{treatment_a}_{treatment_b}.png")
+    plt.close()

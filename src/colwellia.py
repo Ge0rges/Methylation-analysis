@@ -16,11 +16,11 @@ from src.objects.genome import Genome
 from src.objects.motif import Motif
 from src.utilities.utils import readable_modification_name, get_stats_data
 from src.utilities.data_loading import parse_genbank
-from src.utilities.compare_methylome import compare_methylomes
+from src.utilities.compare_methylome import *
 
 from src.utilities.kegg_enrichment import KEGGEnrichmentAnalyzer
 from src.utilities.feature_statistics import *
-from src.diff_pattern import analyze_differential_expression_patterns
+from src.utilities.diff_pattern import analyze_differential_expression_patterns
 from adjustText import adjust_text
 from sklearn.decomposition import PCA
 from sklearn.cluster import KMeans
@@ -218,7 +218,8 @@ def plot_statistics_heatmap(
     value_matrices: dict[str, pd.DataFrame],
     motif: Motif,
     alpha: float,
-    stat_name: str
+    stat_name: str,
+    output_path = None
 ) -> None:
     """
     Plots heatmaps and timeline charts from pre-calculated statistical data.
@@ -333,7 +334,8 @@ def plot_statistics_heatmap(
                 title_stat_key = "All sites"
             ax.set_title(title_stat_key)
 
-    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_{stat_name}_heatmap.pdf", format="pdf")
+    output_path = motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_{stat_name}_heatmap.pdf" if output_path is None else output_path
+    plt.savefig(output_path, format="pdf")
     plt.close()
 
 
@@ -624,6 +626,7 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
             counts_a = data["group1_counts"]
             counts_b = data["group2_counts"]
 
+            # Perform
             results_means = compare_methylomes(beta_a, beta_b, counts_a, counts_b, motif=motif, alpha=alpha)
             results_promoters = compare_methylomes(pr_beta_a, pr_beta_b, motif=motif, alpha=alpha)
             results_no_promoters = compare_methylomes(no_pr_beta_a, no_pr_beta_b, motif=motif, alpha=alpha)
@@ -797,7 +800,8 @@ def position_stats_plots(motif: Motif, position: int):
         value_matrices={"Chi2": heatmap_data},
         motif=motif,
         alpha=None,
-        stat_name=f"Methylation fraction difference"
+        stat_name=f"Methylation fraction difference",
+        output_path=motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_position_{position}_heatmap.pdf"
     )
     
 
@@ -996,8 +1000,7 @@ def annotated_pca(motif: Motif):
         silhouette_avg = silhouette_score(features, cluster_labels)
         silhouette_scores.append(silhouette_avg)
 
-        #if silhouette_avg == max(silhouette_scores):
-        if n_clusters == 3:  # Choose 3 clusters for consistency, 4 is unstable despite having highest silhouette score
+        if silhouette_avg == max(silhouette_scores):
             optimal_cluster_labels = cluster_labels
     
     sns.lineplot(x=list(cluster_range), y=silhouette_scores, marker="o")
@@ -1026,9 +1029,9 @@ def annotated_pca(motif: Motif):
     loading_df = pd.DataFrame(pca.components_.T, columns=["Component_1", "Component_2"])
     loading_df = pd.concat([feature_identifiers, loading_df], axis=1)
     # Calculate mean and standard deviation for loadings
-    mean_comp1 = loading_df['Component_1'].mean()
+    mean_comp1 = loading_df['Component_1'].abs().mean()
     std_comp1 = loading_df['Component_1'].std()
-    mean_comp2 = loading_df['Component_2'].mean()
+    mean_comp2 = loading_df['Component_2'].abs().mean()
     std_comp2 = loading_df['Component_2'].std()
 
     # Define thresholds
@@ -1048,9 +1051,6 @@ def annotated_pca(motif: Motif):
     # Save fig
     plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_pca_clusters.pdf", format="pdf")
     plt.close()
-
-
-def non_negative_matrix_factorization(motif: Motif):
     from sklearn.decomposition import NMF
     
     df = motif.genome.nearest_gene_to_positions(motif.data()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
@@ -1178,4 +1178,27 @@ def regulatory_candidates(motif: Motif):
     with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_regulatory_candidates.xlsx") as wb:
         high_variance_sites.write_excel(wb, worksheet="high_variance_sites", include_header=True)
         all_outliers_df.write_excel(wb, worksheet="outlier_sites", include_header=True)
+
+
+def plot_stat_dists(motif: Motif) -> None:
+    unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
+    all_treatment_names = sorted(
+        list(unique_treatment_names),
+        key=lambda t: motif.genome.treatment_order_map.get(t, str(t))
+    )
+    
+    # Generate pairs of treatments using the sorted, unique names
+    pairs = list(tuple(sorted(x)) for x in combinations(all_treatment_names, 2))
+    all_result_stats = []
+    
+    # Get Stats
+    for pair_treatments in pairs:
+        data = get_stats_data(motif, pair_treatments)
+        beta_a = data["group1_means"]
+        beta_b = data["group2_means"]
         
+        treatment_a, treatment_b = pair_treatments
+        
+        # Visualize
+        visualize_epps_singleton_test(beta_a, beta_b, treatment_a, treatment_b, motif)
+        visualize_ks_test(beta_a, beta_b, treatment_a, treatment_b, motif)
