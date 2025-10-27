@@ -749,12 +749,13 @@ def frac_investigation_with_stats(motif: Motif) -> dict[str, pl.DataFrame]:
     all_result_stats = all_result_stats.filter(pl.col("significant") == True)
     
     # Data - Restrict to promoters and big effect size
-    all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats.lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_(), (pl.col("beta_A") - pl.col("beta_B")).abs() > 0.1).collect()
+    mean_stddev = motif.data().group_by("contig", "strand", "position").agg(pl.col(motif.meth_type).std()).select(pl.col(motif.meth_type).mean()).collect().item()
+    all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats.lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_(), (pl.col("beta_A") - pl.col("beta_B")).abs() > 2*mean_stddev).collect()
 
     # Make a treatments dataframe
     treatment_df = (pl.from_dict({"treatment": list(set(all_result_stats.get_column("treatment_1").to_list() + all_result_stats.get_column("treatment_2").to_list()))})
                     .with_columns(pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
-                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 0))).alias("salinity"), 
+                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 1))).alias("salinity"), 
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
     
@@ -766,9 +767,9 @@ def position_stats_plots(motif: Motif, position: int):
     all_result_stats = pl.read_excel(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx")
     all_result_stats = all_result_stats.filter(pl.col("position") == position).with_columns((pl.col("beta_A") - pl.col("beta_B")).alias("beta_diff"))
     
-    # Make significant true when significant is true and abs(beta_diff) >= 3*stddev
+    # Make significant true when significant is true and abs(beta_diff) >= 2*stddev
     mean_stddev = motif.data().group_by("contig", "strand", "position").agg(pl.col(motif.meth_type).std()).select(pl.col(motif.meth_type).mean()).collect().item()
-    all_result_stats = all_result_stats.with_columns((pl.col("significant") & (pl.col("beta_diff").abs() >= 3*mean_stddev)).alias("significant"))
+    all_result_stats = all_result_stats.with_columns((pl.col("significant") & (pl.col("beta_diff").abs() >= 2*mean_stddev)).alias("significant"))
     
     # Make a heatmap where rows are treatment_1, columns are treatment_2, and values are beta_A - beta_B
     heatmap_data = all_result_stats.select("treatment_1", "treatment_2", "beta_diff").unique().to_pandas().pivot(index="treatment_1", columns="treatment_2", values="beta_diff")
@@ -841,7 +842,7 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
     
     treatment_df = (pl.from_dict({"treatment": all_treatment_names})
                     .with_columns(pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
-                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 0))).alias("salinity"), 
+                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 1))).alias("salinity"), 
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
     
@@ -858,7 +859,7 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
                          pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
 
     y = y.with_columns(((pl.col("group") == "55ppt control") 
-                        | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 0))).alias("salinity"))
+                        | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 1))).alias("salinity"))
     X = X.drop("treatment").to_pandas()
             
     # Do different feature importance methods
