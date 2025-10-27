@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import polars as pl
-from sklearn.feature_selection import SelectPercentile, mutual_info_classif, chi2, f_classif, VarianceThreshold
+from sklearn.feature_selection import SelectFdr, mutual_info_classif, chi2, f_classif, VarianceThreshold, SelectPercentile
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.model_selection import KFold
 from sklearn.metrics import mean_squared_error
@@ -143,7 +143,7 @@ def bootstrap_pca_loadings(X, n_components=2, n_bootstrap=1000, confidence_level
     return results
 
 
-def do_feature_selection(X: pd.DataFrame, y: pd.Series, top_percentile: float =0.1) -> pl.DataFrame:
+def do_feature_selection(X: pd.DataFrame, y: pd.Series, alpha: float, top_percentile: int) -> pl.DataFrame:
     """
     Perform feature selection using scikit-learn's mutual_info_classif, chi2, and f_classif, in combination with SelectPercentile.
     First use VarianceThreshold to remove zero-variance features.
@@ -151,7 +151,7 @@ def do_feature_selection(X: pd.DataFrame, y: pd.Series, top_percentile: float =0
     """
     
     # Remove zero-variance features
-    var_thresh = VarianceThreshold()
+    var_thresh = VarianceThreshold(threshold=0.000625)
     X_var = var_thresh.fit_transform(X)
     features_retained = X.columns[var_thresh.get_support()].tolist()
     
@@ -168,9 +168,14 @@ def do_feature_selection(X: pd.DataFrame, y: pd.Series, top_percentile: float =0
                'strand': [f.split(",")[2][:-1] == "true" for f in features_retained]}
 
     for test_name, test_func in tests.items():
-        selector = SelectPercentile(test_func, percentile=top_percentile * 100)
-        selector.fit(X_var, y)
-        results[test_name] = selector.get_support().tolist()
+        if test_func == mutual_info_classif: # Doesn't have p-values, so use percentile
+            selector = SelectPercentile(mutual_info_classif, percentile=top_percentile)
+            selector.fit(X_var, y)
+            results[test_name] = selector.get_support().tolist()
+        else:
+            selector = SelectFdr(test_func, alpha=alpha)
+            selector.fit(X_var, y)
+            results[test_name] = selector.get_support().tolist()
     
     # Add false if feature was removed by variance threshold
     for f in X.columns:

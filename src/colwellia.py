@@ -862,9 +862,9 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
     X = X.drop("treatment").to_pandas()
             
     # Do different feature importance methods
-    salinity_features = do_feature_selection(X, y.get_column("salinity").to_pandas())
-    group_features = do_feature_selection(X, y.get_column("group").to_pandas())
-    step_features = do_feature_selection(X, y.get_column("step").to_pandas())
+    salinity_features = do_feature_selection(X, y.get_column("salinity").to_pandas(), alpha=0.05, top_percentile=10)
+    group_features = do_feature_selection(X, y.get_column("group").to_pandas(), alpha=0.05, top_percentile=10)
+    step_features = do_feature_selection(X, y.get_column("step").to_pandas(), alpha=0.05, top_percentile=10)
 
     feature_importance, _ = bootstrap_pls(pandas_df)
     feature_importance = pl.from_pandas(feature_importance, include_index=True).with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
@@ -935,7 +935,22 @@ def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: pl.DataFr
     merged = merged.unique()
     
     with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_synthesis.xlsx") as workbook:
-        merged.write_excel(workbook)
+        # Sheet with features where all three tests are True for salinity, group, and step
+        merged.filter(pl.col("mutual_info_salinity"), pl.col("chi2_salinity"), pl.col("f_classif_salinity")).sort("PCA_Component_1").write_excel(workbook, worksheet="Salinity")
+        merged.filter(pl.col("mutual_info_group"), pl.col("chi2_group"), pl.col("f_classif_group")).sort("PCA_Component_1").write_excel(workbook, worksheet="Group")
+        merged.filter(pl.col("mutual_info_step"), pl.col("chi2_step"), pl.col("f_classif_step")).sort("PCA_Component_1").write_excel(workbook, worksheet="Step")
+
+        # A sheet where PCA PC1 > 0.1
+        merged.filter(pl.col("PCA_Component_1").abs() > 0.1).write_excel(workbook, worksheet="PCA")
+        
+        # A sheet where PLS Component 1 > 0.06
+        merged.filter(pl.col("PLS_Component_1").abs() > 0.06).write_excel(workbook, worksheet="PLS")
+        
+        # A sheet with regulatory candidates
+        merged.filter(pl.col("type").is_not_null()).write_excel(workbook, worksheet="Outliers")
+        
+        # Sheet with all data
+        merged.write_excel(workbook, worksheet="All")
 
 
 def annotated_pca(motif: Motif):
