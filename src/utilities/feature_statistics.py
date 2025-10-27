@@ -1,105 +1,187 @@
 import numpy as np
 import pandas as pd
 import polars as pl
-from sklearn.feature_selection import mutual_info_classif
-from scipy.stats import ttest_ind, spearmanr
-from statsmodels.stats.multitest import multipletests
+from sklearn.feature_selection import SelectPercentile, mutual_info_classif, chi2, f_classif, VarianceThreshold
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.model_selection import KFold
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import LabelEncoder
+from sklearn.decomposition import PCA
+from sklearn.utils import resample
 
 
-def do_mutual_information(X, y):
+def bootstrap_pca_loadings(X, n_components=2, n_bootstrap=1000, confidence_level=0.95, random_state=None):
     """
-    Identify features significantly predictive of binary class using:
-    - Mutual information
-    - Welch's t-test (absolute statistic)
+    Perform bootstrap resampling on PCA to compute confidence intervals for loadings.
     
-    Returns all features with t-test p-value below threshold,
-    along with MI score, t-statistic, and consensus rank.
-    """
-    
-    # 1. Mutual information
-    mi_scores = mutual_info_classif(X, y, random_state=42)
-    mi_table = pl.from_dict({
-        "contig": [x.split(",")[0][2:-1] for x in X.columns],
-        "position": [int(x.split(",")[1]) for x in X.columns],
-        "strand": [bool(x.split(",")[2]) for x in X.columns],
-        "mi_score": mi_scores
-    }).sort(by="mi_score", descending=True)
-    
-    return mi_table
-
-
-def do_t_test(X, y, p_threshold=0.05):
-    # Welch's t-test, do multiple test correction then drop insignificant features
-    class_0, class_1 = X[y == 0], X[y == 1]
-    t_results = [ttest_ind(class_0[col], class_1[col], equal_var=False) for col in X.columns]
-    abs_t_stats = [abs(t.statistic) for t in t_results]
-    t_pvals = [t.pvalue for t in t_results]
-    
-    reject_mask, t_pvals_corrected, _, _ = multipletests(t_pvals, method='fdr_tsbh', alpha=p_threshold)
-    significant = pd.DataFrame({
-        "feature": X.columns,
-        "t_stat": abs_t_stats,
-        "p_value": t_pvals_corrected
-    })
-    
-    significant = significant[reject_mask].sort_values('t_stat', ascending=False)
-
-    return pl.from_pandas(significant)
-    
-
-def do_spearmanr(df, p_threshold=0.05):
-    """
-    Identify features predictive of experimental variables
+    Parameters:
+    -----------
+    X : pandas DataFrame or numpy array
+        The feature matrix (samples x features). Should NOT include non-feature columns.
+    n_components : int, default=2
+        Number of principal components to compute
+    n_bootstrap : int, default=1000
+        Number of bootstrap iterations
+    confidence_level : float, default=0.95
+        Confidence level for intervals (e.g., 0.95 for 95% CI)
+    random_state : int or None
+        Random seed for reproducibility
+        
+    Returns:
+    --------
+    results : dict
+        Dictionary containing:
+        - 'original_loadings': DataFrame of loadings from original data
+        - 'bootstrap_loadings': 3D array of all bootstrap loadings (n_bootstrap x n_features x n_components)
+        - 'loading_means': DataFrame of mean loadings across bootstraps
+        - 'loading_std': DataFrame of standard deviations of loadings
+        - 'confidence_intervals': DataFrame with lower and upper bounds for each loading
+        - 'original_explained_variance': Explained variance ratios from original PCA
     """
     
-    # Create pivot table
-    pivot_df = df.pivot_table(
-        index='feature', 
-        columns=['salinity', 'control', 'step'], 
-        values='value', 
-        fill_value=0
+    # Set random seed if provided
+    if random_state is not None:
+        np.random.seed(random_state)
+    
+    # Convert to numpy array if DataFrame
+    if isinstance(X, pd.DataFrame):
+        feature_names = X.columns.tolist()
+        X_array = X.values
+    else:
+        X_array = X
+        feature_names = [f"Feature_{i}" for i in range(X_array.shape[1])]
+    
+    n_samples, n_features = X_array.shape
+    
+    # Fit PCA on original data
+    pca_original = PCA(n_components=n_components)
+    pca_original.fit(X_array)
+    original_loadings = pca_original.components_.T  # Shape: (n_features, n_components)
+    original_variance = pca_original.explained_variance_ratio_
+    
+    # Store bootstrap loadings
+    bootstrap_loadings = np.zeros((n_bootstrap, n_features, n_components))
+    
+    # Perform bootstrap
+    for i in range(n_bootstrap):
+        # Resample with replacement (sample indices, not rows directly)
+        indices = resample(np.arange(n_samples), replace=True, n_samples=n_samples)
+        X_boot = X_array[indices, :]
+        
+        # Fit PCA on bootstrap sample
+        pca_boot = PCA(n_components=n_components)
+        pca_boot.fit(X_boot)
+        loadings_boot = pca_boot.components_.T
+        
+        # Handle sign ambiguity: align bootstrap loadings with original
+        # by maximizing correlation with original loadings
+        for j in range(n_components):
+            if np.dot(original_loadings[:, j], loadings_boot[:, j]) < 0:
+                loadings_boot[:, j] *= -1
+        
+        bootstrap_loadings[i, :, :] = loadings_boot
+    
+    # Calculate statistics
+    loading_means = np.mean(bootstrap_loadings, axis=0)
+    loading_std = np.std(bootstrap_loadings, axis=0)
+    
+    # Calculate confidence intervals using percentile method
+    alpha = 1 - confidence_level
+    lower_percentile = (alpha / 2) * 100
+    upper_percentile = (1 - alpha / 2) * 100
+    
+    lower_bounds = np.percentile(bootstrap_loadings, lower_percentile, axis=0)
+    upper_bounds = np.percentile(bootstrap_loadings, upper_percentile, axis=0)
+    
+    # Create DataFrames for output
+    component_names = [f"PC{i+1}" for i in range(n_components)]
+    
+    original_loadings_df = pd.DataFrame(
+        original_loadings, 
+        columns=component_names, 
+        index=feature_names
     )
     
-    # Calculate correlations with each experimental variable
-    results = []
+    loading_means_df = pd.DataFrame(
+        loading_means, 
+        columns=component_names, 
+        index=feature_names
+    )
     
-    for feature in pivot_df.index:
-        feature_values = pivot_df.loc[feature].values
-        
-        # Extract experimental variables from column names
-        salinity_vals = [col[0] for col in pivot_df.columns]
-        control_vals = [col[1] for col in pivot_df.columns]
-        step_vals = [col[2] for col in pivot_df.columns]
-        
-        # Calculate Spearman correlations (robust to non-normal data)
-        sal_corr, sal_p = spearmanr(feature_values, salinity_vals)
-        ctrl_corr, ctrl_p = spearmanr(feature_values, control_vals)
-        step_corr, step_p = spearmanr(feature_values, step_vals)
-        
-        results.append({
-            'feature': feature,
-            'salinity_corr': sal_corr,
-            'salinity_pval': sal_p,
-            'control_corr': ctrl_corr,
-            'control_pval': ctrl_p,
-            'step_corr': step_corr,
-            'step_pval': step_p
-        })
-        
-    results = pd.DataFrame(results)
+    loading_std_df = pd.DataFrame(
+        loading_std, 
+        columns=component_names, 
+        index=feature_names
+    )
     
-    # Do multiple test correction for all variables together
-    _, pvals_corrected, _, _ = multipletests(results[['salinity_pval', 'control_pval', 'step_pval']].values.flatten(), method='fdr_tsbh', alpha=p_threshold)
-    results[['salinity_pval', 'control_pval', 'step_pval']] = pvals_corrected.reshape(-1, 3)
+    # Create confidence interval DataFrame
+    ci_data = []
+    for i, feat in enumerate(feature_names):
+        for j, comp in enumerate(component_names):
+            ci_data.append({
+                'Feature': feat,
+                'Component': comp,
+                'Original_Loading': original_loadings[i, j],
+                'Mean_Loading': loading_means[i, j],
+                'Std_Loading': loading_std[i, j],
+                'CI_Lower': lower_bounds[i, j],
+                'CI_Upper': upper_bounds[i, j],
+                'Significant': not (lower_bounds[i, j] <= 0 <= upper_bounds[i, j])
+            })
+    
+    confidence_intervals_df = pd.DataFrame(ci_data)
+    
+    results = {
+        'original_loadings': original_loadings_df,
+        'bootstrap_loadings': bootstrap_loadings,
+        'loading_means': loading_means_df,
+        'loading_std': loading_std_df,
+        'confidence_intervals': confidence_intervals_df,
+        'original_explained_variance': original_variance
+    }
+    
+    return results
 
-    # Filter for significance
-    results = results[results[['salinity_pval', 'control_pval', 'step_pval']].min(axis=1) < p_threshold]
+
+def do_feature_selection(X: pd.DataFrame, y: pd.Series, top_percentile: float =0.1) -> pl.DataFrame:
+    """
+    Perform feature selection using scikit-learn's mutual_info_classif, chi2, and f_classif, in combination with SelectPercentile.
+    First use VarianceThreshold to remove zero-variance features.
+    Result is a Polars DataFrame with one row per feature, and columns indicating whether the feature was selected by each method.
+    """
     
-    return pl.from_pandas(results)
+    # Remove zero-variance features
+    var_thresh = VarianceThreshold()
+    X_var = var_thresh.fit_transform(X)
+    features_retained = X.columns[var_thresh.get_support()].tolist()
+    
+    # Define tests
+    tests = {
+        'mutual_info': mutual_info_classif,
+        'chi2': chi2,
+        'f_classif': f_classif
+    }
+    
+    # Perform feature selection for each test
+    results = {'contig': [f.split(",")[0][2:-1] for f in features_retained],
+               'position': [int(f.split(",")[1]) for f in features_retained],
+               'strand': [f.split(",")[2][:-1] == "true" for f in features_retained]}
+
+    for test_name, test_func in tests.items():
+        selector = SelectPercentile(test_func, percentile=top_percentile * 100)
+        selector.fit(X_var, y)
+        results[test_name] = selector.get_support().tolist()
+    
+    # Add false if feature was removed by variance threshold
+    for f in X.columns:
+        if f not in features_retained:
+            results['contig'].append(f.split(",")[0][2:-1])
+            results['position'].append(int(f.split(",")[1]))
+            results['strand'].append(f.split(",")[2][:-1] == "true")
+            for test_name in tests.keys():
+                results[test_name].append(False)
+    
+    return pl.DataFrame(results)
 
 
 def bootstrap_pls(df, n_boot=1000, random_state=42):

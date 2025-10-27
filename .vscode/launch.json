@@ -188,8 +188,46 @@
             "-t", "55S1",
             "-t", "55S2",
             "-t", "55S12",
+            
+            // "-t", "RS8",
+            // "-t", "RS9",
+            // "-t", "RS11",
+            // "-t", "RS12",
+            // "-t", "RS13",
+            // "-t", "33S11",
+            // "-t", "33S12",
+            // "-t", "55S11",
+
             "-u", "/researchdrive/gkanaan/colwellia_methylation/exp/anvio/function-calls.txt",
             "-i", "/researchdrive/gkanaan/colwellia_methylation/exp/treatment_info_map.tsv"
+          ],
+          "console": "integratedTerminal",
+          "justMyCode": true,
+          "env": {
+            "PYTHONPATH": "${env:PYTHONPATH}:/researchdrive/gkanaan/tools/Methylation-analysis"
+          },
+        },
+        {
+          "name": "34h_benchmark",
+          "type": "debugpy",
+          "request": "launch",
+          "program": "/researchdrive/gkanaan/tools/Methylation-analysis/src/cli.py",
+          "args": [
+            "analyze-colwellia",
+            "-f", "/researchdrive/gkanaan/colwellia_methylation/benchmarck/genomes/colwellia_34h.fna",
+            "-b", "/researchdrive/gkanaan/colwellia_methylation/benchmarck/barcode_map.tsv",
+            "-m", "/researchdrive/gkanaan/colwellia_methylation/benchmarck/methylation_data/colwellia_34h",
+            "-o", "/researchdrive/gkanaan/colwellia_methylation/benchmarck/plots/colwellia_34h",
+            "-c", "10",
+            "-g", "/researchdrive/gkanaan/colwellia_methylation/benchmarck/methylation_data/gene-calls.txt",
+            "-t", "CTL",
+            "-t", "CTL_Pellet",
+            "-t", "RNA_Later",
+            "-t", "RNA_Pellet",
+            "-t", "FREEZER",
+            "-t", "LN2",
+            "-u", "/researchdrive/gkanaan/colwellia_methylation/benchmarck/anvio/function-calls.txt",
+            "-i", "/researchdrive/gkanaan/colwellia_methylation/benchmarck/treatment_info_map.tsv"
           ],
           "console": "integratedTerminal",
           "justMyCode": true,

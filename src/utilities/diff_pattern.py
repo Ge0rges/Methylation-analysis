@@ -440,7 +440,4 @@ def analyze_differential_expression_patterns(
             for pattern_name, result_df in all_results.items():
                 result_df.write_excel(wb, worksheet=pattern_name[:31])  # Excel sheet name limit
 
-    if all_results:
-        return pl.concat(all_results.values()).unique()
-        
-    return None
+    return pl.concat(all_results.values()).unique()
