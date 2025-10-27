@@ -23,7 +23,6 @@ from src.utilities.feature_statistics import *
 from src.utilities.diff_pattern import analyze_differential_expression_patterns
 from adjustText import adjust_text
 from sklearn.decomposition import PCA
-from sklearn.cluster import KMeans
 from netgraph import Graph
 
 sns.set_theme(context="poster", style="whitegrid")
@@ -755,7 +754,7 @@ def frac_investigation_with_stats(motif: Motif) -> dict[str, pl.DataFrame]:
     # Make a treatments dataframe
     treatment_df = (pl.from_dict({"treatment": list(set(all_result_stats.get_column("treatment_1").to_list() + all_result_stats.get_column("treatment_2").to_list()))})
                     .with_columns(pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
-                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 1))).alias("salinity"), 
+                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 == 0))).alias("salinity"), 
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
     
@@ -842,7 +841,7 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
     
     treatment_df = (pl.from_dict({"treatment": all_treatment_names})
                     .with_columns(pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
-                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 1))).alias("salinity"), 
+                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 == 0))).alias("salinity"), 
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
     
@@ -859,7 +858,7 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
                          pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
 
     y = y.with_columns(((pl.col("group") == "55ppt control") 
-                        | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 != 1))).alias("salinity"))
+                        | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 == 0))).alias("salinity"))
     X = X.drop("treatment").to_pandas()
             
     # Do different feature importance methods
@@ -867,7 +866,7 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
     group_features = do_feature_selection(X, y.get_column("group").to_pandas(), alpha=0.05, top_percentile=10)
     step_features = do_feature_selection(X, y.get_column("step").to_pandas(), alpha=0.05, top_percentile=10)
 
-    feature_importance, _ = bootstrap_pls(pandas_df)
+    feature_importance = run_pls(pandas_df)
     feature_importance = pl.from_pandas(feature_importance, include_index=True).with_columns(pl.col("feature").str.split("|").list.get(0).alias("contig"), pl.col("feature").str.split("|").list.get(1).cast(pl.Int64).alias("position"), (pl.col("feature").str.split("|").list.get(2) == "True").alias("strand"))
     
     # Make a master table by joining all on left
@@ -984,10 +983,9 @@ def annotated_pca(motif: Motif):
     plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_pca_clusters.pdf", format="pdf")
     plt.close()
     
-    # Print top loading features for each component
-    results = bootstrap_pca_loadings(X=features, random_state=42)
-    results = pl.from_pandas(results["confidence_intervals"]).with_columns([pl.when(pl.col("Significant")).then(pl.col("Original_Loading")).otherwise(0).alias("Original_Loading")])
-    results = results.pivot(on="Component", index="Feature", values="Original_Loading").sort("Feature") 
+    # Get scaled loadings 
+    loadings = pca.components_.T * np.sqrt(pca.explained_variance_)
+    results = pl.DataFrame(loadings, schema=["PC1", "PC2"])
     
     # Map loadings back to original features
     feature_identifiers = X.select("contig", "position", "strand")
@@ -1027,7 +1025,10 @@ def regulatory_candidates(motif: Motif):
     high_variance_sites = high_variance_sites.with_columns(pl.lit("high_variance").alias("type"))
     all_outliers_df = all_outliers_df.with_columns(pl.lit("outlier").alias("type"))
     combined = pl.concat([high_variance_sites, all_outliers_df])
-    return combined.select("contig", "position", "strand", "type").unique()
+    
+    # Merge
+    combined = combined.group_by(["contig", "position", "strand"]).agg(pl.col("type").str.concat("/"))
+    return combined.select("contig", "position", "strand", "type")
 
 
 def plot_stat_dists(motif: Motif) -> None:

@@ -440,4 +440,8 @@ def analyze_differential_expression_patterns(
             for pattern_name, result_df in all_results.items():
                 result_df.write_excel(wb, worksheet=pattern_name[:31])  # Excel sheet name limit
 
-    return pl.concat(all_results.values()).unique()
+    df = pl.concat(all_results.values()).unique()
+    
+    # Merge together descriptions if multiple patterns matched, concatenated with a "/"
+    df = df.group_by(["contig", "strand", "position"]).agg(pl.col("description").str.concat("/"))
+    return df
