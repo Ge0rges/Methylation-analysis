@@ -27,6 +27,7 @@ from netgraph import Graph
 
 sns.set_theme(context="poster", style="whitegrid")
 pl.enable_string_cache()
+np.random.seed(42)
 
 def plot_number_of_positions_by_coverage_colwellia(motif: Motif, output_dir: Path) -> None:
     """
@@ -223,7 +224,8 @@ def plot_statistics_heatmap(
     motif: Motif,
     alpha: float,
     stat_name: str,
-    output_path = None
+    output_path = None,
+    position=None
 ) -> None:
     """
     Plots heatmaps and timeline charts from pre-calculated statistical data.
@@ -334,6 +336,9 @@ def plot_statistics_heatmap(
                 title_stat_key = "No promoters"
             elif "pr" in stat_key:
                 title_stat_key = "Promoters only"
+            elif position is not None:
+                # Make the title the position function
+                title_stat_key = f"Position {position}"
             else:
                 title_stat_key = "All sites"
             ax.set_title(title_stat_key)
@@ -793,7 +798,8 @@ def position_stats_plots(motif: Motif, position: int):
         motif=motif,
         alpha=None,
         stat_name=f"Methylation fraction difference",
-        output_path=motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_position_{position}_heatmap.pdf"
+        output_path=motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_position_{position}_heatmap.pdf",
+        position=position
     )
 
     
@@ -906,13 +912,13 @@ def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: pl.DataFr
         "mutual_info_group", "chi2_group", "f_classif_group",
         "mutual_info_step", "chi2_step", "f_classif_step",
         "Component_1", "Component_2",
-        "PC1", "type"
+        "PC1", "PC2", "type"
     ).rename({"mutual_info": "mutual_info_salinity",
             "chi2": "chi2_salinity",
             "f_classif": "f_classif_salinity",
             "Component_1": "PLS_Component_1",
             "Component_2": "PLS_Component_2",
-            "PC1": "PCA_Component_1"})
+            "PC1": "PCA_Component_1", "PC2": "PCA_Component_2"})
     
     # Remove any columns that are all null
     merged = merged[[s.name for s in merged if not (s.null_count() == merged.height)]]
@@ -934,22 +940,66 @@ def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: pl.DataFr
     merged = merged.join(gc, left_on="gene_callers_id_end", right_on="gene_callers_id", how="left", suffix="_end")
     merged = merged.unique()
     
-    with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_synthesis.xlsx") as workbook:
-        # Sheet with features where all three tests are True for salinity, group, and step
-        merged.filter(pl.col("mutual_info_salinity"), pl.col("chi2_salinity"), pl.col("f_classif_salinity")).sort("PCA_Component_1").write_excel(workbook, worksheet="Salinity")
-        merged.filter(pl.col("mutual_info_group"), pl.col("chi2_group"), pl.col("f_classif_group")).sort("PCA_Component_1").write_excel(workbook, worksheet="Group")
-        merged.filter(pl.col("mutual_info_step"), pl.col("chi2_step"), pl.col("f_classif_step")).sort("PCA_Component_1").write_excel(workbook, worksheet="Step")
+    # Get threshold for PLS and PCA loadings (top 10%)
+    pls_threshold_1 = merged.select(pl.col("PLS_Component_1").abs()).quantile(0.9).item()
+    pls_threshold_2 = merged.select(pl.col("PLS_Component_2").abs()).quantile(0.9).item()
+    pca_threshold_1 = merged.select(pl.col("PCA_Component_1").abs()).quantile(0.9).item()
+    pca_threshold_2 = merged.select(pl.col("PCA_Component_2").abs()).quantile(0.9).item()
 
-        # A sheet where PCA PC1 > 0.1
-        merged.filter(pl.col("PCA_Component_1").abs() > 0.1).write_excel(workbook, worksheet="PCA")
+    with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_synthesis.xlsx") as workbook:
+        salinity = merged.filter(pl.col("mutual_info_salinity"), pl.col("chi2_salinity"), pl.col("f_classif_salinity")).sort("PCA_Component_1")
+        salinity.write_excel(workbook, worksheet="Salinity")
+        group = merged.filter(pl.col("mutual_info_group"), pl.col("chi2_group"), pl.col("f_classif_group")).sort("PCA_Component_1")
+        group.write_excel(workbook, worksheet="Group")
+        step = merged.filter(pl.col("mutual_info_step"), pl.col("chi2_step"), pl.col("f_classif_step")).sort("PCA_Component_1")
+        step.write_excel(workbook, worksheet="Step")
+
+        pca = merged.filter((pl.col("PCA_Component_1").abs() >= pca_threshold_1) | (pl.col("PCA_Component_2").abs() >= pca_threshold_2))
+        pca.write_excel(workbook, worksheet="PCA")
+        pls = merged.filter((pl.col("PLS_Component_1").abs() >= pls_threshold_1) | (pl.col("PLS_Component_2").abs() >= pls_threshold_2))
+        pls.write_excel(workbook, worksheet="PLS")
+
+        outliers = merged.filter(pl.col("type").is_not_null())
+        outliers.write_excel(workbook, worksheet="Outliers")
         
-        # A sheet where PLS Component 1 > 0.06
-        merged.filter(pl.col("PLS_Component_1").abs() > 0.06).write_excel(workbook, worksheet="PLS")
+        # Candidates are those which are interesting in one way
+        candidates = pl.concat([salinity, group, step, pca, pls, outliers]).unique().sort("contig", "strand", "position")
         
-        # A sheet with regulatory candidates
-        merged.filter(pl.col("type").is_not_null()).write_excel(workbook, worksheet="Outliers")
+        candidates = candidates.with_columns(
+            ((pl.col("mutual_info_salinity")).cast(pl.Int32) +
+             (pl.col("chi2_salinity")).cast(pl.Int32) +
+             (pl.col("f_classif_salinity")).cast(pl.Int32) +
+             (pl.col("mutual_info_group")).cast(pl.Int32) +
+             (pl.col("chi2_group")).cast(pl.Int32) +
+             (pl.col("f_classif_group")).cast(pl.Int32) +
+             (pl.col("mutual_info_step")).cast(pl.Int32) +
+             (pl.col("chi2_step")).cast(pl.Int32) +
+             (pl.col("f_classif_step")).cast(pl.Int32) +
+             ((pl.col("PCA_Component_1").abs() >= pca_threshold_1) | (pl.col("PCA_Component_2").abs() >= pca_threshold_2)).cast(pl.Int32) +
+             ((pl.col("PLS_Component_1").abs() >= pls_threshold_1) | (pl.col("PLS_Component_2").abs() >= pls_threshold_2)).cast(pl.Int32) +
+             (pl.col("type").is_not_null()).cast(pl.Int32) +
+             (pl.col("description").is_not_null()).cast(pl.Int32)).alias("score"),
+            
+            # Make a text column listing why it's a candidate
+            pl.concat_list([
+                pl.when(pl.col("mutual_info_salinity")).then(pl.lit("MI (Salinity)")).otherwise(None),
+                pl.when(pl.col("chi2_salinity")).then(pl.lit("Chi2 (Salinity)")).otherwise(None),
+                pl.when(pl.col("f_classif_salinity")).then(pl.lit("ANOVA (Salinity)")).otherwise(None),
+                pl.when(pl.col("mutual_info_group")).then(pl.lit("MI (Group)")).otherwise(None),
+                pl.when(pl.col("chi2_group")).then(pl.lit("Chi2 (Group)")).otherwise(None),
+                pl.when(pl.col("f_classif_group")).then(pl.lit("ANOVA (Group)")).otherwise(None),
+                pl.when(pl.col("mutual_info_step")).then(pl.lit("MI (Step)")).otherwise(None),
+                pl.when(pl.col("chi2_step")).then(pl.lit("Chi2 (Step)")).otherwise(None),
+                pl.when(pl.col("f_classif_step")).then(pl.lit("ANOVA (Step)")).otherwise(None),
+                pl.when((pl.col("PCA_Component_1").abs() >= pca_threshold_1) | (pl.col("PCA_Component_2").abs() >= pca_threshold_2)).then(pl.lit("PCA")).otherwise(None),
+                pl.when((pl.col("PLS_Component_1").abs() >= pls_threshold_1) | (pl.col("PLS_Component_2").abs() >= pls_threshold_2)).then(pl.lit("PLS")).otherwise(None),
+                pl.when(pl.col("type").is_not_null()).then(pl.col("type")).otherwise(None),
+                pl.when(pl.col("description").is_not_null()).then(pl.col("description")).otherwise(None)
+            ]).list.join(", ").alias("candidate_reasons")
+        ).filter(pl.col("source").eq("COG20_FUNCTION"), pl.col("source_end").eq("COG20_FUNCTION"))
         
-        # Sheet with all data
+        candidates.write_excel(workbook, worksheet="Candidates")
+
         merged.write_excel(workbook, worksheet="All")
 
 
@@ -960,7 +1010,7 @@ def annotated_pca(motif: Motif):
     X = df.pivot(index=["contig", "position", "strand"], on="treatment", values=motif.meth_type)
     
     # Do PCA
-    pca = PCA(n_components=2)
+    pca = PCA(n_components=2, random_state=42)
     features = X.drop("contig", "position", "strand").to_pandas().T
     pca_result = pca.fit_transform(features)
     
@@ -1022,8 +1072,8 @@ def regulatory_candidates(motif: Motif):
         all_outliers_df.write_excel(wb, worksheet="outlier_sites", include_header=True)
     
     # Concat for return with new column ("type" = "outlier" or "high_variance")
-    high_variance_sites = high_variance_sites.with_columns(pl.lit("high_variance").alias("type"))
-    all_outliers_df = all_outliers_df.with_columns(pl.lit("outlier").alias("type"))
+    high_variance_sites = high_variance_sites.with_columns(pl.lit("High variance").alias("type"))
+    all_outliers_df = all_outliers_df.with_columns(pl.lit("Outlier").alias("type"))
     combined = pl.concat([high_variance_sites, all_outliers_df])
     
     # Merge
