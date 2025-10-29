@@ -120,118 +120,6 @@ def check_changes_between_groups(
     return result
 
 
-def find_constant_in_group_changing_elsewhere(
-    df_diff: pl.DataFrame,
-    constant_group: List[str],
-    changing_groups: List[List[str]],
-    feature_cols: List[str] = ["contig", "strand", "position"],
-    description: Optional[str] = None
-) -> pl.DataFrame:
-    """
-    Find features constant within one group but changing in at least one other group.
-    
-    Parameters
-    ----------
-    df_diff : pl.DataFrame
-        DataFrame with differential expression results
-    constant_group : List[str]
-        Treatments where features should be constant
-    changing_groups : List[List[str]]
-        List of treatment groups where features should show changes
-    feature_cols : List[str]
-        Column names that define unique features
-    description : Optional[str]
-        Description to add to results
-        
-    Returns
-    -------
-    pl.DataFrame
-        Features matching the pattern with description column
-    """
-    # Check if constant in the specified group
-    constant_check = check_changes_within_group(df_diff, constant_group, feature_cols)
-    constant_features = constant_check.filter(~pl.col("changes_within"))
-    
-    # Check if changing in at least one of the other groups
-    changes_elsewhere = None
-    for group in changing_groups:
-        change_check = check_changes_within_group(df_diff, group, feature_cols)
-        changing = change_check.filter(pl.col("changes_within")).select(feature_cols)
-        
-        if changes_elsewhere is None:
-            changes_elsewhere = changing
-        else:
-            changes_elsewhere = pl.concat([changes_elsewhere, changing]).unique()
-    
-    # Find intersection: constant in first group AND changing elsewhere
-    result = constant_features.select(feature_cols).join(
-        changes_elsewhere,
-        on=feature_cols,
-        how="inner"
-    )
-    
-    if description:
-        result = result.with_columns(pl.lit(description).alias("description"))
-    
-    return result
-
-
-def find_changing_in_group_constant_elsewhere(
-    df_diff: pl.DataFrame,
-    changing_group: List[str],
-    constant_groups: List[List[str]],
-    feature_cols: List[str] = ["contig", "strand", "position"],
-    description: Optional[str] = None
-) -> pl.DataFrame:
-    """
-    Find features changing within one group but constant in all other groups.
-    
-    Parameters
-    ----------
-    df_diff : pl.DataFrame
-        DataFrame with differential expression results
-    changing_group : List[str]
-        Treatments where features should be changing
-    constant_groups : List[List[str]]
-        List of treatment groups where features should be constant
-    feature_cols : List[str]
-        Column names that define unique features
-    description : Optional[str]
-        Description to add to results
-        
-    Returns
-    -------
-    pl.DataFrame
-        Features matching the pattern with description column
-    """
-    # Check if changing in the specified group
-    change_check = check_changes_within_group(df_diff, changing_group, feature_cols)
-    changing_features = change_check.filter(pl.col("changes_within")).select(feature_cols)
-    
-    # Check if constant in ALL other groups
-    constant_in_all = None
-    for group in constant_groups:
-        const_check = check_changes_within_group(df_diff, group, feature_cols)
-        constant = const_check.filter(~pl.col("changes_within")).select(feature_cols)
-        
-        if constant_in_all is None:
-            constant_in_all = constant
-        else:
-            # Intersection: must be constant in this group AND previous groups
-            constant_in_all = constant_in_all.join(constant, on=feature_cols, how="inner")
-    
-    # Find intersection: changing in target group AND constant in all others
-    if constant_in_all is not None:
-        result = changing_features.join(constant_in_all, on=feature_cols, how="inner")
-    else:
-        result = changing_features
-    
-    if description:
-        result = result.with_columns(pl.lit(description).alias("description"))
-    
-    return result
-
-
 def find_constant_within_changing_between(
     df_diff: pl.DataFrame,
     constant_group: List[str],
@@ -293,10 +181,10 @@ def find_patterns(
         DataFrame with columns: contig, strand, position, treatment_1, treatment_2, significant
     pattern_config : Dict
         Configuration dictionary specifying the pattern to find. Keys:
-        - 'constant_within': List[str] - treatments that should be internally constant
-        - 'changing_within': List[str] - treatments that should be internally changing
-        - 'constant_between': List[List[str]] - pairs of groups with no differences
-        - 'changing_between': List[List[str]] - pairs of groups with differences
+        - 'constant_within': List[List[str]] - list of list of treatments that should be internally constant, inner lists are ANDed together
+        - 'changing_within': List[List[str]] - list of list of treatments that should be internally changing, inner lists are ANDed together
+        - 'constant_between': List[List[List[str]]] - list of List[group 1, group 2] that should be constant between each other, inner lists are ANDed together, group 1 and group 2 are lists.
+        - 'changing_between': List[List[List[str]]] - list of List[group 1, group 2] that should be changing between each other, inner lists are ANDed together, group 1 and group 2 are lists.
         - 'description': str - description of the pattern
     feature_cols : List[str]
         Column names that define unique features
@@ -401,6 +289,18 @@ def get_patterns(treatment_metadata: pl.DataFrame) -> Dict[str, Dict]:
             "constant_within": [low_sal],
             "changing_between": [[low_sal, high_sal]],
             "description": "Constant within low salinity but different from high salinity"
+        },
+
+        "memory_pattern": {
+            "changing_between": [
+                [treatment_metadata.filter(pl.col("step") == 1, ~pl.col("control")).select("treatment").to_series().to_list(),
+                 treatment_metadata.filter(pl.col("step") == 15, ~pl.col("control")).select("treatment").to_series().to_list()],
+            ],
+            "constant_between": [
+                [treatment_metadata.filter(pl.col("step") == 14, ~pl.col("control")).select("treatment").to_series().to_list(),
+                    treatment_metadata.filter(pl.col("step") == 15, ~pl.col("control")).select("treatment").to_series().to_list()]
+            ],
+            "description": "Memory pattern across steps"
         }
     }
     

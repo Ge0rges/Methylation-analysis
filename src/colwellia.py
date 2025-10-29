@@ -17,6 +17,7 @@ from src.objects.motif import Motif
 from src.utilities.utils import readable_modification_name, get_stats_data
 from src.utilities.data_loading import parse_genbank
 from src.utilities.compare_methylome import *
+from scipy.stats import spearmanr
 
 from src.utilities.kegg_enrichment import KEGGEnrichmentAnalyzer
 from src.utilities.feature_statistics import *
@@ -262,7 +263,7 @@ def plot_statistics_heatmap(
         val_matrix = val_matrix.reindex(index=sorted_treatments, columns=sorted_treatments)
         
         # Handle boolean pval_matrix
-        if pval_matrix.dtypes.iloc[0] == object:
+        if pval_matrix.dtypes.iloc[0] == object or pval_matrix.dtypes.iloc[0] == bool:
             condition = pval_matrix
         else:
             condition = pval_matrix < alpha
@@ -342,6 +343,9 @@ def plot_statistics_heatmap(
             else:
                 title_stat_key = "All sites"
             ax.set_title(title_stat_key)
+        
+        # More horizontal space between subplots
+        plt.subplots_adjust(wspace=0.4, hspace=0.4)
 
     output_path = motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_{stat_name}_heatmap.pdf" if output_path is None else output_path
     plt.savefig(output_path, format="pdf")
@@ -748,22 +752,27 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
             print(f"'{group1}' vs '{group2}': Spearman Correlation={corr:.4f}, p-value={p_val:.4f}")
 
 
-def frac_investigation_with_stats(motif: Motif) -> dict[str, pl.DataFrame]:
+def frac_investigation_with_stats(motif: Motif, promoter: bool) -> dict[str, pl.DataFrame]:
     all_result_stats = pl.read_excel(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx")
     all_result_stats = all_result_stats.filter(pl.col("significant") == True)
     
     # Data - Restrict to promoters and big effect size
     mean_stddev = motif.data().group_by("contig", "strand", "position").agg(pl.col(motif.meth_type).std()).select(pl.col(motif.meth_type).mean()).collect().item()
-    all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats.lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_(), (pl.col("beta_A") - pl.col("beta_B")).abs() > 2*mean_stddev).collect()
-
+    all_result_stats = all_result_stats.filter((pl.col("beta_A") - pl.col("beta_B")).abs() > 2*mean_stddev)
+    
+    if promoter:
+        all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_())
+    else:
+        all_result_stats = motif.genome.nearest_gene_to_positions(all_result_stats).filter((pl.col("distance_to_start") >= 60) | (pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end"))))
+        
     # Make a treatments dataframe
     treatment_df = (pl.from_dict({"treatment": list(set(all_result_stats.get_column("treatment_1").to_list() + all_result_stats.get_column("treatment_2").to_list()))})
                     .with_columns(pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
                     .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 == 0))).alias("salinity"), 
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
-    
-    results = analyze_differential_expression_patterns(all_result_stats, treatment_df, output_file=f"{motif.genome.output_dir}/{motif.genome.readable_name}_{motif.readable_motif}_differential_meth_patterns.xlsx")
+
+    results = analyze_differential_expression_patterns(all_result_stats, treatment_df, output_file=f"{motif.genome.output_dir}/{motif.genome.readable_name}_{motif.readable_motif}_differential_meth_patterns_{'promoter' if promoter else 'all'}.xlsx")
     return results.select("contig", "position", "strand", "description")
 
 
@@ -784,11 +793,6 @@ def position_stats_plots(motif: Motif, position: int):
     # Make symmetric
     heatmap_data = heatmap_data.combine_first(-heatmap_data.T)
     significance_data = significance_data.combine_first(significance_data.T)
-    
-    # Print
-    print(f"\n--- Position {position} statistics ---")
-    print(heatmap_data)
-    print(all_result_stats.select("q_BH").to_pandas().combine_first(all_result_stats.select("q_BH").to_pandas().T))
     
     # Plot heatmap 
     plot_statistics_heatmap(
@@ -834,10 +838,13 @@ def motif_functional_enrichment(motif: Motif):
     print(f"Percent of promoters without KOfam: {no_kofam / len(promoters) * 100:.2f}%")
 
 
-def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
+def ensemble_significant_features(motif: Motif, promoter: bool) -> pl.DataFrame:
     # Get motif data
-    df = motif.genome.nearest_gene_to_positions(motif.data().lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
-    
+    if promoter:
+        df = motif.genome.nearest_gene_to_positions(motif.data().lazy()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+    else:
+        df = motif.genome.nearest_gene_to_positions(motif.data().lazy()).filter((pl.col("distance_to_start") >= 60) | (pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")))).collect()
+
     # Make a treatments dataframe
     unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
     all_treatment_names = sorted(
@@ -881,18 +888,104 @@ def ensemble_significant_features(motif: Motif) -> pl.DataFrame:
                     .join(feature_importance, on=["contig", "position", "strand"], how="full", suffix="_pls"))
     
     # Write each dataframe to a sheet in an excel file
-    with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_ensemble_significant_features.xlsx") as workbook: 
-        salinity_features.write_excel(workbook=workbook, worksheet="feature_selection_salinity")
-        group_features.write_excel(workbook=workbook, worksheet="feature_selection_group")
-        step_features.write_excel(workbook=workbook, worksheet="feature_selection_step")
+    if promoter:
+        with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_ensemble_significant_features_{'promoter' if promoter else 'all'}.xlsx") as workbook: 
+            salinity_features.write_excel(workbook=workbook, worksheet="feature_selection_salinity")
+            group_features.write_excel(workbook=workbook, worksheet="feature_selection_group")
+            step_features.write_excel(workbook=workbook, worksheet="feature_selection_step")
 
-        feature_importance.write_excel(workbook=workbook, worksheet="pls_feature_importance")
-        master.write_excel(workbook=workbook, worksheet="master_table")
+            feature_importance.write_excel(workbook=workbook, worksheet="pls_feature_importance")
+            master.write_excel(workbook=workbook, worksheet="master_table")
 
     return master
 
 
-def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: pl.DataFrame, pca_df: pl.DataFrame, reg_df: pl.DataFrame):
+
+def annotated_pca(motif: Motif, promoter: bool):
+    if promoter:
+        df = motif.genome.nearest_gene_to_positions(motif.data()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+    else:
+        df = motif.genome.nearest_gene_to_positions(motif.data()).filter((pl.col("distance_to_start") >= 60) | (pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")))).collect()
+        
+    # Pivot so that features are per row, and treatments are columns
+    X = df.pivot(index=["contig", "position", "strand"], on="treatment", values=motif.meth_type)
+    
+    # Do PCA
+    pca = PCA(n_components=2, random_state=42)
+    features = X.drop("contig", "position", "strand").to_pandas().T
+    pca_result = pca.fit_transform(features)
+    
+    # Plot PCA using seaborn, colored by clusters, add variance explained by each component
+    pca_df = pd.DataFrame(pca_result, columns=["Component_1", "Component_2"])
+    
+    plt.figure(figsize=(10, 8))
+    sns.scatterplot(data=pca_df, x="Component_1", y="Component_2", s=100, alpha=0.7)
+    plt.title(f"PCA of Methylation Patterns for Motif {motif.readable_motif}")
+    plt.xlabel(f"Component 1 ({pca.explained_variance_ratio_[0]*100:.2f}% Variance)")
+    plt.ylabel(f"Component 2 ({pca.explained_variance_ratio_[1]*100:.2f}% Variance)")
+    
+    # Add treatment name to each point on the PCA using adjustText
+    texts = []
+    for i, row in pca_df.iterrows():
+        texts.append(plt.text(row["Component_1"], row["Component_2"], features.index[i], fontsize=9))
+    adjust_text(texts, arrowprops=dict(arrowstyle='->', color='black'), )
+   
+    # Save fig
+    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_pca_clusters_{'promoter' if promoter else 'all'}.pdf", format="pdf")
+    plt.close()
+    
+    # Get scaled loadings 
+    loadings = pca.components_.T * np.sqrt(pca.explained_variance_)
+    results = pl.DataFrame(loadings, schema=["PC1", "PC2"])
+    
+    # Map loadings back to original features
+    feature_identifiers = X.select("contig", "position", "strand")
+    results = pl.concat([feature_identifiers, results], how="horizontal")
+
+    return results
+
+
+def regulatory_candidates(motif: Motif, promoter: bool) -> pl.DataFrame:
+    if promoter:
+        df = motif.genome.nearest_gene_to_positions(motif.data()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
+    else:
+        df = motif.genome.nearest_gene_to_positions(motif.data()).filter((pl.col("distance_to_start") >= 60) | (pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")))).collect()
+        
+    # Pivot so that features are per row, and treatments are columns
+    X = df.pivot(index=["contig", "position", "strand"], on="treatment", values=motif.meth_type).fill_null(0)
+    
+    # Get the list of sites whose standard deviation over the experiment is at least three times higher than the rest of the dataset
+    mean_stddev = X.select(pl.concat_list(pl.exclude("contig", "strand", "position")).list.std().mean()).item()
+    high_variance_sites = X.filter(pl.concat_list(pl.exclude("contig", "strand", "position")).list.std().alias("std_dev") >= 3 * mean_stddev)
+
+    # Get the list of sites whose value is ever above or below three time the standard deviation plus the mean of any given treatment.
+    all_outliers = []
+    for treatment in X.columns:
+        if treatment in ["contig", "position", "strand"]:
+            continue
+        treatment_mean = X.select(pl.col(treatment)).mean().item()
+        treatment_std = X.select(pl.col(treatment)).std().item()
+        outliers = X.filter((pl.col(treatment) > treatment_mean + 3 * treatment_std) | (pl.col(treatment) < treatment_mean - 3 * treatment_std))
+        all_outliers.append(outliers)
+    
+    all_outliers_df = pl.concat(all_outliers).unique()
+    
+    # Save to excel file with sheets
+    with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_regulatory_candidates_{'promoter' if promoter else 'all'}.xlsx") as wb:
+        high_variance_sites.write_excel(wb, worksheet="high_variance_sites", include_header=True)
+        all_outliers_df.write_excel(wb, worksheet="outlier_sites", include_header=True)
+    
+    # Concat for return with new column ("type" = "outlier" or "high_variance")
+    high_variance_sites = high_variance_sites.with_columns(pl.lit("High variance").alias("type"))
+    all_outliers_df = all_outliers_df.with_columns(pl.lit("Outlier").alias("type"))
+    combined = pl.concat([high_variance_sites, all_outliers_df])
+    
+    # Merge
+    combined = combined.group_by(["contig", "position", "strand"]).agg(pl.col("type").str.concat("/"))
+    return combined.select("contig", "position", "strand", "type")
+
+
+def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: pl.DataFrame, pca_df: pl.DataFrame, reg_df: pl.DataFrame, promoter: bool):
 
     unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
     all_treatment_names = sorted(
@@ -946,7 +1039,7 @@ def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: pl.DataFr
     pca_threshold_1 = merged.select(pl.col("PCA_Component_1").abs()).quantile(0.9).item()
     pca_threshold_2 = merged.select(pl.col("PCA_Component_2").abs()).quantile(0.9).item()
 
-    with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_synthesis.xlsx") as workbook:
+    with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_synthesis_{'promoter' if promoter else 'all'}.xlsx") as workbook:
         salinity = merged.filter(pl.col("mutual_info_salinity"), pl.col("chi2_salinity"), pl.col("f_classif_salinity")).sort("PCA_Component_1")
         salinity.write_excel(workbook, worksheet="Salinity")
         group = merged.filter(pl.col("mutual_info_group"), pl.col("chi2_group"), pl.col("f_classif_group")).sort("PCA_Component_1")
@@ -1003,84 +1096,6 @@ def synthesis(motif: Motif, ensemble_df: pl.DataFrame, frac_groups_df: pl.DataFr
         merged.write_excel(workbook, worksheet="All")
 
 
-def annotated_pca(motif: Motif):
-    df = motif.genome.nearest_gene_to_positions(motif.data()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
-    
-    # Pivot so that features are per row, and treatments are columns
-    X = df.pivot(index=["contig", "position", "strand"], on="treatment", values=motif.meth_type)
-    
-    # Do PCA
-    pca = PCA(n_components=2, random_state=42)
-    features = X.drop("contig", "position", "strand").to_pandas().T
-    pca_result = pca.fit_transform(features)
-    
-    # Plot PCA using seaborn, colored by clusters, add variance explained by each component
-    pca_df = pd.DataFrame(pca_result, columns=["Component_1", "Component_2"])
-    
-    plt.figure(figsize=(10, 8))
-    sns.scatterplot(data=pca_df, x="Component_1", y="Component_2", s=100, alpha=0.7)
-    plt.title(f"PCA of Methylation Patterns for Motif {motif.readable_motif}")
-    plt.xlabel(f"Component 1 ({pca.explained_variance_ratio_[0]*100:.2f}% Variance)")
-    plt.ylabel(f"Component 2 ({pca.explained_variance_ratio_[1]*100:.2f}% Variance)")
-    
-    # Add treatment name to each point on the PCA using adjustText
-    texts = []
-    for i, row in pca_df.iterrows():
-        texts.append(plt.text(row["Component_1"], row["Component_2"], features.index[i], fontsize=9))
-    adjust_text(texts, arrowprops=dict(arrowstyle='->', color='black'), )
-   
-    # Save fig
-    plt.savefig(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_pca_clusters.pdf", format="pdf")
-    plt.close()
-    
-    # Get scaled loadings 
-    loadings = pca.components_.T * np.sqrt(pca.explained_variance_)
-    results = pl.DataFrame(loadings, schema=["PC1", "PC2"])
-    
-    # Map loadings back to original features
-    feature_identifiers = X.select("contig", "position", "strand")
-    results = pl.concat([feature_identifiers, results], how="horizontal")
-
-    return results
-
-
-def regulatory_candidates(motif: Motif):
-    df = motif.genome.nearest_gene_to_positions(motif.data()).filter(pl.col("distance_to_start") < 60, pl.col("gene_callers_id_start").eq(pl.col("gene_callers_id_end")).not_()).collect()
-    
-    # Pivot so that features are per row, and treatments are columns
-    X = df.pivot(index=["contig", "position", "strand"], on="treatment", values=motif.meth_type).fill_null(0)
-    
-    # Get the list of sites whose standard deviation over the experiment is at least three times higher than the rest of the dataset
-    mean_stddev = X.select(pl.concat_list(pl.exclude("contig", "strand", "position")).list.std().mean()).item()
-    high_variance_sites = X.filter(pl.concat_list(pl.exclude("contig", "strand", "position")).list.std().alias("std_dev") >= 3 * mean_stddev)
-
-    # Get the list of sites whose value is ever above or below three time the standard deviation plus the mean of any given treatment.
-    all_outliers = []
-    for treatment in X.columns:
-        if treatment in ["contig", "position", "strand"]:
-            continue
-        treatment_mean = X.select(pl.col(treatment)).mean().item()
-        treatment_std = X.select(pl.col(treatment)).std().item()
-        outliers = X.filter((pl.col(treatment) > treatment_mean + 3 * treatment_std) | (pl.col(treatment) < treatment_mean - 3 * treatment_std))
-        all_outliers.append(outliers)
-    
-    all_outliers_df = pl.concat(all_outliers).unique()
-    
-    # Save to excel file with sheets
-    with Workbook(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_regulatory_candidates.xlsx") as wb:
-        high_variance_sites.write_excel(wb, worksheet="high_variance_sites", include_header=True)
-        all_outliers_df.write_excel(wb, worksheet="outlier_sites", include_header=True)
-    
-    # Concat for return with new column ("type" = "outlier" or "high_variance")
-    high_variance_sites = high_variance_sites.with_columns(pl.lit("High variance").alias("type"))
-    all_outliers_df = all_outliers_df.with_columns(pl.lit("Outlier").alias("type"))
-    combined = pl.concat([high_variance_sites, all_outliers_df])
-    
-    # Merge
-    combined = combined.group_by(["contig", "position", "strand"]).agg(pl.col("type").str.concat("/"))
-    return combined.select("contig", "position", "strand", "type")
-
-
 def plot_stat_dists(motif: Motif) -> None:
     unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
     all_treatment_names = sorted(
@@ -1103,3 +1118,29 @@ def plot_stat_dists(motif: Motif) -> None:
         # Visualize
         visualize_epps_singleton_test(beta_a, beta_b, treatment_a, treatment_b, motif)
         visualize_ks_test(beta_a, beta_b, treatment_a, treatment_b, motif)
+
+
+def plot_site_changes_heatmap(motif):
+    all_result_stats = pl.read_excel(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx")
+    all_result_stats = all_result_stats.filter(pl.col("significant") == True)
+    
+    # Data - Restrict to promoters and big effect size
+    mean_stddev = motif.data().group_by("contig", "strand", "position").agg(pl.col(motif.meth_type).std()).select(pl.col(motif.meth_type).mean()).collect().item()
+    all_result_stats = all_result_stats.filter((pl.col("beta_A") - pl.col("beta_B")).abs() > 2*mean_stddev)
+
+    # group by treatment pairs and count number of significant sites, make sure treatment_1 and treatment_2 is same as treatment_2 and treatment_1
+    heatmap_data = (all_result_stats.group_by("treatment_1", "treatment_2")
+                    .agg(pl.count().alias("significant_site_count")).to_pandas().pivot(index="treatment_1", columns="treatment_2", values="significant_site_count"))
+    
+    # Make symmetric
+    heatmap_data = heatmap_data.fillna(0).combine_first(heatmap_data.T)
+
+    plot_statistics_heatmap(
+        statistic_keys=["Significant Sites"],
+        significance_matrix={"Significant Sites": heatmap_data > 0},
+        value_matrices={"Significant Sites": heatmap_data},
+        motif=motif,
+        alpha=None,
+        stat_name=f"Significant Methylation Site Changes",
+        output_path=motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_significant_site_changes_heatmap.pdf"
+    )

@@ -75,31 +75,45 @@ def analyze_colwellia(
     for motif in motifs:
         click.echo(f"Analyzing motif: {motif.motif} (meth_type={motif.meth_type})")
 
-        # Diagnostic and metadata
-        plot_number_of_positions_by_coverage_colwellia(motif, output_dir)
-        write_genbank_features_near_motifs(motif)
-        plot_motif_methylation_distribution_colwellia(motif, output_dir)        
+        # # Diagnostic and metadata
+        # plot_number_of_positions_by_coverage_colwellia(motif, output_dir)
+        # write_genbank_features_near_motifs(motif)
+        # plot_motif_methylation_distribution_colwellia(motif, output_dir)        
 
-        # Whole methylome view 
-        plot_whole_methylome_colwellia(motif, output_dir)
-        plot_whole_methylome_colwellia(motif, output_dir, True)                
+        # # Whole methylome view 
+        # plot_whole_methylome_colwellia(motif, output_dir)
+        # plot_whole_methylome_colwellia(motif, output_dir, True)                
         
-        # Motif distribution                
-        motif_distribution(motif)
-        motif_functional_enrichment(motif)
+        # # Motif distribution                
+        # motif_distribution(motif)
+        # motif_functional_enrichment(motif)
                                 
-        # Statistics        
-        do_whole_methylome_stats(motif, alpha=0.05)
-        ensemble_df = ensemble_significant_features(motif)
-        frac_groups_df = frac_investigation_with_stats(motif)
-        pca_df = annotated_pca(motif)
-        reg_df = regulatory_candidates(motif)
-        synthesis(motif=motif, ensemble_df=ensemble_df, frac_groups_df=frac_groups_df, pca_df=pca_df, reg_df=reg_df)
-
-        for pos in [1266992, 5367866, 5027643, 4903080, 4352570, 4001064, 1512639]:
-            position_stats_plots(motif, pos)
+        # Statistics
+        # do_whole_methylome_stats(motif, alpha=0.05)
         
-        plot_stat_dists(motif)
+        # Promoter
+        # ensemble_df = ensemble_significant_features(motif, promoter=True)
+        # frac_groups_df = frac_investigation_with_stats(motif, promoter=True)
+        # pca_df = annotated_pca(motif, promoter=True)
+        # reg_df = regulatory_candidates(motif, promoter=True)
+        # synthesis(motif=motif, ensemble_df=ensemble_df, frac_groups_df=frac_groups_df, pca_df=pca_df, reg_df=reg_df, promoter=True)
+
+        # # All
+        # ensemble_df = ensemble_significant_features(motif, promoter=False)
+        # frac_groups_df = frac_investigation_with_stats(motif, promoter=False)
+        # pca_df = annotated_pca(motif, promoter=False)
+        # reg_df = regulatory_candidates(motif, promoter=False)
+        # synthesis(motif=motif, ensemble_df=ensemble_df, frac_groups_df=frac_groups_df, pca_df=pca_df, reg_df=reg_df, promoter=False)
+
+        # Plot statistic heatmap by number of significant comparisons
+        plot_site_changes_heatmap(motif)
+        
+        # # Position-specific plots
+        # for pos in [1266992, 5367866, 5027643, 4903080, 4352570, 4001064, 1512639, # promoter
+        #             3716877]: # not a promoter
+        #     position_stats_plots(motif, pos)
+        
+        # plot_stat_dists(motif)
 
     # Basic stats file
     # write_basic_stats_colwellia(genome, motifs)
