@@ -3,11 +3,7 @@ import pandas as pd
 import polars as pl
 from sklearn.feature_selection import SelectFdr, mutual_info_classif, chi2, f_classif, VarianceThreshold, SelectPercentile
 from sklearn.cross_decomposition import PLSRegression
-from sklearn.model_selection import KFold
-from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import LabelEncoder
-from sklearn.decomposition import PCA
-from sklearn.utils import resample
 
 
 def do_feature_selection(X: pd.DataFrame, y: pd.Series, alpha: float, top_percentile: int) -> pl.DataFrame:

@@ -174,7 +174,7 @@ class KEGGEnrichmentAnalyzer:
         rejected, p_corrected, alpha_sidak, alpha_bonf = multipletests(
             results_df['p_value'], 
             alpha=0.05, 
-            method='fdr_bh'
+            method='fdr_tsbh'
         )
 
         # Add corrected p-values and significance indicators
