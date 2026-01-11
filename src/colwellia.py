@@ -10,6 +10,7 @@ import pandas as pd
 import polars as pl
 import seaborn as sns
 
+from src.objects import motif
 from src.utilities.chi_squared_test import chi_squared_test
 from src.objects.gene_collection import GeneCollection
 from src.objects.genome import Genome
@@ -30,7 +31,7 @@ sns.set_theme(context="poster", style="whitegrid")
 pl.enable_string_cache()
 np.random.seed(42)
 
-def plot_number_of_positions_by_coverage_colwellia(motif: Motif, output_dir: Path) -> None:
+def plot_number_of_positions_by_coverage_colwellia(motif: Motif) -> None:
     """
     Plot the number of positions by coverage for a given motif across all samples.
     """
@@ -57,6 +58,8 @@ def plot_number_of_positions_by_coverage_colwellia(motif: Motif, output_dir: Pat
     # Sort treatments if you want a specific legend order
     treatment_order = sorted(df_plot['treatment'].unique(), key=genome.treatment_order_map.get)
 
+    sns.set_theme(context="poster", style="whitegrid")
+
     plt.figure(figsize=(16, 10), constrained_layout=True)
     sns.lineplot(
         data=df_plot,
@@ -74,7 +77,7 @@ def plot_number_of_positions_by_coverage_colwellia(motif: Motif, output_dir: Pat
     plt.title("Site Count vs Coverage by Treatment")
     plt.xlabel("Coverage")
     plt.ylabel("Site Count")
-    plt.savefig(output_dir / f"{genome.readable_name}_{motif.readable_motif}_coverage_sitecount_lineplot.pdf", format="pdf")
+    plt.savefig(genome.output_dir / f"{genome.readable_name}_{motif.readable_motif}_coverage_sitecount_lineplot.pdf", format="pdf")
     plt.close()
     
     genome.default_coverage = original_cov  # Reset to original coverage
@@ -139,6 +142,8 @@ def plot_whole_methylome_colwellia(motif: Motif, output_dir: Path, promoter_only
                 dark_palette.append(color)
                 
         # Regplots
+        sns.set_theme(context="poster", style="whitegrid")
+
         sns.regplot(
             data=pair_df.filter(pl.col("Treatment").eq(treat1)).to_pandas(),
             x="genome_position",
@@ -243,13 +248,14 @@ def plot_statistics_heatmap(
     sns.set_theme(context="poster", style="whitegrid")
 
     n_stats = len(statistic_keys)
-    _, axes = plt.subplots(n_stats, 3, figsize=(40, 10 * n_stats), constrained_layout=True)
-
+    _, axes = plt.subplots(3, n_stats, figsize=(13 * n_stats, 25), constrained_layout=True)
+    
     if n_stats == 1:
-        axes = [axes]
+        # Now we need to handle column vector instead of row vector
+        axes = [[ax] for ax in axes]
 
     for i, stat_key in enumerate(statistic_keys):
-        heatmap_ax_controls, heatmap_ax_cycling, heatmap_ax_cycling_controls = axes[i]
+        heatmap_ax_controls, heatmap_ax_cycling, heatmap_ax_cycling_controls = axes[0][i], axes[1][i], axes[2][i]
 
         pval_matrix = significance_matrix[stat_key]
         val_matrix = value_matrices[stat_key]
@@ -317,7 +323,7 @@ def plot_statistics_heatmap(
         )
 
         # Decorations
-        for ax in axes[i]:
+        for ax in [heatmap_ax_controls, heatmap_ax_cycling, heatmap_ax_cycling_controls]:
             ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
             ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
 
@@ -683,6 +689,10 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
         significance_matrices: dict[str, pd.DataFrame] = {}
         
         test_df = all_result_stats.filter(pl.col("Test").eq(test))
+        
+        # In columns Treatment A and Treatment B, replace "33ppt control" with "33 ppt control" and "55ppt control" with "55 ppt control"
+        test_df = test_df.with_columns(pl.col("Treatment A").str.replace("33ppt control", "33 ppt control").str.replace("55ppt control", "55 ppt control"))
+        test_df = test_df.with_columns(pl.col("Treatment B").str.replace("33ppt control", "33 ppt control").str.replace("55ppt control", "55 ppt control"))
 
         for stat in stat_groups:
             value_matrices[stat] = test_df.filter(pl.col("group").eq(stat)).to_pandas().pivot(index="Treatment A", columns="Treatment B", values="Statistic")
@@ -693,7 +703,7 @@ def do_whole_methylome_stats(motif: Motif, alpha: float = 0.05) -> None:
             significance_matrices[stat] = significance_matrices[stat].combine_first(significance_matrices[stat].T)
             
         plot_statistics_heatmap(stat_groups, significance_matrices, value_matrices, motif, alpha, test)
-        plot_statistics_graph(stat_groups, significance_matrices, value_matrices, motif, alpha, test)
+        # plot_statistics_graph(stat_groups, significance_matrices, value_matrices, motif, alpha, test)
     
     # Print how well each test's result correlates with each other
     p_values_wide = all_result_stats.pivot(
@@ -767,8 +777,8 @@ def frac_investigation_with_stats(motif: Motif, promoter: bool) -> dict[str, pl.
         
     # Make a treatments dataframe
     treatment_df = (pl.from_dict({"treatment": list(set(all_result_stats.get_column("treatment_1").to_list() + all_result_stats.get_column("treatment_2").to_list()))})
-                    .with_columns(pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
-                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 == 0))).alias("salinity"), 
+                    .with_columns(pl.col("treatment").str.extract(r"(Alternating|33 ppt control|55 ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Alternating|33 ppt control|55 ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+                    .with_columns(((pl.col("group") == "55 ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 == 0))).alias("salinity"), 
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
 
@@ -776,8 +786,13 @@ def frac_investigation_with_stats(motif: Motif, promoter: bool) -> dict[str, pl.
     return results.select("contig", "position", "strand", "description")
 
 
-def position_stats_plots(motif: Motif, position: int):
+def position_stats_plots(motif: Motif, position: int):        
     all_result_stats = pl.read_excel(motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_per_site_stats.xlsx")
+    
+    # In columns Treatment A and Treatment B, replace "33ppt control" with "33 ppt control" and "55ppt control" with "55 ppt control"
+    all_result_stats = all_result_stats.with_columns(pl.col("treatment_1").str.replace("33ppt control", "33 ppt control").str.replace("55ppt control", "55 ppt control"))
+    all_result_stats = all_result_stats.with_columns(pl.col("treatment_2").str.replace("33ppt control", "33 ppt control").str.replace("55ppt control", "55 ppt control"))
+
     all_result_stats = all_result_stats.filter(pl.col("position") == position).with_columns((pl.col("beta_A") - pl.col("beta_B")).alias("beta_diff"))
     
     # Make significant true when significant is true and abs(beta_diff) >= 2*stddev
@@ -801,7 +816,7 @@ def position_stats_plots(motif: Motif, position: int):
         value_matrices={"Chi2": heatmap_data},
         motif=motif,
         alpha=None,
-        stat_name=f"Methylation fraction difference",
+        stat_name=f"Methylation percent difference",
         output_path=motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_position_{position}_heatmap.pdf",
         position=position
     )
@@ -853,8 +868,8 @@ def ensemble_significant_features(motif: Motif, promoter: bool) -> pl.DataFrame:
     )
     
     treatment_df = (pl.from_dict({"treatment": all_treatment_names})
-                    .with_columns(pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
-                    .with_columns(((pl.col("group") == "55ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 == 0))).alias("salinity"), 
+                    .with_columns(pl.col("treatment").str.extract(r"(Alternating|33 ppt control|55 ppt control) S(\d+)", 1).alias("group"), pl.col("treatment").str.extract(r"(Alternating|33 ppt control|55 ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+                    .with_columns(((pl.col("group") == "55 ppt control") | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 == 0))).alias("salinity"), 
                                     (pl.col("group").str.contains("control")).alias("control"))
                     )
     
@@ -867,10 +882,10 @@ def ensemble_significant_features(motif: Motif, promoter: bool) -> pl.DataFrame:
     X = df.pivot(on=["contig", "position", "strand"], values=motif.meth_type, index="treatment")
     
     # Add a salinity column 
-    y = X.with_columns(pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 1).alias("group"),
-                         pl.col("treatment").str.extract(r"(Alternating|33ppt control|55ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
+    y = X.with_columns(pl.col("treatment").str.extract(r"(Alternating|33 ppt control|55 ppt control) S(\d+)", 1).alias("group"),
+                         pl.col("treatment").str.extract(r"(Alternating|33 ppt control|55 ppt control) S(\d+)", 2).cast(pl.Int32).alias("step"))
 
-    y = y.with_columns(((pl.col("group") == "55ppt control") 
+    y = y.with_columns(((pl.col("group") == "55 ppt control") 
                         | ((pl.col("group") == "Alternating") & (pl.col("step") % 2 == 0))).alias("salinity"))
     X = X.drop("treatment").to_pandas()
             
@@ -1144,3 +1159,104 @@ def plot_site_changes_heatmap(motif):
         stat_name=f"Significant Methylation Site Changes",
         output_path=motif.genome.output_dir / f"{motif.genome.readable_name}_{motif.readable_motif}_significant_site_changes_heatmap.pdf"
     )
+
+
+def correlate_coverage_to_wasserstein(motif: Motif):
+    """
+    Correlate the coverage with the Wasserstein distance between treatment pairs.
+    Saves results and generates correlation plots.
+    """
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    from scipy.stats import spearmanr, pearsonr
+    import numpy as np
+    
+    # For each coverage
+    genome: Genome = motif.genome
+    
+    # Create a list for all coverage values you want to plot
+    coverage_points = [1, 10, 30, 50, 100, 200, 500, 1000]
+    
+    # Storage for results
+    results_list = []
+    
+    for cov in coverage_points:
+        genome.default_coverage = cov  # ensure motif.data is not cached with LRU
+        df = motif.data()
+        if df is None:
+            break
+        
+        # Generate pairs of treatments using the sorted, unique names
+        unique_treatment_names = set(motif.genome.treatment_name_map[t] for t in motif.genome.default_treatments) 
+        all_treatment_names = sorted(
+            list(unique_treatment_names),
+            key=lambda t: motif.genome.treatment_order_map.get(t, str(t))
+        )
+        pairs = list(tuple(sorted(x)) for x in combinations(all_treatment_names, 2))
+        
+        # Get stats for each pair
+        for pair_treatments in pairs:
+            data = get_stats_data(motif, pair_treatments)
+            beta_a = data["group1_means"]
+            beta_b = data["group2_means"]
+            
+            # Perform comparison
+            results_means = compare_methylomes(beta_a, beta_b)
+            wasserstein_distance = results_means["global_table"].filter(pl.col("Test") == "1-Wasserstein").select("Statistic").item()    
+            # Save results
+            results_list.append({
+                "coverage": cov,
+                "treatment_pair": "_vs_".join(pair_treatments),
+                "treatment_a": pair_treatments[0],
+                "treatment_b": pair_treatments[1],
+                "wasserstein_distance": wasserstein_distance,
+                "n_sites": len(beta_a),
+                **{k: v for k, v in results_means.items() if k != "Wasserstein Distance"}
+            })
+    
+    # Convert to DataFrame
+    results_df = pd.DataFrame(results_list)
+    
+    # Save results to CSV
+    results_df.to_csv("coverage_wasserstein_correlation.csv", index=False)
+    print(f"Saved {len(results_df)} results to coverage_wasserstein_correlation.csv")
+    
+    # Create single plot with all treatment pairs
+    fig, ax = plt.subplots(figsize=(12, 7))
+    fig.suptitle("Coverage vs Wasserstein Distance", fontsize=16, fontweight="bold")
+    
+    unique_pairs = sorted(results_df["treatment_pair"].unique())
+        
+    # Plot one line per treatment pair
+    for idx, pair in enumerate(unique_pairs):
+        pair_data = results_df[results_df["treatment_pair"] == pair].sort_values("coverage")
+        
+        # Plot line and points
+        ax.plot(pair_data["coverage"], pair_data["wasserstein_distance"],
+                marker='o', linewidth=2.5, markersize=6, 
+                label=pair, alpha=0.8)
+    
+    ax.set_xlabel("Coverage", fontsize=12, fontweight="bold")
+    ax.set_ylabel("Wasserstein Distance", fontsize=12, fontweight="bold")
+    ax.set_xscale("log")  # Log scale often better for coverage ranges
+    ax.grid(True, alpha=0.3, linestyle="--")
+    ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=10, framealpha=0.95)
+    
+    plt.tight_layout()
+    plt.savefig("coverage_wasserstein_correlation.png", dpi=300, bbox_inches="tight")
+    print("Saved plot to coverage_wasserstein_correlation.png")
+    plt.show()
+    
+    # Print summary statistics
+    print("\n=== Correlation Summary ===")
+    for pair in sorted(unique_pairs):
+        pair_data = results_df[results_df["treatment_pair"] == pair]
+        pearson_r, pearson_p = pearsonr(pair_data["coverage"], pair_data["wasserstein_distance"])
+        spearman_r, spearman_p = spearmanr(pair_data["coverage"], pair_data["wasserstein_distance"])
+        print(f"\n{pair}:")
+        print(f"  Pearson r: {pearson_r:.4f} (p={pearson_p:.2e})")
+        print(f"  Spearman ρ: {spearman_r:.4f} (p={spearman_p:.2e})")
+        print(f"  Mean Wasserstein distance: {pair_data['wasserstein_distance'].mean():.4f}")
+        print(f"  Coverage range: {pair_data['coverage'].min()}-{pair_data['coverage'].max()}")
+    
+    return results_df

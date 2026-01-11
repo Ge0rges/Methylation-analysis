@@ -168,15 +168,15 @@
           "name": "colwellia_34h",
           "type": "debugpy",
           "request": "launch",
-          "program": "/researchdrive/gkanaan/tools/Methylation-analysis/src/cli.py",
+          "program": "/Users/GeorgesKanaan/Documents/Development/Methylation/src/cli.py",
           "args": [
             "analyze-colwellia",
-            "-f", "/researchdrive/gkanaan/colwellia_methylation/exp/genomes/colwellia_34h.fna",
-            "-b", "/researchdrive/gkanaan/colwellia_methylation/exp/barcode_map.tsv",
-            "-m", "/researchdrive/gkanaan/colwellia_methylation/exp/methylation_data/colwellia_34h",
-            "-o", "/researchdrive/gkanaan/colwellia_methylation/exp/plots/colwellia_34h",
+            "-f", "/Users/GeorgesKanaan/Documents/Development/Methylation/data/colwellia_34h.fna",
+            "-b", "/Users/GeorgesKanaan/Documents/Development/Methylation/data/barcode_map.tsv",
+            "-m", "/Users/GeorgesKanaan/Documents/Development/Methylation/data/colwellia_34h",
+            "-o", "/Users/GeorgesKanaan/Documents/Development/Methylation/plots/colwellia_34h_all",
             "-c", "30",
-            "-g", "/researchdrive/gkanaan/colwellia_methylation/exp/anvio/gene-calls.txt",
+            "-g", "/Users/GeorgesKanaan/Documents/Development/Methylation/data/gene-calls.txt",
             "-t", "RS1",
             "-t", "RS2",
             "-t", "RS14",
@@ -184,27 +184,28 @@
             "-t", "33S1",
             "-t", "33S2",
             "-t", "33S23",
-            "-t", "33S24",
+            // "-t", "33S24",
             "-t", "55S1",
             "-t", "55S2",
             "-t", "55S12",
-            
+  
             // "-t", "RS8",
-            // "-t", "RS9",
+            "-t", "RS9",
             // "-t", "RS11",
             // "-t", "RS12",
-            // "-t", "RS13",
+            "-t", "RS13",
             // "-t", "33S11",
             // "-t", "33S12",
-            // "-t", "55S11",
+            "-t", "55S11",
 
-            "-u", "/researchdrive/gkanaan/colwellia_methylation/exp/anvio/function-calls.txt",
-            "-i", "/researchdrive/gkanaan/colwellia_methylation/exp/treatment_info_map.tsv"
+            "-u", "/Users/GeorgesKanaan/Documents/Development/Methylation/data/function-calls.txt",
+            "-i", "/Users/GeorgesKanaan/Documents/Development/Methylation/data/treatment_info_map_orig.tsv"
           ],
           "console": "integratedTerminal",
           "justMyCode": true,
           "env": {
-            "PYTHONPATH": "${env:PYTHONPATH}:/researchdrive/gkanaan/tools/Methylation-analysis"
+            "PYTHONPATH": "${env:PYTHONPATH}:/Users/GeorgesKanaan/Documents/Development/Methylation",
+            // "OPENBLAS_NUM_THREADS": "8"
           },
         },
         {

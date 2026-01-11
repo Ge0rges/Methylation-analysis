@@ -252,7 +252,7 @@ def load_methylation_data(
 
         # Add a sample column
         methyl_data = methyl_data.with_columns(sample=pl.lit(sample_name))
-
+        
         all_data.append(methyl_data)
 
     if len(all_data) == 0:
@@ -275,7 +275,7 @@ def load_methylation_data(
             & pl.concat_list(modification_types).list.sum().ge(genome.default_coverage)
         )
     )
-
+                
     # Keep only positions that are in all samples
     if in_every_treatment and triplicates_only:
         og_columns = result.collect_schema().names()

@@ -75,23 +75,27 @@ def analyze_colwellia(
     for motif in motifs:
         click.echo(f"Analyzing motif: {motif.motif} (meth_type={motif.meth_type})")
 
-        # # Diagnostic and metadata
-        # plot_number_of_positions_by_coverage_colwellia(motif, output_dir)
+        # Diagnostic and metadata
+        # plot_number_of_positions_by_coverage_colwellia(motif)
+        correlate_coverage_to_wasserstein(motif)
         # write_genbank_features_near_motifs(motif)
-        # plot_motif_methylation_distribution_colwellia(motif, output_dir)        
-
-        # # Whole methylome view 
-        # plot_whole_methylome_colwellia(motif, output_dir)
-        # plot_whole_methylome_colwellia(motif, output_dir, True)                
         
-        # # Motif distribution                
-        # motif_distribution(motif)
-        # motif_functional_enrichment(motif)
+        motif.genome.default_coverage = 100
+        
+        plot_motif_methylation_distribution_colwellia(motif, output_dir)        
+
+        # Whole methylome view 
+        plot_whole_methylome_colwellia(motif, output_dir)
+        plot_whole_methylome_colwellia(motif, output_dir, True)                
+        
+        # Motif distribution                
+        motif_distribution(motif)
+        motif_functional_enrichment(motif)
                                 
         # Statistics
-        # do_whole_methylome_stats(motif, alpha=0.05)
+        do_whole_methylome_stats(motif, alpha=0.05)
         
-        # Promoter
+        # # Promoter
         # ensemble_df = ensemble_significant_features(motif, promoter=True)
         # frac_groups_df = frac_investigation_with_stats(motif, promoter=True)
         # pca_df = annotated_pca(motif, promoter=True)
@@ -107,11 +111,11 @@ def analyze_colwellia(
 
         # Plot statistic heatmap by number of significant comparisons
         plot_site_changes_heatmap(motif)
-        
-        # # Position-specific plots
-        # for pos in [1266992, 5367866, 5027643, 4903080, 4352570, 4001064, 1512639, # promoter
-        #             3716877]: # not a promoter
-        #     position_stats_plots(motif, pos)
+                
+        # Position-specific plots
+        for pos in [4001064, # promoter
+                    3716877]: # not a promoter
+            position_stats_plots(motif, pos)
         
         # plot_stat_dists(motif)
 
